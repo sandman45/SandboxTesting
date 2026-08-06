@@ -25,6 +25,7 @@ dist/
 [Bb]uild/
 [Bb]uilds/
 [Ll]ogs/
+[Uu]ser[Ss]ettings/
 [Mm]emoryCaptures/
 *.pidb
 *.pidb.meta
@@ -33,6 +34,13 @@ dist/
 *.opendb
 *.VC.db
 [Aa]ssets/AssetStoreTools*
+
+# Unity-generated IDE project files (regenerated per-machine)
+*.csproj
+*.sln
+*.slnx
+.vsconfig
+.vs/
 
 # Godot
 .godot/
