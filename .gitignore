@@ -61,7 +61,7 @@ Cargo.lock
 
 # Extracted / converted game assets (do not commit — personal, non-redistributable)
 /assets/wow-extracted/
-/prototypes/wow-sandbox/export/
+/prototypes/wow-sandbox/Assets/WowExports/
 *.mpq
 *.m2
 *.wmo

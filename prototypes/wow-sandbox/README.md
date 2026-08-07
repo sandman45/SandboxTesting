@@ -24,7 +24,7 @@ Prototype: pulling World of Warcraft models (M2/WMO) into Unity via `wow.export`
 5. **First test export** — pick something simple to validate the pipeline before anything complex:
    - Browse Creature or Doodad models, choose a small single-piece model (avoid complex layered gear/armor sets for the first try).
    - Export selected model as **glTF**, with **textures** and **animation** included.
-   - Export destination: `prototypes/wow-sandbox/export/` (already gitignored — raw WoW assets never get committed).
+   - Export destination: `prototypes/wow-sandbox/Assets/WowExports/` (inside `Assets/` so Unity/`wow.unity` picks it up automatically; already gitignored — raw WoW assets never get committed).
    - Try a small WMO (e.g. a simple building interior) as a second test, to validate the WMO group/texture path separately from M2.
 6. Back in Unity, bring the exported glTF + textures into the project (drag into `Assets/`, or use wow.unity's importer per its README). Confirm:
    - Mesh renders with correct materials/textures.
@@ -32,5 +32,5 @@ Prototype: pulling World of Warcraft models (M2/WMO) into Unity via `wow.export`
 
 ## Notes
 
-- `export/` in this folder holds raw wow.export output (glTF + PNG textures) and is **gitignored** — never commit converted WoW assets to this public repo. See the root `.gitignore` and `docs/wow-model-research.md` §5 for the reasoning (personal/non-commercial use only, per Blizzard's EULA).
+- `Assets/WowExports/` holds raw wow.export output (glTF + PNG textures) and is **gitignored** — never commit converted WoW assets to this public repo. See the root `.gitignore` and `docs/wow-model-research.md` §5 for the reasoning (personal/non-commercial use only, per Blizzard's EULA).
 - If/when this outgrows glTF fidelity (WMO portal culling, live M2 particle effects, full ADT terrain streaming), the fallback plan is a custom runtime M2/WMO parser — see "Path B" and the Rust/Bevy runner-up option in the research doc.
