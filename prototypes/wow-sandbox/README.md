@@ -35,6 +35,12 @@ Prototype: pulling World of Warcraft models (M2/WMO) into Unity via `wow.export`
 - **M2 (creature)**: `chicken2` (white) — mesh, textures, skeleton, and animation all confirmed working in a bare scene.
 - **WMO (static world object)**: `gnomehut` — mesh + multi-texture materials confirmed working.
 
+## Open issue — WMO doodads not exported
+
+`gnomehut`'s `.gltf` contains only the building shell nodes (`gnomehut_Ext0-5`, `gnomehut_Int0-10`) — no doodads/furniture, and no accompanying placement manifest file was generated anywhere in the `wow.export` output tree. `wow.unity`'s README says it can "populate WMOs and ADTs with doodads automatically" by parsing "metadata provided from wow.export" that "includes doodad placements" — but doesn't specify which export option produces that metadata, and the wow.export wiki only documents automatic doodad placement through its **Blender add-on** workflow, not the plain glTF export path we're using.
+
+**Next step:** screenshot the WMO/World Models tab's options panel in `wow.export` (the area equivalent to the M2 tab's Geosets/Textures/Animations checkboxes) to check for a doodad-related toggle or a "Sets" panel we haven't spotted yet. If nothing turns up there, check wow.export's global Settings/Config for an "export doodad sets" or "export manifest" option. Worst case, doodads may need exporting as individual M2s (same as the chicken) and be placed manually/by hand-written placement data.
+
 ## Gotchas learned along the way
 
 - **Unity Hub project creation can double-nest the folder.** If "Location" in the New Project dialog already ends in `wow-sandbox`, Hub appends the project name again, producing `wow-sandbox/wow-sandbox/`. Check for this right after creating the project — flatten it before doing any real work if it happened.
