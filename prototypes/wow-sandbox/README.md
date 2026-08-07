@@ -8,9 +8,8 @@ Prototype: pulling World of Warcraft models (M2/WMO) into Unity via `wow.export`
 |---|---|---|
 | WoW retail client | ✅ Already installed | `C:\Program Files (x86)\World of Warcraft\_retail_` |
 | wow.export (portable) | ✅ Already downloaded | `C:\Users\sandm\Tools\wow.export\wow.export.exe` — portable build, no install needed |
-| Unity Hub | ⬜ Install yourself | [unityhub.com](https://unity.com/download), Windows x64 |
-| Unity Editor | ⬜ Install via Hub | **Unity 6000.x LTS**, **URP** 3D template (matches `wow.unity`'s URP 12+ requirement) |
-| wow.unity package | ⬜ Add once project exists | Package Manager → git URL, see below |
+| Unity Hub + Editor | ✅ Installed | Unity 6000.5.7f1, URP 3D template |
+| wow.unity package | ✅ Installed | `wow-export-unityifier.briochie` via git URL (`Packages/manifest.json`) |
 
 ## Setup checklist
 
@@ -30,7 +29,16 @@ Prototype: pulling World of Warcraft models (M2/WMO) into Unity via `wow.export`
    - Mesh renders with correct materials/textures.
    - If the model had animation data, it plays correctly in a bare test scene.
 
-## Notes
+## Status
 
+✅ **Pipeline validated end-to-end**, both asset types:
+- **M2 (creature)**: `chicken2` (white) — mesh, textures, skeleton, and animation all confirmed working in a bare scene.
+- **WMO (static world object)**: `gnomehut` — mesh + multi-texture materials confirmed working.
+
+## Gotchas learned along the way
+
+- **Unity Hub project creation can double-nest the folder.** If "Location" in the New Project dialog already ends in `wow-sandbox`, Hub appends the project name again, producing `wow-sandbox/wow-sandbox/`. Check for this right after creating the project — flatten it before doing any real work if it happened.
+- **M2 exports without a selected animation land on an arbitrary bind/rest pose.** A model can look "broken" (e.g. a chicken with its eye apparently missing) when it's actually just posed mid-animation (e.g. a sleep frame with the eye closed). Play an actual animation clip before concluding a texture/material is wrong.
+- **WMO exports don't bundle their own textures.** WMO tilesets share textures across many buildings, so `wow.export` writes WMO `.gltf` files with image `uri`s pointing several directories up into a shared library (e.g. `../../../../../dungeons/textures/walls/...`) instead of copying files locally. For a self-contained Unity import: copy the specific referenced textures into a local folder next to the `.gltf` (e.g. `textures/`) and rewrite the `images[].uri` entries to the local relative path. Moving just the model's own export folder without doing this silently breaks all its textures.
 - `Assets/WowExports/` holds raw wow.export output (glTF + PNG textures) and is **gitignored** — never commit converted WoW assets to this public repo. See the root `.gitignore` and `docs/wow-model-research.md` §5 for the reasoning (personal/non-commercial use only, per Blizzard's EULA).
 - If/when this outgrows glTF fidelity (WMO portal culling, live M2 particle effects, full ADT terrain streaming), the fallback plan is a custom runtime M2/WMO parser — see "Path B" and the Rust/Bevy runner-up option in the research doc.
