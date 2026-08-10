@@ -38,7 +38,40 @@ Prototype: pulling World of Warcraft models (M2/WMO) into Unity via `wow.export`
 
 ⚙️ **wow.export's output directory is now set to `Assets/WowExports/`**, so exports land in the project automatically — no manual move step.
 
+🎮 **Playable:** the warrior walks around on generated terrain with a WoW-style controller and camera.
+
 **Not yet done:** re-export `gnomehut` as **OBJ** to verify the doodad chain end-to-end (CSV → wow.unity auto-population → furniture in scene). See the format section above for why OBJ is required.
+
+## Playable sandbox
+
+Two editor menu items rebuild the whole playable scene from scratch, so nothing needs hand-wiring in the Inspector:
+
+| Menu item | What it does |
+|---|---|
+| **WoW Sandbox → Spawn Warrior Player** | Builds an AnimatorController from the glTF's clips, then assembles the rig: capsule sized from the model's real bounds, Animator + Avatar wired, camera hooked up, movement speeds scaled to the model's height, and the model child rotated +90° (see the facing gotcha below). |
+| **WoW Sandbox → Generate Terrain** | Procedural Unity Terrain with layered Perlin noise. Flattens a pad at the origin and drops the player onto it. Self-contained — the ground texture is generated in code, so there are no external asset dependencies. |
+
+**Controls** (WoW-style, character-relative — never camera-relative):
+
+| Input | Action |
+|---|---|
+| `W` / `S` | Forward / backpedal along the character's own facing |
+| `A` / `D` | Turn in place — becomes strafe while right-mouse is held |
+| `Q` / `E` | Strafe left / right |
+| `Shift` | Walk (the character runs by default, as in WoW) |
+| Right-drag | Steer the character; camera follows behind |
+| Left-drag | Orbit the camera only; character keeps its facing |
+| Scroll | Zoom |
+| `Space` | Jump (physics only — see below) |
+
+Scripts live in `Assets/Scripts/` (runtime) and `Assets/Editor/` (tooling).
+
+The camera stores its yaw as an **offset from the character's facing** rather than as a world angle. That single choice is what makes all three camera behaviours fall out for free: turning with `A`/`D` or right-drag carries the camera along automatically, while left-drag changes only the offset.
+
+**Known gaps:**
+- **Jump has no animation.** The export contains no jump clip (WoW's JumpStart/JumpEnd weren't included), so the character arcs through the air still playing idle. The `Jump` trigger and `Grounded` bool already exist in the controller, ready for a state once those clips are exported.
+- **Turning in place plays idle**, so the character pivots with their feet planted — there are no turn clips in the export.
+- **Left-click both attacks and orbits the camera.** Harmless in practice since orbiting needs a drag, but move attack to a number key if it grates.
 
 ## Export format: glTF for M2, OBJ for WMO
 
@@ -64,6 +97,7 @@ So the "metadata provided from wow.export" in wow.unity's README *is* that CSV, 
 ## Gotchas learned along the way
 
 - **Unity Hub project creation can double-nest the folder.** If "Location" in the New Project dialog already ends in `wow-sandbox`, Hub appends the project name again, producing `wow-sandbox/wow-sandbox/`. Check for this right after creating the project — flatten it before doing any real work if it happened.
+- **M2 models face -X, not Unity's +Z.** A wow.export glTF character comes in rotated 90° from the direction a Unity `CharacterController` drives it, so pressing forward makes the model appear to run sideways. Fix: set the **model child's** local Y rotation to **+90**, leaving the logic root at 0 — that keeps `transform.forward` honest so the movement code needs no compensating fudge. Handled automatically by `WoW Sandbox → Spawn Warrior Player` (`ModelYawOffset` in `Assets/Editor/WarriorSetup.cs`). Note the *axis* is provable from mesh bounds (models are symmetric about Z, so Z is left/right), but the *sign* is not — centroid heuristics on feet and head both point the wrong way, because the calf bulges rearward and hair/helm mass sits behind the skull. Confirm the sign visually in the editor.
 - **M2 exports without a selected animation land on an arbitrary bind/rest pose.** A model can look "broken" (e.g. a chicken with its eye apparently missing) when it's actually just posed mid-animation (e.g. a sleep frame with the eye closed). Play an actual animation clip before concluding a texture/material is wrong.
 - **WMO exports don't bundle their own textures** (observed on the glTF path; re-check whether the OBJ/MTL path behaves the same). WMO tilesets share textures across many buildings, so `wow.export` writes WMO `.gltf` files with image `uri`s pointing several directories up into a shared library (e.g. `../../../../../dungeons/textures/walls/...`) instead of copying files locally. For a self-contained Unity import: copy the specific referenced textures into a local folder next to the `.gltf` (e.g. `textures/`) and rewrite the `images[].uri` entries to the local relative path. Moving just the model's own export folder without doing this silently breaks all its textures.
 - `Assets/WowExports/` holds raw wow.export output (glTF + PNG textures) and is **gitignored** — never commit converted WoW assets to this public repo. See the root `.gitignore` and `docs/wow-model-research.md` §5 for the reasoning (personal/non-commercial use only, per Blizzard's EULA).
