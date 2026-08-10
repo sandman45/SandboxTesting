@@ -38,7 +38,7 @@ Prototype: pulling World of Warcraft models (M2/WMO) into Unity via `wow.export`
 
 ⚙️ **wow.export's output directory is now set to `Assets/WowExports/`**, so exports land in the project automatically — no manual move step.
 
-🎮 **Playable:** the warrior walks around on generated terrain with a WoW-style controller and camera.
+🎮 **Playable world:** a warrior you control on procedurally generated terrain, under a real WoW sky dome with fog; a gnome hut with collision you can walk inside; and wandering chickens, warriors and thieves routing around it on a baked NavMesh. Every part is rebuildable from the `WoW Sandbox` menu, so the scene itself is disposable.
 
 **Not yet done:** re-export `gnomehut` as **OBJ** to verify the doodad chain end-to-end (CSV → wow.unity auto-population → furniture in scene). See the format section above for why OBJ is required.
 
