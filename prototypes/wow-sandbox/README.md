@@ -50,6 +50,14 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 |---|---|
 | **WoW Sandbox → Spawn Warrior Player** | Builds an AnimatorController from the glTF's clips, then assembles the rig: capsule sized from the model's real bounds, Animator + Avatar wired, camera hooked up, movement speeds scaled to the model's height, and the model child rotated +90° (see the facing gotcha below). |
 | **WoW Sandbox → Generate Terrain** | Procedural Unity Terrain with layered Perlin noise. Flattens a pad at the origin and drops the player onto it. Self-contained — the ground texture is generated in code, so there are no external asset dependencies. |
+| **WoW Sandbox → Fix Terrain Gloss** | Zeroes the albedo alpha on terrain layers in place. Fixes glass-looking ground without regenerating (which would orphan the baked NavMesh). |
+| **WoW Sandbox → Add Mesh Colliders to Selection** | Adds MeshColliders across a whole hierarchy — a WMO is many group meshes, not one. Non-convex, so you can walk *into* buildings. Skips skinned meshes. |
+| **WoW Sandbox → Bake NavMesh** | Creates/updates a NavMeshSurface and bakes. Re-run after moving buildings or regenerating terrain. |
+| **WoW Sandbox → Populate Chickens** | Scatters wandering chickens around the selection, snapped to the NavMesh. |
+| **WoW Sandbox → Spawn Wandering NPCs** | Same, for any M2 glTF you drag in — sized from the model's own bounds. |
+| **WoW Sandbox → Setup Sky and Sun** | Procedural sky plus a matching directional light; ambient comes from the sky. |
+| **WoW Sandbox → Setup Sky Dome** | Rebuilds an exported WoW sky model's cloud layers as transparent, depth-less materials pinned to the camera. |
+| **WoW Sandbox → Set View Distance** | Sets far clip, fog range, and sky dome scale together — they're coupled and can't be set independently. |
 
 **Controls** (WoW-style, character-relative — never camera-relative):
 
@@ -67,6 +75,14 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 Scripts live in `Assets/Scripts/` (runtime) and `Assets/Editor/` (tooling).
 
 The camera stores its yaw as an **offset from the character's facing** rather than as a world angle. That single choice is what makes all three camera behaviours fall out for free: turning with `A`/`D` or right-drag carries the camera along automatically, while left-drag changes only the offset.
+
+### Gotchas worth knowing
+
+- **Sky domes are cloud layers, not a sky.** A WoW skybox is an M2 dome of ~60–75% transparent cloud sheets, meant to composite *over* a sky — not to be one. Rendering them in the `Background` queue leaves the gaps showing the bare camera clear colour. They belong in the `Transparent` queue, drawn after the skybox, with a procedural sky supplying the blue behind. They also carry no `COLOR_0`, so the per-vertex gradient WoW uses for time-of-day tinting isn't in the export.
+- **Sky dome scale doesn't change how the sky looks.** The dome is pinned to the camera, so scaling preserves every angle. It only decides whether the dome gets clipped by the far plane and whether distant terrain correctly occludes it — so it must stay larger than the terrain but inside the far clip. Use *Cloud tiling* and *Height offset* to change the look.
+- **Terrain gloss comes from the albedo's alpha channel.** With no mask map, URP's terrain shader reads smoothness from diffuse alpha and **ignores the TerrainLayer's own Smoothness value** (`m_SmoothnessSource: 1`). Alpha 1 means glass. Zero the alpha, not the slider.
+- **Editor scripts that touch `RenderSettings` or a camera must mark the scene dirty**, or the change is silently lost on reload. Anything applied during Play mode is discarded outright.
+- **Editing an editor script only affects newly spawned objects** — objects already in the scene keep whatever they were built with.
 
 **Known gaps:**
 - **Jump has no animation.** The export contains no jump clip (WoW's JumpStart/JumpEnd weren't included), so the character arcs through the air still playing idle. The `Jump` trigger and `Grounded` bool already exist in the controller, ready for a state once those clips are exported.

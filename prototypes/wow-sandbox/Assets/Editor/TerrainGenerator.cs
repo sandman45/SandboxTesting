@@ -28,6 +28,59 @@ namespace WowSandbox.EditorTools
         float _spawnRadius = 30f;
         bool _movePlayerToSurface = true;
 
+        /// <summary>
+        /// Strips the gloss from terrain already in the scene, without regenerating it
+        /// (which would orphan the baked NavMesh and everything standing on it).
+        ///
+        /// TerrainLayer's own Smoothness value is ignored when SmoothnessSource is set to
+        /// read from the diffuse alpha, which is the default. So the fix is in the texture,
+        /// not the slider: zero the albedo's alpha channel.
+        /// </summary>
+        [MenuItem("WoW Sandbox/Fix Terrain Gloss")]
+        public static void FixTerrainGloss()
+        {
+            int fixedLayers = 0;
+
+            foreach (var terrain in Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None))
+            {
+                var data = terrain.terrainData;
+                if (data == null)
+                    continue;
+
+                foreach (var layer in data.terrainLayers)
+                {
+                    if (layer == null)
+                        continue;
+
+                    layer.smoothness = 0f;
+                    layer.metallic = 0f;
+                    EditorUtility.SetDirty(layer);
+
+                    if (layer.diffuseTexture is not Texture2D texture)
+                        continue;
+
+                    if (!texture.isReadable)
+                    {
+                        Debug.LogWarning($"[TerrainGenerator] \"{texture.name}\" isn't readable, so its " +
+                                         "alpha can't be rewritten. Regenerate the terrain instead.", texture);
+                        continue;
+                    }
+
+                    var pixels = texture.GetPixels();
+                    for (int i = 0; i < pixels.Length; i++)
+                        pixels[i].a = 0f;
+
+                    texture.SetPixels(pixels);
+                    texture.Apply();
+                    EditorUtility.SetDirty(texture);
+                    fixedLayers++;
+                }
+            }
+
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[TerrainGenerator] Removed gloss from {fixedLayers} terrain layer(s).");
+        }
+
         [MenuItem("WoW Sandbox/Generate Terrain")]
         public static void ShowWindow()
         {
@@ -200,10 +253,15 @@ namespace WowSandbox.EditorTools
                     float n = Mathf.PerlinNoise((x + offset) * 0.08f, (y + offset) * 0.08f);
                     float fine = Mathf.PerlinNoise((x + offset) * 0.31f, (y + offset) * 0.31f);
                     float t = Mathf.Clamp01(n * 0.7f + fine * 0.3f);
-                    pixels[y * texSize + x] = Color.Lerp(
+                    var ground = Color.Lerp(
                         new Color(0.29f, 0.36f, 0.18f),
                         new Color(0.46f, 0.53f, 0.28f),
                         t);
+                    // Alpha is smoothness here, not transparency: with no mask map, URP's
+                    // terrain shader reads gloss from the albedo's alpha. Leaving it at 1
+                    // makes the ground look like polished glass.
+                    ground.a = 0f;
+                    pixels[y * texSize + x] = ground;
                 }
             }
 
@@ -216,7 +274,10 @@ namespace WowSandbox.EditorTools
             var layer = new TerrainLayer
             {
                 diffuseTexture = texture,
-                tileSize = new Vector2(12f, 12f)
+                tileSize = new Vector2(12f, 12f),
+                // Dirt and grass are rough. Belt and braces alongside the alpha above.
+                smoothness = 0f,
+                metallic = 0f
             };
             AssetDatabase.CreateAsset(layer,
                 AssetDatabase.GenerateUniqueAssetPath($"{OutputRoot}/GroundLayer.terrainlayer"));
