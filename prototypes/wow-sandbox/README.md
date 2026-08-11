@@ -38,7 +38,7 @@ Prototype: pulling World of Warcraft models (M2/WMO) into Unity via `wow.export`
 
 ⚙️ **wow.export's output directory is now set to `Assets/WowExports/`**, so exports land in the project automatically — no manual move step.
 
-🎮 **Playable world:** a warrior you control on procedurally generated terrain, under a real WoW sky dome with fog; a gnome hut with collision you can walk inside; and wandering chickens, warriors and thieves routing around it on a baked NavMesh. Every part is rebuildable from the `WoW Sandbox` menu, so the scene itself is disposable.
+🎮 **Playable world:** a warrior you control on procedurally generated terrain, under a real WoW sky dome with fog; a gnome hut with collision you can walk inside; lakes you can swim in, with an underwater view; and wandering chickens, warriors and thieves routing around it all on a baked NavMesh. Every part is rebuildable from the `WoW Sandbox` menu, so the scene itself is disposable.
 
 **Not yet done:** re-export `gnomehut` as **OBJ** to verify the doodad chain end-to-end (CSV → wow.unity auto-population → furniture in scene). See the format section above for why OBJ is required.
 
@@ -51,13 +51,15 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | **WoW Sandbox → Spawn Warrior Player** | Builds an AnimatorController from the glTF's clips, then assembles the rig: capsule sized from the model's real bounds, Animator + Avatar wired, camera hooked up, movement speeds scaled to the model's height, and the model child rotated +90° (see the facing gotcha below). |
 | **WoW Sandbox → Generate Terrain** | Procedural Unity Terrain with layered Perlin noise. Flattens a pad at the origin and drops the player onto it. Self-contained — the ground texture is generated in code, so there are no external asset dependencies. |
 | **WoW Sandbox → Fix Terrain Gloss** | Zeroes the albedo alpha on terrain layers in place. Fixes glass-looking ground without regenerating (which would orphan the baked NavMesh). |
-| **WoW Sandbox → Add Mesh Colliders to Selection** | Adds MeshColliders across a whole hierarchy — a WMO is many group meshes, not one. Non-convex, so you can walk *into* buildings. Skips skinned meshes. |
-| **WoW Sandbox → Bake NavMesh** | Creates/updates a NavMeshSurface and bakes. Re-run after moving buildings or regenerating terrain. |
+| **WoW Sandbox → Add Mesh Colliders to Selection** | Adds MeshColliders across a whole hierarchy — a WMO is many group meshes, not one. Non-convex, so you can walk *into* buildings. Skips skinned meshes, and skips foliage geosets so trees collide on the trunk rather than on their leaf cards. |
+| **WoW Sandbox → Add Colliders to All Scenery** | Same, swept across the whole scene instead of the selection — the step that actually gets missed after placing a batch of doodads. Idempotent. Skips the water surface, the sky dome and anything belonging to a character. |
+| **WoW Sandbox → Bake NavMesh** | Creates/updates a NavMeshSurface and bakes. Re-run after moving buildings or regenerating terrain. **This does not stop the player** — see below. |
 | **WoW Sandbox → Populate Chickens** | Scatters wandering chickens around the selection, snapped to the NavMesh. |
 | **WoW Sandbox → Spawn Wandering NPCs** | Same, for any M2 glTF you drag in — sized from the model's own bounds. |
 | **WoW Sandbox → Setup Sky and Sun** | Procedural sky plus a matching directional light; ambient comes from the sky. |
 | **WoW Sandbox → Setup Sky Dome** | Rebuilds an exported WoW sky model's cloud layers as transparent, depth-less materials pinned to the camera. |
 | **WoW Sandbox → Set View Distance** | Sets far clip, fog range, and sky dome scale together — they're coupled and can't be set independently. |
+| **WoW Sandbox → Setup Water** | Floods the terrain to a sea level given as a fraction of its height. Builds the wave mesh, generates the ripple normal maps in code, adds the `WaterVolume` the swim code reads, puts `UnderwaterEffect` on the camera, and marks the submerged terrain unwalkable. Re-bake the NavMesh afterwards. |
 
 **Controls** (WoW-style, character-relative — never camera-relative):
 
@@ -70,7 +72,10 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | Right-drag | Steer the character; camera follows behind |
 | Left-drag | Orbit the camera only; character keeps its facing |
 | Scroll | Zoom |
-| `Space` | Jump (physics only — see below) |
+| `Space` | Jump (physics only — see below) — swims **up** while in water |
+| `X` | Swim **down** (in water only) |
+
+Walk into water deep enough to reach your chest and the character switches to swimming: gravity is replaced by buoyancy, so you float at the surface when you stop, and the `Swim`/`SwimIdle` clips (WoW animation IDs 42 and 41) take over. Duck the camera under the surface for the underwater view.
 
 Scripts live in `Assets/Scripts/` (runtime) and `Assets/Editor/` (tooling).
 
@@ -83,6 +88,13 @@ The camera stores its yaw as an **offset from the character's facing** rather th
 - **Terrain gloss comes from the albedo's alpha channel.** With no mask map, URP's terrain shader reads smoothness from diffuse alpha and **ignores the TerrainLayer's own Smoothness value** (`m_SmoothnessSource: 1`). Alpha 1 means glass. Zero the alpha, not the slider.
 - **Editor scripts that touch `RenderSettings` or a camera must mark the scene dirty**, or the change is silently lost on reload. Anything applied during Play mode is discarded outright.
 - **Editing an editor script only affects newly spawned objects** — objects already in the scene keep whatever they were built with.
+- **Water needs `Cull Off`, not back-face culling.** You swim *under* the surface, and a one-sided plane vanishes the moment the camera dips below it. The fragment shader flips the normal on back faces (`SV_IsFrontFace`) so fresnel and specular stay correct from underneath, and tints the underside separately — there's no sky down there to reflect.
+- **Water refraction needs the URP asset's Opaque Texture.** `PC_RPAsset` has both Opaque and Depth Texture on; `Mobile_RPAsset` has neither. Without Depth Texture the depth colour ramp and shoreline foam collapse to a flat sheet, so `Setup Water` checks the active asset and warns by name rather than shipping a silently broken material.
+- **The NavMeshSurface bakes render meshes across the whole scene**, so the water plane itself would bake as a walkable floor and NPCs would stroll across the lake. The surface carries a `NavMeshModifier` with `ignoreFromBuild` for that, which is a *separate* fix from the `NavMeshModifierVolume` that marks the submerged terrain unwalkable. Both are needed.
+- **The NavMesh does not stop the player.** It only constrains `NavMeshAgent` NPCs. The player is a `CharacterController`, which is stopped by physics colliders and nothing else — so baking a NavMesh around new trees and rocks makes the chickens route around them while you keep walking straight through. Colliders stop you, the NavMesh stops them, and both are wanted.
+- **Every M2 is skinned, even a boulder.** M2 geosets carry `JOINTS_0`/`WEIGHTS_0` and import as `SkinnedMeshRenderer` with **no MeshFilter**, so a MeshFilter-only collider sweep silently misses every tree and rock while the WMO hut — which has no skeleton — works fine. That exact split is the tell. Their single animation has zero channels, so the mesh never deforms and `BakeMesh` on the rest pose gives an exact collider. Don't filter scenery by "has an Animator" either: glTFast puts one on every M2, doodads included.
+- **Collide tree trunks, not tree leaves — but only on M2s.** M2 doodads split into one geoset per material, so a palm arrives as a `_wood_` mesh and a `_fronds_` mesh; a MeshCollider on the fronds puts invisible walls out in the air wherever the leaf cards hang. The collider tool matches material names against a foliage word list and skips those geosets. **WMOs are exempt**, because there the same words mean architecture: `12tr_amani_hut01`'s roof is built from `mat_12tr_amani_leafy_roof_01` and `mat_12tr_amani_leafs_01`, and skipping those drops you through the hut's roof.
+- **Code-generated normal maps must be unpacked as plain RGB.** A `Texture2D` created in code never passes through a `TextureImporter`, so it can't be tagged as a normal map — `UnpackNormal` would decode it as DXT5nm on desktop (x from alpha, y from green). The water shader calls `UnpackNormalRGB` explicitly.
 
 **Known gaps:**
 - **Jump has no animation.** The export contains no jump clip (WoW's JumpStart/JumpEnd weren't included), so the character arcs through the air still playing idle. The `Jump` trigger and `Grounded` bool already exist in the controller, ready for a state once those clips are exported.
