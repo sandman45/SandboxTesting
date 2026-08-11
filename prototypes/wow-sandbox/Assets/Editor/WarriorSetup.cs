@@ -41,6 +41,12 @@ namespace WowSandbox.EditorTools
         const string RunClip = "Run";
         const string AttackClip = "Attack1H";
 
+        // The warrior ships SwimIdle (ID 41) and Swim (ID 42). Note that CopyClip matches on
+        // the prefix plus a SPACE — that trailing space is the only thing stopping "Swim" from
+        // also matching "SwimIdle (ID 41 variation 0)". Don't tidy it away.
+        const string SwimIdleClip = "SwimIdle";
+        const string SwimClip = "Swim";
+
         [MenuItem("WoW Sandbox/Build Warrior Animator")]
         public static void BuildAnimator()
         {
@@ -88,6 +94,8 @@ namespace WowSandbox.EditorTools
                 animator.avatar = avatar;
 
             var movement = root.AddComponent<WowCharacterController>();
+            // The model child carries the facing offset above and the swim pitch at runtime.
+            movement.modelRoot = instance.transform;
 
             var camera = Camera.main;
             if (camera == null)
@@ -110,13 +118,15 @@ namespace WowSandbox.EditorTools
             float scale = height / 1.8f;
             movement.runSpeed *= scale;
             movement.walkSpeed *= scale;
+            movement.swimSpeed *= scale;
             movement.jumpHeight *= scale;
             movement.gravity *= scale;
 
             Undo.RegisterCreatedObjectUndo(root, "Spawn Warrior Player");
             Selection.activeGameObject = root;
             Debug.Log($"[WarriorSetup] Spawned WarriorPlayer (model height {height:F2} units). " +
-                      "Press Play: W/S move, A/D turn, Q/E strafe, right-drag steers, left-drag orbits.");
+                      "Press Play: W/S move, A/D turn, Q/E strafe, right-drag steers, left-drag orbits. " +
+                      "In water: Space swims up, X swims down.");
         }
 
         static AnimatorController BuildAnimatorController()
@@ -135,6 +145,8 @@ namespace WowSandbox.EditorTools
             var walk = CopyClip(clips, WalkClip, loop: true);
             var run = CopyClip(clips, RunClip, loop: true);
             var attack = CopyClip(clips, AttackClip, loop: false);
+            var swimIdle = CopyClip(clips, SwimIdleClip, loop: true);
+            var swim = CopyClip(clips, SwimClip, loop: true);
 
             if (idle == null || walk == null || run == null)
             {
@@ -151,6 +163,7 @@ namespace WowSandbox.EditorTools
             controller.AddParameter("Grounded", AnimatorControllerParameterType.Bool);
             controller.AddParameter("Jump", AnimatorControllerParameterType.Trigger);
             controller.AddParameter("Attack", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("Swimming", AnimatorControllerParameterType.Bool);
 
             var stateMachine = controller.layers[0].stateMachine;
 
@@ -162,6 +175,34 @@ namespace WowSandbox.EditorTools
             tree.AddChild(walk, 0.5f);
             tree.AddChild(run, 1f);
             stateMachine.defaultState = locomotion;
+
+            // Swimming is a second locomotion tree on the same Speed parameter, so the
+            // controller drives one value and the state decides what it means.
+            if (swimIdle != null && swim != null)
+            {
+                var swimming = controller.CreateBlendTreeInController("Swim", out BlendTree swimTree);
+                swimTree.blendType = BlendTreeType.Simple1D;
+                swimTree.blendParameter = "Speed";
+                swimTree.useAutomaticThresholds = false;
+                swimTree.AddChild(swimIdle, 0f);
+                swimTree.AddChild(swim, 1f);
+
+                var intoWater = locomotion.AddTransition(swimming);
+                intoWater.AddCondition(AnimatorConditionMode.If, 0f, "Swimming");
+                intoWater.hasExitTime = false;
+                intoWater.duration = 0.25f;
+
+                var outOfWater = swimming.AddTransition(locomotion);
+                outOfWater.AddCondition(AnimatorConditionMode.IfNot, 0f, "Swimming");
+                outOfWater.hasExitTime = false;
+                outOfWater.duration = 0.25f;
+            }
+            else
+            {
+                Debug.LogWarning("[WarriorSetup] No SwimIdle/Swim clips in the model — swimming " +
+                                 "will work but the character will keep running on the spot. " +
+                                 "Re-export with animations 41 and 42 included.");
+            }
 
             if (attack != null)
             {

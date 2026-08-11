@@ -62,6 +62,9 @@ Cargo.lock
 # Generated terrain (large binaries, regenerable from the seed in TerrainGenerator)
 /prototypes/wow-sandbox/Assets/Terrain/
 
+# Generated water mesh, ripple normal maps and material (regenerable from WaterSetup)
+/prototypes/wow-sandbox/Assets/Water/
+
 # Extracted / converted game assets (do not commit — personal, non-redistributable)
 /assets/wow-extracted/
 /prototypes/wow-sandbox/Assets/WowExports/
