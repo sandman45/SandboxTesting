@@ -106,6 +106,8 @@ namespace WowSandbox.EditorTools
             sun.shadows = LightShadows.Soft;
             RenderSettings.sun = sun;
 
+            EnsureCameraShowsSky();
+
             DynamicGI.UpdateEnvironment();
             AssetDatabase.SaveAssets();
 
@@ -117,6 +119,34 @@ namespace WowSandbox.EditorTools
                 Debug.LogWarning("[SkyboxSetup] Applied during Play mode — Unity discards these on " +
                                  "exit. Re-apply in Edit mode to make it stick.");
             Debug.Log($"[SkyboxSetup] Sky material at {path}; sun set to pitch {_sunPitch:F0}, yaw {_sunYaw:F0}.");
+        }
+
+        /// <summary>
+        /// Assigning RenderSettings.skybox isn't enough on its own: a camera set to clear to a
+        /// solid colour never draws the skybox at all, so a perfectly good sky material still
+        /// renders as flat black behind the cloud dome. The two halves live in different
+        /// places — lighting settings and the camera — so this tool owns both rather than
+        /// leaving half the job to Setup Sky Dome.
+        /// </summary>
+        static void EnsureCameraShowsSky()
+        {
+            var camera = Camera.main;
+            if (camera == null)
+            {
+                Debug.LogWarning("[SkyboxSetup] No camera tagged MainCamera, so the sky may not " +
+                                 "be visible — set its Clear Flags to Skybox by hand.");
+                return;
+            }
+
+            if (camera.clearFlags == CameraClearFlags.Skybox)
+                return;
+
+            var previous = camera.clearFlags;
+            Undo.RecordObject(camera, "Setup Sky and Sun");
+            camera.clearFlags = CameraClearFlags.Skybox;
+
+            Debug.Log($"[SkyboxSetup] \"{camera.name}\" was clearing to {previous}, which is what " +
+                      "showed as black behind the clouds. Switched it to Skybox.", camera);
         }
 
         static Light FindOrCreateSun()
