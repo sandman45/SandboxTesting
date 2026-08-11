@@ -192,8 +192,10 @@ namespace WowSandbox.EditorTools
             renderer.receiveShadows = false;
             renderer.lightProbeUsage = LightProbeUsage.Off;
 
+            // No surface height to set — WaterVolume reads it from this transform, which is
+            // already positioned at sea level. That's what lets you drag the water up or down
+            // afterwards without the swim check being left behind at the old height.
             var volume = go.AddComponent<WaterVolume>();
-            volume.surfaceY = surfaceY;
             volume.extents = new Vector2(width * 0.5f, length * 0.5f);
             volume.depth = Mathf.Max(surfaceY - terrainOrigin.y, 1f) + 50f;
 

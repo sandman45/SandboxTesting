@@ -33,14 +33,17 @@ namespace WowSandbox
         public float swimSpeed = 4f;
         [Tooltip("Vertical speed from the ascend/descend keys, as a fraction of swim speed.")]
         [Range(0.1f, 1.5f)] public float verticalSwimFactor = 0.7f;
-        [Tooltip("Start swimming once the water is this far up the capsule. 0.65 is roughly " +
-                 "chest height, which is where WoW switches over.")]
-        [Range(0.3f, 1f)] public float swimEnterHeight = 0.65f;
+        [Tooltip("Start swimming once the water is this far up the capsule, measured from the " +
+                 "feet. 0.45 is roughly waist height. Select the player to see both thresholds " +
+                 "drawn as rings in the scene view.")]
+        [Range(0.3f, 1f)] public float swimEnterHeight = 0.45f;
         [Tooltip("Stop swimming once the water drops to this fraction. Lower than the enter " +
                  "threshold on purpose — without the gap you flicker in and out at the waterline.")]
-        [Range(0.2f, 0.9f)] public float swimExitHeight = 0.5f;
-        [Tooltip("How hard you're pulled back to the surface when you stop swimming up or down.")]
-        public float buoyancy = 3f;
+        [Range(0.2f, 0.9f)] public float swimExitHeight = 0.35f;
+        [Tooltip("How fast you drop onto the surface when you're above it — after jumping in " +
+                 "from a ledge, say. Below the surface you hold depth instead; Space is the " +
+                 "only thing that raises you.")]
+        public float settleSpeed = 3f;
         [Tooltip("Degrees the model tips forward while swimming. Purely cosmetic.")]
         public float swimPitch = 45f;
 
@@ -96,6 +99,42 @@ namespace WowSandbox
                                  "has no Swimming parameter, so the swim animation won't play — " +
                                  "swimming itself still works. Re-run WoW Sandbox → Spawn Warrior " +
                                  "Player to rebuild the controller.", this);
+            }
+        }
+
+        /// <summary>
+        /// Draws the two swim thresholds as rings around the capsule, so "where does swimming
+        /// start" is a thing you can see against the water plane rather than a number you have
+        /// to infer. Cyan is the entry height, dimmer blue is the exit height below it.
+        /// </summary>
+        void OnDrawGizmosSelected()
+        {
+            var controller = GetComponent<CharacterController>();
+            if (controller == null)
+                return;
+
+            DrawThresholdRing(controller, swimEnterHeight, Color.cyan);
+            DrawThresholdRing(controller, Mathf.Min(swimExitHeight, swimEnterHeight),
+                              new Color(0.2f, 0.5f, 0.7f));
+        }
+
+        void DrawThresholdRing(CharacterController controller, float fraction, Color color)
+        {
+            Gizmos.color = color;
+
+            Vector3 centre = transform.position + Vector3.up * (controller.height * fraction);
+            float radius = Mathf.Max(controller.radius * 1.6f, 0.2f);
+
+            const int segments = 24;
+            Vector3 previous = centre + new Vector3(radius, 0f, 0f);
+
+            for (int i = 1; i <= segments; i++)
+            {
+                float angle = i / (float)segments * Mathf.PI * 2f;
+                Vector3 next = centre + new Vector3(Mathf.Cos(angle) * radius, 0f,
+                                                    Mathf.Sin(angle) * radius);
+                Gizmos.DrawLine(previous, next);
+                previous = next;
             }
         }
 
@@ -219,7 +258,7 @@ namespace WowSandbox
             }
 
             // transform.position is at the feet, so this is how much of the body is under.
-            float submerged = water.surfaceY - transform.position.y;
+            float submerged = water.SurfaceY - transform.position.y;
             float fraction = submerged / Mathf.Max(_controller.height, 0.001f);
 
             if (!_swimming && fraction >= swimEnterHeight)
@@ -237,16 +276,16 @@ namespace WowSandbox
         }
 
         /// <summary>
-        /// Vertical speed while swimming: Space rises, X sinks, and with neither held you
-        /// drift back to floating with your head at the surface. Gravity is not involved —
-        /// buoyancy replaces it outright, which is what stops you sinking while idle.
+        /// Vertical speed while swimming: Space rises, X sinks, and with neither held you hold
+        /// the depth you stopped at. Gravity is not involved at all below the surface, which
+        /// is what makes holding depth possible.
         /// </summary>
         float SwimVertical(Keyboard keyboard, WaterVolume water)
         {
             float verticalSpeed = swimSpeed * verticalSwimFactor;
 
             // Floating height: eyes at the waterline rather than the whole capsule under it.
-            float floatY = water.surfaceY - _controller.height * 0.85f;
+            float floatY = water.SurfaceY - _controller.height * 0.85f;
 
             float input = 0f;
             if (keyboard.spaceKey.isPressed) input += 1f;
@@ -261,8 +300,17 @@ namespace WowSandbox
                 return input * verticalSpeed;
             }
 
-            float error = floatY - transform.position.y;
-            return Mathf.Clamp(error * buoyancy, -verticalSpeed, verticalSpeed);
+            // No key held: hold depth. Rising is Space's job and nothing else's, so there is
+            // deliberately no buoyancy pulling you back up — you stay where you stopped.
+            //
+            // The one exception is being above the float line, which happens when you jump
+            // in from a ledge or wade off a shelf. Holding depth there would leave you
+            // hanging in the air over the water, so you settle down onto the surface.
+            float aboveSurface = transform.position.y - floatY;
+            if (aboveSurface > 0.01f)
+                return -Mathf.Min(aboveSurface * settleSpeed, verticalSpeed);
+
+            return 0f;
         }
 
         /// <summary>

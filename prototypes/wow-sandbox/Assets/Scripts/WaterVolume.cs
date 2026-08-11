@@ -17,9 +17,16 @@ namespace WowSandbox
     [DisallowMultipleComponent]
     public class WaterVolume : MonoBehaviour
     {
-        [Tooltip("World-space Y of the flat water surface. The shader's waves ripple around " +
-                 "this height; gameplay treats it as flat.")]
-        public float surfaceY;
+        /// <summary>
+        /// World-space Y of the flat water surface — taken from the transform, never stored.
+        ///
+        /// This used to be a serialized field that WaterSetup wrote at build time, which meant
+        /// dragging the water up or down in the scene moved the visible mesh while gameplay
+        /// kept testing against the old height: you'd wade well past your head before swimming
+        /// engaged. The transform is the single source of truth, so moving the water now just
+        /// works. The shader's waves ripple around this height; gameplay treats it as flat.
+        /// </summary>
+        public float SurfaceY => transform.position.y;
 
         [Tooltip("Half-extents on X and Z, measured from this object's position.")]
         public Vector2 extents = new Vector2(250f, 250f);
@@ -40,8 +47,8 @@ namespace WowSandbox
 
             return Mathf.Abs(local.x) <= extents.x
                 && Mathf.Abs(local.z) <= extents.y
-                && worldPoint.y <= surfaceY
-                && worldPoint.y >= surfaceY - depth;
+                && worldPoint.y <= SurfaceY
+                && worldPoint.y >= SurfaceY - depth;
         }
 
         /// <summary>
@@ -66,13 +73,13 @@ namespace WowSandbox
         public static float SubmersionDepth(Vector3 worldPoint)
         {
             var volume = Containing(worldPoint);
-            return volume == null ? 0f : volume.surfaceY - worldPoint.y;
+            return volume == null ? 0f : volume.SurfaceY - worldPoint.y;
         }
 
         void OnDrawGizmosSelected()
         {
             Gizmos.color = new Color(0.2f, 0.6f, 0.9f, 0.35f);
-            var centre = new Vector3(transform.position.x, surfaceY - depth * 0.5f, transform.position.z);
+            var centre = new Vector3(transform.position.x, SurfaceY - depth * 0.5f, transform.position.z);
             Gizmos.DrawWireCube(centre, new Vector3(extents.x * 2f, depth, extents.y * 2f));
         }
     }
