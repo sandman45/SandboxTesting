@@ -44,8 +44,11 @@ namespace WowSandbox
                  "from a ledge, say. Below the surface you hold depth instead; Space is the " +
                  "only thing that raises you.")]
         public float settleSpeed = 3f;
-        [Tooltip("Degrees the model tips forward while swimming. Purely cosmetic.")]
-        public float swimPitch = 45f;
+        [Tooltip("Degrees the model tips forward while swimming. 90 would be fully horizontal, " +
+                 "but that points the model's face straight down rather than along the " +
+                 "direction of travel, so 0 (upright) reads better without a dedicated swim " +
+                 "animation. Purely cosmetic.")]
+        public float swimPitch = 0f;
 
         [Header("Animation")]
         [Tooltip("Blend tree thresholds are 0 = idle, 0.5 = walk, 1 = run.")]

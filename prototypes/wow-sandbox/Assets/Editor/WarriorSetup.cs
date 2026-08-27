@@ -96,6 +96,11 @@ namespace WowSandbox.EditorTools
             var movement = root.AddComponent<WowCharacterController>();
             // The model child carries the facing offset above and the swim pitch at runtime.
             movement.modelRoot = instance.transform;
+            // Set explicitly rather than relying on the component default, so a re-import
+            // keeps the tuned swim pose even if that default changes later.
+            movement.swimPitch = 0f;
+
+            root.AddComponent<BreathController>();
 
             var camera = Camera.main;
             if (camera == null)
