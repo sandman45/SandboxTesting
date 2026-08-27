@@ -100,7 +100,10 @@ namespace WowSandbox.EditorTools
             // keeps the tuned swim pose even if that default changes later.
             movement.swimPitch = 0f;
 
+            root.AddComponent<HealthController>();
             root.AddComponent<BreathController>();
+            root.AddComponent<TargetingController>();
+            root.AddComponent<TargetFrameHud>();
 
             var camera = Camera.main;
             if (camera == null)
@@ -126,11 +129,13 @@ namespace WowSandbox.EditorTools
             movement.swimSpeed *= scale;
             movement.jumpHeight *= scale;
             movement.gravity *= scale;
+            movement.attackRange *= scale;
 
             Undo.RegisterCreatedObjectUndo(root, "Spawn Warrior Player");
             Selection.activeGameObject = root;
             Debug.Log($"[WarriorSetup] Spawned WarriorPlayer (model height {height:F2} units). " +
-                      "Press Play: W/S move, A/D turn, Q/E strafe, right-drag steers, left-drag orbits. " +
+                      "Press Play: W/S move, A/D turn, Q/E strafe, right-drag steers, left-drag orbits, " +
+                      "left-click targets, 1 attacks. " +
                       "In water: Space swims up, X swims down.");
         }
 

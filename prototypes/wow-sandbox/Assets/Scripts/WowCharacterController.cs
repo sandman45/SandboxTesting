@@ -50,6 +50,15 @@ namespace WowSandbox
                  "animation. Purely cosmetic.")]
         public float swimPitch = 0f;
 
+        [Header("Combat")]
+        [Tooltip("Melee range. Scaled to the model's height by WarriorSetup, same as the " +
+                 "movement speeds.")]
+        public float attackRange = 3f;
+        [Tooltip("Half-angle of the frontal cone your target has to be inside, in degrees. " +
+                 "90 means anywhere in front of you; 180 would let you hit things behind you.")]
+        [Range(10f, 180f)] public float attackAngle = 100f;
+        public float attackDamage = 10f;
+
         [Header("Animation")]
         [Tooltip("Blend tree thresholds are 0 = idle, 0.5 = walk, 1 = run.")]
         public float animationDamping = 0.12f;
@@ -58,6 +67,7 @@ namespace WowSandbox
         public Transform modelRoot;
 
         CharacterController _controller;
+        TargetingController _targeting;
         Animator _animator;
         float _verticalVelocity;
         float _animSpeed;
@@ -82,6 +92,9 @@ namespace WowSandbox
         void Awake()
         {
             _controller = GetComponent<CharacterController>();
+            // Optional: an older player rig without TargetingController still attacks, it
+            // just never lands a hit — see TryAttackTarget.
+            _targeting = GetComponent<TargetingController>();
             // The Animator usually lives on the imported glTF child, not the root.
             _animator = GetComponentInChildren<Animator>();
 
@@ -234,9 +247,14 @@ namespace WowSandbox
             _controller.Move(move * Time.deltaTime);
 
             // --- Attack -----------------------------------------------------
-            // Left click only attacks when it isn't being used to orbit the camera.
-            if (mouse != null && mouse.leftButton.wasPressedThisFrame && !IsSteering && _animator != null)
-                _animator.SetTrigger(AttackHash);
+            // Was left click, but that's now spoken for by TargetingController — left click
+            // selects a target, 1 swings at it.
+            if (keyboard.digit1Key.wasPressedThisFrame)
+            {
+                if (_animator != null)
+                    _animator.SetTrigger(AttackHash);
+                TryAttackTarget();
+            }
 
             UpdateModelPitch();
             UpdateAnimator(grounded, walking, forward, strafe);
@@ -314,6 +332,33 @@ namespace WowSandbox
                 return -Mathf.Min(aboveSurface * settleSpeed, verticalSpeed);
 
             return 0f;
+        }
+
+        /// <summary>
+        /// Lands the swing on TargetingController's current target, if there is one, it's
+        /// within attackRange, and it's inside the frontal cone attackAngle describes.
+        /// Whiffing (no target, too far, or facing the wrong way) still plays the animation
+        /// above — this only decides whether it also deals damage.
+        /// </summary>
+        void TryAttackTarget()
+        {
+            var target = _targeting != null ? _targeting.Target : null;
+            if (target == null)
+                return;
+
+            Vector3 toTarget = target.transform.position - transform.position;
+            toTarget.y = 0f;
+
+            float distance = toTarget.magnitude;
+            if (distance > attackRange)
+                return;
+
+            // A target standing exactly on top of you has no meaningful direction to be
+            // "in front" in — let it through rather than dividing by a near-zero vector.
+            if (distance > 0.01f && Vector3.Angle(transform.forward, toTarget) > attackAngle * 0.5f)
+                return;
+
+            target.TakeDamage(attackDamage);
         }
 
         /// <summary>

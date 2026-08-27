@@ -5,7 +5,8 @@ namespace WowSandbox
 {
     /// <summary>
     /// Held breath while the head is underwater. Drains while submerged, refills at the
-    /// surface, and respawns you at your last non-submerged position if it runs out.
+    /// surface, and once it runs out feeds damage into HealthController for as long as
+    /// you stay under — dying, and the respawn that follows, is that component's call.
     ///
     /// Submersion is measured independently of WowCharacterController's swim state —
     /// swimming starts at the waist so you can wade and swim with your head in the air.
@@ -27,6 +28,10 @@ namespace WowSandbox
         public float refillTime = 5f;
         [Tooltip("Fraction of the capsule's height the head sits at, for the submersion check.")]
         [Range(0.5f, 1f)] public float headHeightFraction = 0.92f;
+        [Tooltip("Health lost per second once breath hits zero and you're still under. Only " +
+                 "applies if a HealthController is present; otherwise drowning just respawns " +
+                 "you at the last breath, same as before health existed.")]
+        public float drowningDamagePerSecond = 12f;
 
         [Header("Bar")]
         public Vector2 barSize = new(220f, 18f);
@@ -37,7 +42,10 @@ namespace WowSandbox
         public float fadeSpeed = 4f;
 
         CharacterController _controller;
+        HealthController _health;
         float _breath;
+        // Fallback only: used to respawn directly if there's no HealthController to hand
+        // drowning damage to. Kept updated regardless, so it's ready if that ever happens.
         Vector3 _lastSafePosition;
         Quaternion _lastSafeRotation;
 
@@ -52,6 +60,7 @@ namespace WowSandbox
         void Awake()
         {
             _controller = GetComponent<CharacterController>();
+            _health = GetComponent<HealthController>();
             _breath = maxBreath;
             _lastSafePosition = transform.position;
             _lastSafeRotation = transform.rotation;
@@ -69,7 +78,6 @@ namespace WowSandbox
                 {
                     _breath = 0f;
                     Drown();
-                    submerged = false; // just respawned to a safe spot
                 }
             }
             else
@@ -81,6 +89,9 @@ namespace WowSandbox
 
             UpdateBar(submerged);
         }
+
+        /// <summary>Tops breath back up. Called by HealthController after it respawns you.</summary>
+        public void Refill() => _breath = maxBreath;
 
         bool IsHeadSubmerged()
         {
@@ -95,12 +106,19 @@ namespace WowSandbox
         }
 
         /// <summary>
-        /// Out of air. Rather than a health hit with no health system to spend it against,
-        /// drowning just sends you back to the last spot you had your head above water —
-        /// close enough to "you died, try again" for a prototype with no other death state.
+        /// Out of air. Feeds damage into HealthController for as long as you stay under with
+        /// no breath left — dying is its call to make, and it refills breath via Refill()
+        /// once it respawns you. Without a HealthController this falls back to the old
+        /// behaviour: straight back to the last spot you had your head above water.
         /// </summary>
         void Drown()
         {
+            if (_health != null)
+            {
+                _health.TakeDamage(drowningDamagePerSecond * Time.deltaTime);
+                return;
+            }
+
             Debug.Log("[BreathController] Ran out of air — respawning at the last breath.", this);
 
             _controller.enabled = false;

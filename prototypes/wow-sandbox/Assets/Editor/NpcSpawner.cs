@@ -136,8 +136,17 @@ namespace WowSandbox.EditorTools
             agent.stoppingDistance = 0.15f;
             agent.autoBraking = true;
 
+            // TargetingController raycasts against colliders, not the NavMeshAgent -- with
+            // no physics presence of their own, NPCs would be unclickable.
+            var collider = root.AddComponent<CapsuleCollider>();
+            collider.height = agent.height;
+            collider.radius = agent.radius;
+            collider.center = new Vector3(0f, agent.height * 0.5f, 0f);
+
             var wanderer = root.AddComponent<WanderingNpc>();
             wanderer.wanderRadius = _wanderRadius;
+
+            root.AddComponent<Health>();
 
             if (controller != null)
             {

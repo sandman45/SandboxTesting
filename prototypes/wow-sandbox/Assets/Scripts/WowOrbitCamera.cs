@@ -31,6 +31,10 @@ namespace WowSandbox
         public float maxPitch = 75f;
         [Tooltip("Starting pitch, in degrees below the horizon.")]
         public float startPitch = 15f;
+        [Tooltip("Pixels the left button has to move before it counts as an orbit drag " +
+                 "rather than a click. Below this the cursor stays put, so left-clicking to " +
+                 "target or attack doesn't warp it to the centre of the screen.")]
+        public float leftClickDragThreshold = 4f;
 
         [Header("Collision")]
         public bool avoidGeometry = true;
@@ -41,6 +45,11 @@ namespace WowSandbox
         float _yawOffset;   // degrees, relative to the target's forward
         float _pitch;
         float _currentDistance;
+
+        // Tracks whether the current left-button hold has moved past the click threshold
+        // yet, so a plain click never engages the cursor lock a drag needs.
+        bool _leftDragConfirmed;
+        float _leftDragDistance;
 
         WowCharacterController _character;
 
@@ -60,12 +69,30 @@ namespace WowSandbox
             var mouse = Mouse.current;
             if (mouse != null)
             {
-                bool orbiting = mouse.leftButton.isPressed;
+                bool leftHeld = mouse.leftButton.isPressed;
                 bool steering = mouse.rightButton.isPressed;
+                Vector2 rawDelta = mouse.delta.ReadValue();
+
+                if (mouse.leftButton.wasPressedThisFrame)
+                {
+                    _leftDragConfirmed = false;
+                    _leftDragDistance = 0f;
+                }
+
+                if (leftHeld && !_leftDragConfirmed)
+                {
+                    _leftDragDistance += rawDelta.magnitude;
+                    if (_leftDragDistance >= leftClickDragThreshold)
+                        _leftDragConfirmed = true;
+                }
+
+                // Left only orbits once the hold has proven itself a drag; right always does
+                // — steering has no click-only meaning of its own to protect.
+                bool orbiting = leftHeld && _leftDragConfirmed;
 
                 if (orbiting || steering)
                 {
-                    Vector2 delta = mouse.delta.ReadValue() * mouseSensitivity;
+                    Vector2 delta = rawDelta * mouseSensitivity;
 
                     if (steering)
                     {

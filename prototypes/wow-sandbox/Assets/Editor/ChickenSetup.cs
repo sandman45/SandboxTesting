@@ -116,7 +116,17 @@ namespace WowSandbox.EditorTools
             agent.stoppingDistance = 0.1f;
             agent.autoBraking = true;
 
+            // TargetingController raycasts against colliders, not the NavMeshAgent -- with
+            // no physics presence of their own, chickens would be unclickable.
+            var collider = root.AddComponent<CapsuleCollider>();
+            collider.height = agent.height;
+            collider.radius = agent.radius;
+            collider.center = new Vector3(0f, agent.height * 0.5f, 0f);
+
             root.AddComponent<ChickenWanderer>();
+
+            var health = root.AddComponent<Health>();
+            health.maxHealth = 5f; // chickens are a one-hit kill in WoW too
 
             if (controller != null)
             {
