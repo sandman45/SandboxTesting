@@ -35,13 +35,10 @@ namespace WowSandbox
         Renderer[] _skyDomeRenderers;
         float _blend;
 
-        // Everything we overwrite on RenderSettings, captured before we touch it.
-        bool _fogWasOn;
-        FogMode _fogMode;
-        Color _fogColor;
-        float _fogDensity;
-        float _fogStart;
-        float _fogEnd;
+        // The scene's fog, captured before we touch it. Only used when there's no
+        // StormWeather — with one, the above-water fog changes every frame and the weather
+        // owns it, so restoring this snapshot would snap a storm back to a clear day.
+        StormWeather.FogState _sceneFog;
 
         void Awake()
         {
@@ -98,25 +95,13 @@ namespace WowSandbox
                 Destroy(_profile);
         }
 
-        void CacheRenderSettings()
-        {
-            _fogWasOn = RenderSettings.fog;
-            _fogMode = RenderSettings.fogMode;
-            _fogColor = RenderSettings.fogColor;
-            _fogDensity = RenderSettings.fogDensity;
-            _fogStart = RenderSettings.fogStartDistance;
-            _fogEnd = RenderSettings.fogEndDistance;
-        }
+        void CacheRenderSettings() => _sceneFog = StormWeather.CaptureFog();
 
-        void RestoreRenderSettings()
-        {
-            RenderSettings.fog = _fogWasOn;
-            RenderSettings.fogMode = _fogMode;
-            RenderSettings.fogColor = _fogColor;
-            RenderSettings.fogDensity = _fogDensity;
-            RenderSettings.fogStartDistance = _fogStart;
-            RenderSettings.fogEndDistance = _fogEnd;
-        }
+        /// <summary>What the fog should be above water right now.</summary>
+        StormWeather.FogState AboveWaterFog() =>
+            StormWeather.Active != null ? StormWeather.Active.AboveWaterFog : _sceneFog;
+
+        void RestoreRenderSettings() => StormWeather.Apply(AboveWaterFog());
 
         /// <summary>
         /// Above water the scene keeps its own linear distance fog; below, it swaps to dense
@@ -134,7 +119,7 @@ namespace WowSandbox
 
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogColor = Color.Lerp(_fogColor, underwaterFog, blend);
+            RenderSettings.fogColor = Color.Lerp(AboveWaterFog().color, underwaterFog, blend);
             RenderSettings.fogDensity = Mathf.Lerp(0f, fogDensity, blend);
         }
 

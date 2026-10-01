@@ -145,6 +145,13 @@ Shader "WowSandbox/Water"
             float  _WaveHeight;
             float  _Whitecaps;
 
+            // Globals from StormWeather; zero (no effect) without it. The reflection probe was
+            // captured from the clear sky and doesn't update at runtime, so without these a
+            // storm-black lake would still mirror a bright blue sky.
+            float4 _WeatherOvercastColor;
+            float  _WeatherOvercast;
+            float  _WeatherFlash;
+
             // Sum of crossing waves in world XZ, each a sine reshaped to ((sin+1)/2)^sharpness
             // so storms get sharp crests. Displacement is vertical only, so the surface can be
             // queried at a point -- WaterWaves.HeightAt mirrors this line for line, and that's
@@ -290,7 +297,10 @@ Shader "WowSandbox/Water"
                     // Sampling the probe directly rather than going through
                     // GlossyEnvironmentReflection: we only ever want the sky/probe here, and
                     // the direct call is stable across URP versions.
-                    reflection = DecodeHDREnvironment(encoded, unity_SpecCube0_HDR) * _ReflectionStrength;
+                    reflection = DecodeHDREnvironment(encoded, unity_SpecCube0_HDR);
+                    reflection = lerp(reflection, _WeatherOvercastColor.rgb, _WeatherOvercast);
+                    reflection += _WeatherFlash * half3(0.75, 0.8, 0.95);
+                    reflection *= _ReflectionStrength;
                 }
 
                 // --- Sun specular ----------------------------------------------------

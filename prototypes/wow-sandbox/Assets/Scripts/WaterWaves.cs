@@ -69,8 +69,15 @@ namespace WowSandbox
                  "animate — every setting it blends changes smoothly.")]
         [Range(0f, 1f)] public float stormIntensity;
 
+        /// <summary>
+        /// Set by StormWeather while it's active: it writes stormIntensity every frame and
+        /// owns the build-up, so the three build-up settings below are ignored.
+        /// </summary>
+        [NonSerialized] public bool drivenByWeather;
+
         [Tooltip("On entering Play mode, start at Start intensity and build to a full storm " +
-                 "over Build-up time. Off = Play uses Storm intensity as set above.")]
+                 "over Build-up time. Off = Play uses Storm intensity as set above. Ignored " +
+                 "when a StormWeather is in the scene — it runs the build-up instead.")]
         public bool stormBuildsOnPlay = true;
 
         [Tooltip("Intensity the storm starts at when Play begins.")]
@@ -81,12 +88,12 @@ namespace WowSandbox
 
         public SeaState calm = new SeaState
         {
-            height = 0.3f, choppiness = 0.1f, chaos = 0.2f, speed = 0.8f, whitecaps = 0f, ripples = 0.6f
+            height = 1.5f, choppiness = 0.2f, chaos = 0.2f, speed = 0.9f, whitecaps = 0f, ripples = 0.8f
         };
 
         public SeaState storm = new SeaState
         {
-            height = 3f, choppiness = 0.8f, chaos = 0.7f, speed = 1.3f, whitecaps = 0.7f, ripples = 1.4f
+            height = 5f, choppiness = 0.8f, chaos = 0.7f, speed = 1.3f, whitecaps = 0.7f, ripples = 1.4f
         };
 
         // The wave set itself. These are structural: changing them reshuffles the waves, so
@@ -209,7 +216,7 @@ namespace WowSandbox
         void Start()
         {
             // ExecuteAlways calls Start in Edit mode too; the build-up is a Play-mode thing.
-            if (!Application.isPlaying || !stormBuildsOnPlay)
+            if (!Application.isPlaying || !stormBuildsOnPlay || drivenByWeather)
                 return;
 
             stormIntensity = startIntensity;
@@ -364,6 +371,10 @@ namespace WowSandbox
 
         void Upload(SeaState state)
         {
+            // OnValidate can run after a script reload before OnEnable has: Unity restores
+            // _renderer across the reload (it serializes private fields for that) but not
+            // the property block, which isn't serializable.
+            _block ??= new MaterialPropertyBlock();
             _renderer.GetPropertyBlock(_block);
             _block.SetVectorArray(WaveAId, _waveA);
             _block.SetVectorArray(WaveBId, _waveB);

@@ -70,6 +70,14 @@ Shader "WowSandbox/SkyDome"
                 float4 _ScrollSpeed;
             CBUFFER_END
 
+            // Globals set by StormWeather. All zero -- a clear sky, unchanged -- when there's
+            // no weather in the scene. They're needed because the dome takes no fog: without
+            // them, storm fog would swallow the hills while bright clouds sailed on above.
+            float4 _WeatherOvercastColor;
+            float  _WeatherOvercast;      // 0 = the layer as authored, 1 = heavy grey overcast
+            float  _WeatherFlash;         // lightning, 0..1
+            float  _WeatherCloudOffset;   // extra scroll time, so wind can speed the clouds up
+
             Varyings vert (Attributes IN)
             {
                 Varyings OUT;
@@ -77,14 +85,26 @@ Shader "WowSandbox/SkyDome"
 
                 OUT.positionCS = TransformObjectToHClip(IN.positionOS.xyz);
                 // Drift the clouds. The M2's own bone animation also moves them, but this
-                // works whether or not the animation is playing.
-                OUT.uv = TRANSFORM_TEX(IN.uv, _BaseMap) + _ScrollSpeed.xy * _Time.y;
+                // works whether or not the animation is playing. The weather offset is an
+                // accumulated time rather than a speed multiplier, so the wind picking up
+                // speeds the clouds without jumping them.
+                OUT.uv = TRANSFORM_TEX(IN.uv, _BaseMap) + _ScrollSpeed.xy * (_Time.y + _WeatherCloudOffset);
                 return OUT;
             }
 
             half4 frag (Varyings IN) : SV_Target
             {
-                return SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv) * _BaseColor;
+                half4 color = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv) * _BaseColor;
+
+                // Overcast: pull the layer toward storm grey -- keeping some of the cloud's own
+                // light and dark so it still reads as cloud -- and fill in the clear gaps.
+                half detail = 0.75 + 0.5 * dot(color.rgb, half3(0.299, 0.587, 0.114));
+                color.rgb = lerp(color.rgb, _WeatherOvercastColor.rgb * detail, _WeatherOvercast);
+                color.a = saturate(color.a + _WeatherOvercast * 0.85);
+
+                // Lightning lights the cloud base from below.
+                color.rgb += _WeatherFlash * half3(0.75, 0.8, 0.95);
+                return color;
             }
             ENDHLSL
         }

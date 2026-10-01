@@ -68,6 +68,10 @@ Cargo.lock
 # Extracted / converted game assets (do not commit — personal, non-redistributable)
 /assets/wow-extracted/
 /prototypes/wow-sandbox/Assets/WowExports/
+# Materials wow.unity generates for OBJ imports (WMOs and their doodads). Derived from the
+# exports above and pointing at their textures, so they go wherever WowExports goes.
+/prototypes/wow-sandbox/Assets/Materials/
+/prototypes/wow-sandbox/Assets/Materials.meta
 *.mpq
 *.m2
 *.wmo
