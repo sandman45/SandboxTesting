@@ -41,10 +41,9 @@ Shader "WowSandbox/Water"
         _SpecularPower ("Specular tightness", Range(8, 512)) = 180
         _SpecularStrength ("Specular strength", Range(0, 4)) = 1.4
 
-        [Header(Waves)]
-        _WaveAmplitude ("Wave amplitude", Float) = 0.15
-        _WaveLength ("Wave length", Float) = 9.0
-        _WaveSpeed ("Wave speed", Float) = 0.8
+        // No wave properties here: the WaterWaves component owns the wave set and pushes it
+        // through a MaterialPropertyBlock, because gameplay has to sample the exact same
+        // surface on the CPU. Without that component the water is simply flat.
 
         [Header(Underside)]
         _UnderwaterTint ("Seen from below", Color) = (0.08, 0.28, 0.34, 0.85)
@@ -131,28 +130,59 @@ Shader "WowSandbox/Water"
                 float4 _SpecularColor;
                 float  _SpecularPower;
                 float  _SpecularStrength;
-                float  _WaveAmplitude;
-                float  _WaveLength;
-                float  _WaveSpeed;
                 float4 _UnderwaterTint;
             CBUFFER_END
 
-            // Three crossing sine waves in world XZ. Displacement is vertical only: the
-            // gameplay side (WaterVolume / the swim check) treats the water as a flat plane
-            // at the object's Y, so horizontal Gerstner pinching would put the visible
-            // surface somewhere the swim threshold doesn't agree with. The shading normal
-            // comes from the scrolling normal maps below, not from these waves -- that's
-            // what the eye actually reads, and it keeps this cheap.
-            float WaveHeight(float2 positionXZ)
+            // Set per renderer by WaterWaves, outside the material cbuffer because they're
+            // not material properties. All zero (flat water) when that component is absent.
+            #define MAX_WAVES 16
+            float4 _WaveA[MAX_WAVES];   // xy = direction, z = wavenumber k, w = angular frequency
+            float4 _WaveB[MAX_WAVES];   // x = amplitude, y = phase, z = 1 if displaced by the mesh
+            float  _WaveCount;
+            float  _WaveTime;
+            float  _WaveSharpness;      // 1 = sine; higher = peaked crests, flat troughs
+            float  _WaveMean;           // mean of the reshaped wave, subtracted to keep sea level put
+            float  _WaveHeight;
+            float  _Whitecaps;
+
+            // Sum of crossing waves in world XZ, each a sine reshaped to ((sin+1)/2)^sharpness
+            // so storms get sharp crests. Displacement is vertical only, so the surface can be
+            // queried at a point -- WaterWaves.HeightAt mirrors this line for line, and that's
+            // what keeps swimming and breath in agreement with what's drawn. Change one,
+            // change the other.
+            //
+            // displacedOnly: the vertex shader skips waves too short for the grid to show (they
+            // would alias); the fragment shader keeps them all, as lighting detail.
+            float WaveHeight(float2 positionXZ, bool displacedOnly, out float2 slope)
             {
-                float k = TWO_PI / max(_WaveLength, 0.001);
-                float t = _Time.y * _WaveSpeed;
+                float height = 0.0;
+                slope = float2(0.0, 0.0);
+                int count = (int)_WaveCount;
 
-                float w = sin(dot(positionXZ, float2(1.0, 0.35)) * k + t);
-                w += sin(dot(positionXZ, float2(-0.6, 1.0)) * k * 0.73 - t * 1.3) * 0.7;
-                w += sin(dot(positionXZ, float2(0.4, -0.9)) * k * 1.51 + t * 0.6) * 0.35;
+                for (int i = 0; i < MAX_WAVES; i++)
+                {
+                    if (i >= count)
+                        break;
 
-                return w * (_WaveAmplitude / 2.05); // 2.05 = sum of the amplitudes above
+                    float4 a = _WaveA[i];
+                    float4 b = _WaveB[i];
+                    if (displacedOnly && b.z < 0.5)
+                        continue;
+
+                    float theta = dot(a.xy, positionXZ) * a.z - a.w * _WaveTime + b.y;
+                    float s, c;
+                    sincos(theta, s, c);
+
+                    float u = max(s * 0.5 + 0.5, 1e-4);
+                    float shaped = pow(u, _WaveSharpness);
+                    height += 2.0 * b.x * (shaped - _WaveMean);
+
+                    // d/dtheta of 2A*u^p is A*p*u^(p-1)*cos; chain through theta for XZ.
+                    float dTheta = b.x * _WaveSharpness * (shaped / u) * c;
+                    slope += dTheta * a.z * a.xy;
+                }
+
+                return height;
             }
 
             Varyings vert (Attributes IN)
@@ -161,7 +191,9 @@ Shader "WowSandbox/Water"
                 UNITY_SETUP_INSTANCE_ID(IN);
 
                 float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
-                positionWS.y += WaveHeight(positionWS.xz);
+                float2 unusedSlope;
+                // Vertical only, so the XZ the fragment shader gets is the undisplaced XZ.
+                positionWS.y += WaveHeight(positionWS.xz, true, unusedSlope);
 
                 OUT.positionWS = positionWS;
                 OUT.positionCS = TransformWorldToHClip(positionWS);
@@ -193,9 +225,14 @@ Shader "WowSandbox/Water"
             {
                 bool isTopSide = IS_FRONT_VFACE(facing, true, false);
 
-                // The plane's geometric normal is +Y; flip it when we're looking up from
-                // underneath so every lighting term below keeps the right sign.
-                float3 geometricNormal = normalize(IN.normalWS) * (isTopSide ? 1.0 : -1.0);
+                // The wave normal, evaluated per pixel from the analytic slope rather than
+                // interpolated from vertices -- so the short waves the grid can't displace
+                // still catch the light. Flipped when looking up from underneath so every
+                // lighting term below keeps the right sign.
+                float2 slope;
+                float waveHeight = WaveHeight(IN.positionWS.xz, false, slope);
+                float3 waveNormal = normalize(float3(-slope.x, 1.0, -slope.y));
+                float3 geometricNormal = waveNormal * (isTopSide ? 1.0 : -1.0);
 
                 // Perturb around the geometric normal. The normal map is authored in tangent
                 // space on a flat XZ plane, so its tangent basis is just world X/Z -- no
@@ -224,7 +261,9 @@ Shader "WowSandbox/Water"
                 half refractionMask = 0;
 
             #ifdef _REFRACTION_ON
-                float2 offsetUV = screenUV + normalWS.xz * _RefractionStrength;
+                // Offset by the ripples only. The big wave slopes would shove the sample half
+                // a screen away in a storm and smear the lake bed across the surface.
+                float2 offsetUV = screenUV + tangentNormal.xy * _RefractionStrength;
 
                 // Guard against the classic bleed: if the offset lands on geometry that is
                 // actually IN FRONT of the water (a rock at the shoreline, the player's own
@@ -266,6 +305,14 @@ Shader "WowSandbox/Water"
                 half foamEdge = 1.0 - saturate(waterDepth / max(_FoamDistance, 0.001));
                 half foamNoise = saturate(tangentNormal.x + tangentNormal.y + 0.5);
                 half foam = step(_FoamCutoff, foamEdge * foamEdge + foamNoise * foamEdge * 0.5);
+
+                // --- Whitecaps --------------------------------------------------------
+                // Foam on whatever stands highest relative to the current sea state, broken up
+                // by the same ripple noise. More whitecaps lowers the bar for "high enough".
+                half crest = waveHeight / max(_WaveHeight * 0.5, 0.001) + (foamNoise - 0.5) * 0.4;
+                half threshold = 1.0 - _Whitecaps * 0.9;
+                half whitecap = _Whitecaps > 0.001 ? smoothstep(threshold, threshold + 0.15, crest) : 0.0;
+                foam = max(foam, whitecap);
 
                 // --- Composite --------------------------------------------------------
                 half3 color;

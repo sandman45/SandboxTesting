@@ -29,16 +29,14 @@ namespace WowSandbox.EditorTools
         // Level
         float _seaLevel = 0.15f;
         float _margin = 1.1f;
-        int _resolution = 128;
+        int _resolution = 256;
 
         // Look
         Color _shallow = new Color(0.30f, 0.68f, 0.72f, 0.55f);
         Color _deep = new Color(0.02f, 0.16f, 0.30f, 0.95f);
         float _depthMaxDistance = 6f;
         float _foamDistance = 0.7f;
-        float _waveAmplitude = 0.15f;
-        float _waveLength = 9f;
-        float _waveSpeed = 0.8f;
+        float _stormIntensity;
         float _tileA = 12f;
         float _tileB = 25f;
         float _normalStrength = 0.6f;
@@ -86,8 +84,9 @@ namespace WowSandbox.EditorTools
                                            "no visible seam at the horizon."),
                 _margin, 1f, 3f);
             _resolution = EditorGUILayout.IntSlider(
-                new GUIContent("Grid resolution", "Quads per side. Only matters for the waves — " +
-                                                  "a flat plane would need 1."),
+                new GUIContent("Grid resolution", "Quads per side. Only matters for the waves: " +
+                                                  "waves shorter than ~2.5 quads can't move the " +
+                                                  "mesh and are drawn as lighting only."),
                 _resolution, 8, 256);
 
             EditorGUILayout.Space();
@@ -106,13 +105,11 @@ namespace WowSandbox.EditorTools
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Waves", EditorStyles.boldLabel);
-            _waveAmplitude = EditorGUILayout.Slider(
-                new GUIContent("Amplitude",
-                    "Kept small on purpose: gameplay treats the water as flat at sea level, so " +
-                    "tall waves would disagree with where swimming starts."),
-                _waveAmplitude, 0f, 1f);
-            _waveLength = EditorGUILayout.Slider("Wave length", _waveLength, 1f, 40f);
-            _waveSpeed = EditorGUILayout.Slider("Wave speed", _waveSpeed, 0f, 3f);
+            _stormIntensity = EditorGUILayout.Slider(
+                new GUIContent("Storm intensity",
+                    "0 = calm, 1 = storm. Wave height, choppiness, chaos and whitecaps for " +
+                    "each end are tuned on the WaterWaves component afterwards."),
+                _stormIntensity, 0f, 1f);
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Integration", EditorStyles.boldLabel);
@@ -203,6 +200,10 @@ namespace WowSandbox.EditorTools
             // this the water plane itself bakes as a walkable floor and the NPCs stroll
             // across the lake. Excluding it is separate from marking the water unwalkable.
             go.AddComponent<NavMeshModifier>().ignoreFromBuild = true;
+
+            // Owns the wave shape for both the shader and the swim check, so they can't
+            // disagree about where the surface is.
+            go.AddComponent<WaterWaves>().stormIntensity = _stormIntensity;
 
             Undo.RegisterCreatedObjectUndo(go, "Build Water");
 
@@ -306,9 +307,6 @@ namespace WowSandbox.EditorTools
             material.SetVector("_ScrollA", new Vector4(0.03f, 0.02f, _tileA, _tileA));
             material.SetVector("_ScrollB", new Vector4(-0.02f, 0.035f, _tileB, _tileB));
             material.SetFloat("_ReflectionStrength", _reflectionStrength);
-            material.SetFloat("_WaveAmplitude", _waveAmplitude);
-            material.SetFloat("_WaveLength", _waveLength);
-            material.SetFloat("_WaveSpeed", _waveSpeed);
 
             SetRefraction(material, SupportsOpaqueTexture());
 

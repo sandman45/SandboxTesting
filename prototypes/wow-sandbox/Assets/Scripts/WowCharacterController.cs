@@ -72,6 +72,7 @@ namespace WowSandbox
         float _verticalVelocity;
         float _animSpeed;
         bool _swimming;
+        bool _atSurface;
         bool _hasSwimmingParameter;
         float _modelPitch;
         Quaternion _modelRestRotation;
@@ -279,12 +280,13 @@ namespace WowSandbox
             }
 
             // transform.position is at the feet, so this is how much of the body is under.
-            float submerged = water.SurfaceY - transform.position.y;
+            float submerged = water.SurfaceHeightAt(transform.position) - transform.position.y;
             float fraction = submerged / Mathf.Max(_controller.height, 0.001f);
 
             if (!_swimming && fraction >= swimEnterHeight)
             {
                 _swimming = true;
+                _atSurface = false;
                 // Drop whatever fall speed we entered the water with, or you torpedo to the
                 // lake bed before the buoyancy can catch you.
                 _verticalVelocity = 0f;
@@ -300,25 +302,45 @@ namespace WowSandbox
         /// Vertical speed while swimming: Space rises, X sinks, and with neither held you hold
         /// the depth you stopped at. Gravity is not involved at all below the surface, which
         /// is what makes holding depth possible.
+        ///
+        /// Once you've reached the surface you ride it: you bob up and down with the waves
+        /// until X takes you under again. Without that, holding depth at the surface in a
+        /// storm would let every passing crest wash over your head and eat your breath.
         /// </summary>
         float SwimVertical(Keyboard keyboard, WaterVolume water)
         {
             float verticalSpeed = swimSpeed * verticalSwimFactor;
 
             // Floating height: eyes at the waterline rather than the whole capsule under it.
-            float floatY = water.SurfaceY - _controller.height * 0.85f;
+            // Taken from the wave-displaced surface right here, not the calm sea level.
+            float floatY = water.SurfaceHeightAt(transform.position) - _controller.height * 0.85f;
 
             float input = 0f;
             if (keyboard.spaceKey.isPressed) input += 1f;
             if (keyboard.xKey.isPressed) input -= 1f;
 
-            if (Mathf.Abs(input) > 0.01f)
+            if (input < -0.01f)
+            {
+                _atSurface = false;
+                return input * verticalSpeed;
+            }
+
+            if (input > 0.01f && !_atSurface)
             {
                 // Rising is capped at the surface — you can't swim up into the air.
-                if (input > 0f && transform.position.y >= floatY)
-                    return 0f;
+                if (transform.position.y < floatY)
+                    return input * verticalSpeed;
 
-                return input * verticalSpeed;
+                _atSurface = true;
+            }
+
+            if (_atSurface)
+            {
+                // Follow the float line both ways. Allowed to outrun normal vertical swim speed:
+                // a storm swell can lift faster than you could swim up, and lagging it would
+                // dunk you on every crest.
+                float follow = (floatY - transform.position.y) * settleSpeed * 2f;
+                return Mathf.Clamp(follow, -verticalSpeed * 3f, verticalSpeed * 3f);
             }
 
             // No key held: hold depth. Rising is Space's job and nothing else's, so there is
@@ -326,10 +348,14 @@ namespace WowSandbox
             //
             // The one exception is being above the float line, which happens when you jump
             // in from a ledge or wade off a shelf. Holding depth there would leave you
-            // hanging in the air over the water, so you settle down onto the surface.
+            // hanging in the air over the water, so you settle down onto the surface — and
+            // from then on ride it.
             float aboveSurface = transform.position.y - floatY;
             if (aboveSurface > 0.01f)
+            {
+                _atSurface = true;
                 return -Mathf.Min(aboveSurface * settleSpeed, verticalSpeed);
+            }
 
             return 0f;
         }

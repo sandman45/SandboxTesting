@@ -24,9 +24,28 @@ namespace WowSandbox
         /// dragging the water up or down in the scene moved the visible mesh while gameplay
         /// kept testing against the old height: you'd wade well past your head before swimming
         /// engaged. The transform is the single source of truth, so moving the water now just
-        /// works. The shader's waves ripple around this height; gameplay treats it as flat.
+        /// works. This is the calm sea level; the waves ride around it — see SurfaceHeightAt.
         /// </summary>
         public float SurfaceY => transform.position.y;
+
+        WaterWaves _waves;
+
+        /// <summary>
+        /// World Y of the actual, wave-displaced surface above this point right now. Use this
+        /// rather than SurfaceY for anything that asks "is this under water" — in a storm the
+        /// difference is metres.
+        /// </summary>
+        public float SurfaceHeightAt(Vector3 worldPoint)
+        {
+            // Looked up lazily, so adding WaterWaves to an existing water surface just works.
+            if (_waves == null)
+                _waves = GetComponent<WaterWaves>();
+
+            float waves = _waves != null && _waves.isActiveAndEnabled
+                ? _waves.HeightAt(worldPoint.x, worldPoint.z)
+                : 0f;
+            return SurfaceY + waves;
+        }
 
         [Tooltip("Half-extents on X and Z, measured from this object's position.")]
         public Vector2 extents = new Vector2(250f, 250f);
@@ -47,7 +66,7 @@ namespace WowSandbox
 
             return Mathf.Abs(local.x) <= extents.x
                 && Mathf.Abs(local.z) <= extents.y
-                && worldPoint.y <= SurfaceY
+                && worldPoint.y <= SurfaceHeightAt(worldPoint)
                 && worldPoint.y >= SurfaceY - depth;
         }
 
@@ -73,7 +92,7 @@ namespace WowSandbox
         public static float SubmersionDepth(Vector3 worldPoint)
         {
             var volume = Containing(worldPoint);
-            return volume == null ? 0f : volume.SurfaceY - worldPoint.y;
+            return volume == null ? 0f : volume.SurfaceHeightAt(worldPoint) - worldPoint.y;
         }
 
         void OnDrawGizmosSelected()

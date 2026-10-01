@@ -102,7 +102,7 @@ namespace WowSandbox
             // transform.position is at the feet (see WowCharacterController), so head height
             // is a fraction of the capsule up from there.
             float headY = transform.position.y + _controller.height * headHeightFraction;
-            return headY < water.SurfaceY;
+            return headY < water.SurfaceHeightAt(transform.position);
         }
 
         /// <summary>
