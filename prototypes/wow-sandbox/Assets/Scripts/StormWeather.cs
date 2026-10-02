@@ -63,6 +63,9 @@ namespace WowSandbox
         public Vector2 overcastOnset = new Vector2(0f, 0.6f);
         [Range(0f, 1f)] public float stormSunlight = 0.12f;
         [Range(0f, 1f)] public float stormAmbient = 0.45f;
+        [Tooltip("Brightness of the overcast laid over the sky, relative to the clouds' storm " +
+                 "colour. Below 1 the sky reads a shade darker than the clouds in front of it.")]
+        [Range(0.3f, 1.5f)] public float overcastSkyBrightness = 0.85f;
         public Color stormSunColor = new Color(0.70f, 0.76f, 0.85f);
         [Tooltip("Procedural sky atmosphere thickness at full overcast. Keep it low — a thick " +
                  "atmosphere is how that shader draws a sunset, which shows as an orange horizon.")]
@@ -129,6 +132,8 @@ namespace WowSandbox
 
         Transform _horizonBand;
         Material _horizonMaterial;
+        Transform _overcastSky;
+        Material _overcastMaterial;
 
         ParticleSystem _rain;
         Material _rainMaterial;
@@ -209,6 +214,7 @@ namespace WowSandbox
                 _waves.windDirection = windDirection;
             }
 
+            BuildOvercastSky();
             BuildHorizonBand();
             BuildRain();
             BuildLightning();
@@ -249,6 +255,8 @@ namespace WowSandbox
 
             DestroyRuntime(_horizonBand != null ? _horizonBand.gameObject : null);
             DestroyRuntime(_horizonMaterial);
+            DestroyRuntime(_overcastSky != null ? _overcastSky.gameObject : null);
+            DestroyRuntime(_overcastMaterial);
             DestroyRuntime(_rain != null ? _rain.gameObject : null);
             DestroyRuntime(_flashLight != null ? _flashLight.gameObject : null);
             DestroyRuntime(_bolt != null ? _bolt.gameObject : null);
@@ -286,6 +294,7 @@ namespace WowSandbox
             // don't trail it.
             UpdateRain();
             UpdateHorizonBand();
+            UpdateOvercastSky();
         }
 
         /// <summary>Build, hold at full strength, then clear: one storm, then fine weather.</summary>
@@ -407,6 +416,35 @@ namespace WowSandbox
 
         // --- Horizon band ----------------------------------------------------------------
 
+        /// <summary>A camera-pinned, inside-out sphere carrying one of the sky overlays.</summary>
+        static Transform BuildSkySphere(string name, Material material)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            go.name = name;
+            go.hideFlags = HideFlags.DontSave;
+            Destroy(go.GetComponent<Collider>());
+
+            var renderer = go.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            return go.transform;
+        }
+
+        void BuildOvercastSky()
+        {
+            var shader = Shader.Find("WowSandbox/OvercastSky");
+            if (shader == null)
+            {
+                Debug.LogWarning("[StormWeather] WowSandbox/OvercastSky shader not found — the sky will " +
+                                 "stay blue behind the storm clouds.");
+                return;
+            }
+
+            _overcastMaterial = new Material(shader) { name = "OvercastSky", hideFlags = HideFlags.DontSave };
+            _overcastSky = BuildSkySphere("StormOvercastSky", _overcastMaterial);
+        }
+
         void BuildHorizonBand()
         {
             var shader = Shader.Find("WowSandbox/HorizonFog");
@@ -418,18 +456,7 @@ namespace WowSandbox
             }
 
             _horizonMaterial = new Material(shader) { name = "HorizonFog", hideFlags = HideFlags.DontSave };
-
-            var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            go.name = "StormHorizonFog";
-            go.hideFlags = HideFlags.DontSave;
-            Destroy(go.GetComponent<Collider>());
-
-            var renderer = go.GetComponent<MeshRenderer>();
-            renderer.sharedMaterial = _horizonMaterial;
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            renderer.receiveShadows = false;
-
-            _horizonBand = go.transform;
+            _horizonBand = BuildSkySphere("StormHorizonFog", _horizonMaterial);
         }
 
         void UpdateHorizonBand()
@@ -448,6 +475,22 @@ namespace WowSandbox
             _horizonMaterial.SetFloat("_Strength", closing);
             _horizonMaterial.SetFloat("_FadeEnd", horizonBandHeight);
             _horizonBand.gameObject.SetActive(closing > 0.001f);
+        }
+
+        void UpdateOvercastSky()
+        {
+            if (_overcastSky == null || _camera == null)
+                return;
+
+            // Same radius as the horizon band, for the same reason.
+            float radius = _camera.farClipPlane * 0.9f;
+            _overcastSky.position = _camera.transform.position;
+            _overcastSky.localScale = Vector3.one * (radius * 2f);
+
+            // Its strength is the _WeatherOvercast global the clouds use, so the two can't
+            // drift apart; this only decides whether to draw it at all.
+            _overcastMaterial.SetFloat("_Brightness", overcastSkyBrightness);
+            _overcastSky.gameObject.SetActive(Ramp(intensity, overcastOnset) > 0.001f);
         }
 
         // --- Rain ------------------------------------------------------------------------
