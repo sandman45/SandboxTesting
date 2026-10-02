@@ -86,6 +86,9 @@ namespace WowSandbox
         public float rainHeight = 18f;
         public float rainFallSpeed = 22f;
         public Color rainColor = new Color(0.75f, 0.80f, 0.88f, 0.35f);
+        [Tooltip("How carefully drops test for roofs. High raycasts every drop and never leaks " +
+                 "through a thin roof; Medium and Low use a cheaper voxel cache that can.")]
+        public ParticleSystemCollisionQuality rainCollisionQuality = ParticleSystemCollisionQuality.High;
 
         [Header("Lightning")]
         [Tooltip("No strikes below this intensity.")]
@@ -129,6 +132,7 @@ namespace WowSandbox
 
         ParticleSystem _rain;
         Material _rainMaterial;
+        WaterVolume _water;
         Texture2D _rainTexture;
 
         Light _flashLight;
@@ -464,7 +468,8 @@ namespace WowSandbox
             main.startSpeed = 0f;
             main.startSize = 0.035f;
             main.startColor = rainColor;
-            main.maxParticles = Mathf.CeilToInt(maxRainRate * 2f);
+            // Headroom for long-lived drops when you're high above the water (see UpdateRain).
+            main.maxParticles = Mathf.CeilToInt(maxRainRate * 3f);
             // World space: drops already falling stay put when you move, rather than the
             // whole sheet of rain sliding along with the camera.
             main.simulationSpace = ParticleSystemSimulationSpace.World;
@@ -485,18 +490,25 @@ namespace WowSandbox
             velocity.y = new ParticleSystem.MinMaxCurve(-rainFallSpeed);
             velocity.z = new ParticleSystem.MinMaxCurve(0f);
 
-            // Drops die at the water's surface instead of falling on through it — otherwise
-            // you'd swim among rain streaks.
-            var water = FindFirstObjectByType<WaterVolume>();
-            if (water != null)
-            {
-                var collision = _rain.collision;
-                collision.enabled = true;
-                collision.type = ParticleSystemCollisionType.Planes;
-                collision.SetPlane(0, water.transform);
-                collision.lifetimeLoss = 1f;
-                collision.bounce = 0f;
-            }
+            // Drops die on whatever they hit — roofs, the ship's deck, the ground — so it
+            // doesn't rain inside the hut or down in the hold. World collision rather than
+            // planes: it's the only mode that sees arbitrary geometry, and it includes the
+            // ship's colliders as they move. The water has no collider, so drops over the lake
+            // are stopped at the surface by their lifetime instead (see UpdateRain).
+            var collision = _rain.collision;
+            collision.enabled = true;
+            collision.type = ParticleSystemCollisionType.World;
+            collision.mode = ParticleSystemCollisionMode.Collision3D;
+            collision.quality = rainCollisionQuality;
+            collision.enableDynamicColliders = true;
+            collision.lifetimeLoss = 1f;
+            collision.bounce = 0f;
+            collision.radiusScale = 0.5f;
+            // The player's own capsule is a collider too; a drop that hits your head and
+            // stops is exactly right.
+            collision.collidesWith = ~0;
+
+            _water = FindFirstObjectByType<WaterVolume>();
 
             var renderer = go.GetComponent<ParticleSystemRenderer>();
             renderer.renderMode = ParticleSystemRenderMode.Stretch;
@@ -521,8 +533,16 @@ namespace WowSandbox
             Vector3 cameraPosition = _camera.transform.position;
             bool submerged = WaterVolume.Containing(cameraPosition) != null;
 
+            // Live exactly long enough to fall from the spawn height to the water surface, so
+            // drops over the lake vanish at it instead of streaking on down past the swimmer.
+            // Over land the ground is higher than the water, so they hit it first anyway.
+            float spawnY = cameraPosition.y + rainHeight;
+            float floorY = _water != null ? _water.SurfaceY : cameraPosition.y - 6f;
+            float lifetime = Mathf.Max(spawnY - floorY, 1f) / rainFallSpeed;
+            var main = _rain.main;
+            main.startLifetime = lifetime;
+
             // Spawn upwind, so drops blown sideways over their fall still land around you.
-            float lifetime = _rain.main.startLifetime.constant;
             _rain.transform.position = cameraPosition + Vector3.up * rainHeight - wind * (lifetime * 0.5f);
 
             var emission = _rain.emission;
