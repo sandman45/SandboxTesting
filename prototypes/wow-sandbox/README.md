@@ -65,6 +65,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | **WoW Sandbox → Add Water Dry Zone to Selection** | Slices the selected ship's hull at the waterline and cuts that shape out of the water, so it doesn't show inside the hull and you don't swim in the hold. Re-run it (on the ship) after moving the ship up or down. |
 
 **Floating ships:** add **Ship Buoyancy** to a ship (after its dry zone). In Play it rises, falls, pitches and rolls with `WaterWaves`, eased by *Response Time*, and the dry zone travels with it. The waterline is wherever you placed it in the editor. Standing on the deck carries you with it — `WowCharacterController` rides anything with a kinematic Rigidbody under its feet, which Ship Buoyancy adds.
+| **WoW Sandbox → Add Music Player** | Fills a `MusicPlayer` playlist from `Assets/WowExports/sound/music/` (gitignored — WoW music is Blizzard content like the models) and sets each track to stream. It plays shuffled in Play mode, each track fading in and out over *Crossfade Seconds*. Re-run after adding tracks. |
 
 **Controls** (WoW-style, character-relative — never camera-relative):
 
