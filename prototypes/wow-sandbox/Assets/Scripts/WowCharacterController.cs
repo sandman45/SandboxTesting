@@ -73,6 +73,20 @@ namespace WowSandbox
         float _animSpeed;
         bool _swimming;
         bool _atSurface;
+
+        // Moving platform (a floating ship's deck): where we stand on it, in its own space,
+        // so we can be carried along when it moves. A CharacterController is never moved by
+        // what it stands on — without this the deck slides out from under you.
+        Transform _platform;
+        Vector3 _platformLocalPoint;
+        Quaternion _platformLastRotation;
+        float _platformLastSeen;
+
+
+
+        // How long the deck can go undetected before we let go of it, so a heaving deck
+        // that drops away from the feet for a moment doesn't drop the ride with it.
+        const float PlatformGrace = 0.3f;
         bool _hasSwimmingParameter;
         float _modelPitch;
         Quaternion _modelRestRotation;
@@ -178,6 +192,8 @@ namespace WowSandbox
 
             IsSteering = mouse != null && mouse.rightButton.isPressed;
 
+            RidePlatform();
+
             // --- Read input -------------------------------------------------
             float forward = 0f;
             if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed) forward += 1f;
@@ -246,6 +262,7 @@ namespace WowSandbox
             }
 
             _controller.Move(move * Time.deltaTime);
+            RememberPlatform();
 
             // --- Attack -----------------------------------------------------
             // Was left click, but that's now spoken for by TargetingController — left click
@@ -259,6 +276,71 @@ namespace WowSandbox
 
             UpdateModelPitch();
             UpdateAnimator(grounded, walking, forward, strafe);
+        }
+
+        /// <summary>
+        /// Moves us with whatever we were standing on last frame: its translation, its rise and
+        /// fall, and its turning (yaw only — the ship's pitch and roll shouldn't tip the
+        /// character over, just move the spot they're standing on).
+        /// </summary>
+        void RidePlatform()
+        {
+            if (_platform == null)
+                return;
+
+            // Placed, not Moved. The ship has already moved this frame, so on an upswing the
+            // deck is overlapping our feet, and Move would depenetrate on top of applying the
+            // delta. The spot we stood on has the same relation to the ship as last frame, so
+            // there's nothing to collide with — our own movement, later, still collides.
+            transform.position = _platform.TransformPoint(_platformLocalPoint);
+            // A CharacterController's physics position lags a direct transform change until
+            // the next sync; without this the Move() later this frame starts from the old spot.
+            Physics.SyncTransforms();
+
+            Quaternion turn = _platform.rotation * Quaternion.Inverse(_platformLastRotation);
+            float yaw = turn.eulerAngles.y;
+            if (Mathf.Abs(Mathf.DeltaAngle(0f, yaw)) > 0.001f)
+                transform.Rotate(Vector3.up, yaw, Space.World);
+        }
+
+        void RememberPlatform()
+        {
+            var platform = _swimming ? null : PlatformBelow();
+            if (platform != null)
+                _platformLastSeen = Time.time;
+            else if (!_swimming && _platform != null && Time.time - _platformLastSeen < PlatformGrace)
+                platform = _platform;   // a momentary miss — keep riding
+
+            _platform = platform;
+            if (_platform == null)
+                return;
+
+            _platformLocalPoint = _platform.InverseTransformPoint(transform.position);
+            _platformLastRotation = _platform.rotation;
+        }
+
+        /// <summary>
+        /// A kinematic Rigidbody's collider right under our feet, if there is one — ShipBuoyancy
+        /// gives the ship exactly that; the static world never has one.
+        ///
+        /// A downward cast rather than the controller's own collision callback and isGrounded:
+        /// on a deck that's sinking away under you, the controller reads as airborne for a
+        /// frame at a time, and every one of those frames dropped the ship. The cast reaches
+        /// a little below the feet to ride out that gap.
+        /// </summary>
+        Transform PlatformBelow()
+        {
+            float radius = _controller.radius * 0.9f;
+            Vector3 origin = transform.TransformPoint(_controller.center);
+            float reach = _controller.height * 0.5f - radius + _controller.skinWidth + 0.8f;
+
+            // Our own capsule overlaps the cast's start, and casts ignore colliders they
+            // start inside — so it can't hit us.
+            if (!Physics.SphereCast(origin, radius, Vector3.down, out var hit, reach, ~0, QueryTriggerInteraction.Ignore))
+                return null;
+
+            var body = hit.collider.attachedRigidbody;
+            return body != null && body.isKinematic ? body.transform : null;
         }
 
         /// <summary>

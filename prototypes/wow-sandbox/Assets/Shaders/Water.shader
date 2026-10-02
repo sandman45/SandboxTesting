@@ -152,6 +152,92 @@ Shader "WowSandbox/Water"
             float  _WeatherOvercast;
             float  _WeatherFlash;
 
+            // Dry zones (WaterDryZone): regions the water is cut out of, like a ship's hull.
+            // WaterVolume reads the same shapes, so the cut and the swim check agree.
+            #define MAX_DRY_ZONES 8
+            float4x4 _DryZoneWorldToLocal[MAX_DRY_ZONES];
+            float    _DryZoneShape[MAX_DRY_ZONES];   // 0 = ellipse, 1 = box
+            float    _DryZoneCount;
+
+            // Hull-shaped zones: radii sliced from the hull mesh at HULL_LEVELS heights and
+            // HULL_SAMPLES directions around a centre. Mirrors WaterDryZone.HullContains.
+            #define MAX_DRY_HULLS 2
+            #define HULL_LEVELS 16
+            #define HULL_SAMPLES 48
+            float4x4 _DryHullWorldToLocal[MAX_DRY_HULLS];
+            float4   _DryHullParams[MAX_DRY_HULLS];   // xy = centre (local XZ), z = bottom, w = top
+            // Packed four radii to a float4 -- a float array spends a whole register per entry.
+            float4   _DryHullRadii[MAX_DRY_HULLS * HULL_LEVELS * HULL_SAMPLES / 4];
+
+            float HullRadius(int i)
+            {
+                return _DryHullRadii[i >> 2][i & 3];
+            }
+            float    _DryHullCount;
+
+            bool InDryHull(float3 positionWS)
+            {
+                int count = (int)_DryHullCount;
+                for (int h = 0; h < MAX_DRY_HULLS; h++)
+                {
+                    if (h >= count)
+                        break;
+
+                    float3 local = mul(_DryHullWorldToLocal[h], float4(positionWS, 1.0)).xyz;
+                    float4 params = _DryHullParams[h];
+
+                    float level = (local.y - params.z) / max(params.w - params.z, 0.0001) * (HULL_LEVELS - 1);
+                    if (level < 0.0 || level > HULL_LEVELS - 1)
+                        continue;
+
+                    float2 offset = local.xz - params.xy;
+                    float sample = frac(atan2(offset.y, offset.x) / TWO_PI) * HULL_SAMPLES;
+
+                    int s0 = (int)floor(sample) % HULL_SAMPLES;
+                    int s1 = (s0 + 1) % HULL_SAMPLES;
+                    float sT = sample - floor(sample);
+
+                    int l0 = min((int)floor(level), HULL_LEVELS - 2);
+                    float lT = level - l0;
+
+                    int base0 = h * HULL_LEVELS * HULL_SAMPLES + l0 * HULL_SAMPLES;
+                    int base1 = base0 + HULL_SAMPLES;
+                    float r0 = lerp(HullRadius(base0 + s0), HullRadius(base0 + s1), sT);
+                    float r1 = lerp(HullRadius(base1 + s0), HullRadius(base1 + s1), sT);
+
+                    if (length(offset) <= lerp(r0, r1, lT))
+                        return true;
+                }
+
+                return false;
+            }
+
+            bool InDryZone(float3 positionWS)
+            {
+                if (InDryHull(positionWS))
+                    return true;
+
+                int count = (int)_DryZoneCount;
+                for (int i = 0; i < MAX_DRY_ZONES; i++)
+                {
+                    if (i >= count)
+                        break;
+
+                    // Unit space: the shape spans -0.5..0.5 on every axis.
+                    float3 p = mul(_DryZoneWorldToLocal[i], float4(positionWS, 1.0)).xyz;
+                    if (abs(p.y) > 0.5)
+                        continue;
+
+                    bool inside = _DryZoneShape[i] > 0.5
+                        ? (abs(p.x) <= 0.5 && abs(p.z) <= 0.5)
+                        : (dot(p.xz, p.xz) <= 0.25);
+                    if (inside)
+                        return true;
+                }
+
+                return false;
+            }
+
             // Sum of crossing waves in world XZ, each a sine reshaped to ((sin+1)/2)^sharpness
             // so storms get sharp crests. Displacement is vertical only, so the surface can be
             // queried at a point -- WaterWaves.HeightAt mirrors this line for line, and that's
@@ -230,6 +316,9 @@ Shader "WowSandbox/Water"
 
             half4 frag (Varyings IN, FRONT_FACE_TYPE facing : FRONT_FACE_SEMANTIC) : SV_Target
             {
+                if (InDryZone(IN.positionWS))
+                    discard;
+
                 bool isTopSide = IS_FRONT_VFACE(facing, true, false);
 
                 // The wave normal, evaluated per pixel from the analytic slope rather than

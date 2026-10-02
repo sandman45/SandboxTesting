@@ -67,7 +67,9 @@ namespace WowSandbox
             return Mathf.Abs(local.x) <= extents.x
                 && Mathf.Abs(local.z) <= extents.y
                 && worldPoint.y <= SurfaceHeightAt(worldPoint)
-                && worldPoint.y >= SurfaceY - depth;
+                && worldPoint.y >= SurfaceY - depth
+                // Inside a hull or other dry zone there's no water, whatever the height says.
+                && !WaterDryZone.AnyContains(worldPoint);
         }
 
         /// <summary>
