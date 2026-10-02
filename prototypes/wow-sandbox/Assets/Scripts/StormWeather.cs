@@ -154,6 +154,12 @@ namespace WowSandbox
         /// </summary>
         public FogState AboveWaterFog => _aboveWaterFog;
 
+        /// <summary>How heavy the rain is right now, 0..1 — what StormAudio sets its volume by.</summary>
+        public float RainAmount => Ramp(intensity, rainOnset);
+
+        /// <summary>A strike: where it hit the ground, and how far that is from the camera.</summary>
+        public event System.Action<Vector3, float> LightningStruck;
+
         /// <summary>Eases intensity to a value over some seconds.</summary>
         public void TransitionTo(float target, float seconds)
         {
@@ -206,6 +212,12 @@ namespace WowSandbox
             BuildHorizonBand();
             BuildRain();
             BuildLightning();
+
+            // Sound comes with the storm. Added here if it isn't on the object already, so an
+            // existing StormWeather gets thunder without anyone re-adding anything; add Storm
+            // Audio yourself in the editor to keep tuned volumes.
+            if (GetComponent<StormAudio>() == null)
+                gameObject.AddComponent<StormAudio>();
             _aboveWaterFog = _sceneFog;
         }
 
@@ -702,6 +714,7 @@ namespace WowSandbox
             float distance = Random.Range(strikeDistance.x, strikeDistance.y);
             Vector3 ground = origin + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * distance;
             ground.y = GroundHeight(ground);
+            LightningStruck?.Invoke(ground, Vector3.Distance(origin, ground));
             Vector3 top = new Vector3(ground.x + Random.Range(-30f, 30f), origin.y + 160f,
                                       ground.z + Random.Range(-30f, 30f));
 
