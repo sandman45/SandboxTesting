@@ -56,6 +56,26 @@ namespace WowSandbox.EditorTools
             window.minSize = new Vector2(360f, 560f);
         }
 
+        /// <summary>
+        /// Start from the water that's already there, not the defaults: rebuilding at the
+        /// default sea level would raise or drop the water under everything fitted to it —
+        /// the ship's draft, its dry zone, the swim depths you're used to.
+        /// </summary>
+        void OnEnable()
+        {
+            var terrain = FindTerrain();
+            var existing = GameObject.Find(SurfaceName);
+            if (terrain == null || existing == null || terrain.terrainData.size.y <= 0f)
+                return;
+
+            _seaLevel = Mathf.Clamp01((existing.transform.position.y - terrain.transform.position.y) /
+                                      terrain.terrainData.size.y);
+
+            var filter = existing.GetComponent<MeshFilter>();
+            if (filter != null && filter.sharedMesh != null && terrain.terrainData.size.x > 0f)
+                _margin = Mathf.Clamp(filter.sharedMesh.bounds.size.x / terrain.terrainData.size.x, 1f, 3f);
+        }
+
         void OnGUI()
         {
             var terrain = FindTerrain();
@@ -87,7 +107,7 @@ namespace WowSandbox.EditorTools
                 new GUIContent("Grid resolution", "Quads per side. Only matters for the waves: " +
                                                   "waves shorter than ~2.5 quads can't move the " +
                                                   "mesh and are drawn as lighting only."),
-                _resolution, 8, 256);
+                _resolution, 8, 512);
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Look", EditorStyles.boldLabel);
@@ -173,6 +193,14 @@ namespace WowSandbox.EditorTools
 
             // Replace any previous surface so repeated runs don't stack planes on each other.
             var existing = GameObject.Find(SurfaceName);
+
+            // Carry the old water's wave settings across, so a rebuild doesn't quietly reset
+            // calm and storm heights you've tuned back to the code defaults.
+            string savedWaves = null;
+            var oldWaves = existing != null ? existing.GetComponent<WaterWaves>() : null;
+            if (oldWaves != null)
+                savedWaves = EditorJsonUtility.ToJson(oldWaves);
+
             if (existing != null)
                 Undo.DestroyObjectImmediate(existing);
 
@@ -203,7 +231,11 @@ namespace WowSandbox.EditorTools
 
             // Owns the wave shape for both the shader and the swim check, so they can't
             // disagree about where the surface is.
-            go.AddComponent<WaterWaves>().stormIntensity = _stormIntensity;
+            var waves = go.AddComponent<WaterWaves>();
+            if (savedWaves != null)
+                EditorJsonUtility.FromJsonOverwrite(savedWaves, waves);
+            else
+                waves.stormIntensity = _stormIntensity;
 
             Undo.RegisterCreatedObjectUndo(go, "Build Water");
 
