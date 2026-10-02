@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using Unity.AI.Navigation;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -202,7 +203,23 @@ namespace WowSandbox.EditorTools
                 savedWaves = EditorJsonUtility.ToJson(oldWaves);
 
             if (existing != null)
+            {
+                // Destroying the surface destroys everything under it. Only the nav cutout is
+                // ours to throw away; anything else someone parented there (a StormWeather
+                // dragged onto it by accident, say) is moved out first rather than silently
+                // deleted with the old water.
+                foreach (Transform child in existing.transform.Cast<Transform>().ToList())
+                {
+                    if (child.name == "WaterNavCutout")
+                        continue;
+
+                    Undo.SetTransformParent(child, null, "Build Water");
+                    Debug.LogWarning($"[WaterSetup] Moved {child.name} out from under the old water " +
+                                     "before rebuilding it, so it wasn't deleted with it.", child);
+                }
+
                 Undo.DestroyObjectImmediate(existing);
+            }
 
             var mesh = BuildGrid(width, length, _resolution);
             var material = BuildMaterial(shader);
