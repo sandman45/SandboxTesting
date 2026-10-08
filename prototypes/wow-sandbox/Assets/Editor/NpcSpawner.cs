@@ -168,6 +168,7 @@ namespace WowSandbox.EditorTools
 
             var health = root.AddComponent<Health>(); // max HP comes from the stats above
             health.reaction = _reaction;
+            root.AddComponent<LootDrop>().table = LootTable.Humanoid;
 
             if (controller != null)
             {
@@ -177,6 +178,9 @@ namespace WowSandbox.EditorTools
                 animator.runtimeAnimatorController = controller;
                 animator.applyRootMotion = false;
             }
+
+            // Character exports leave any equipped helm at the feet — put it back on the head.
+            HelmFitter.Fit(root, instance);
         }
 
         static float MeasureHeight(GameObject instance)

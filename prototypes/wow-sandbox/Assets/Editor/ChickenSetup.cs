@@ -141,6 +141,7 @@ namespace WowSandbox.EditorTools
 
             var health = root.AddComponent<Health>(); // max HP comes from the stats above
             health.reaction = Reaction.Neutral;
+            root.AddComponent<LootDrop>().table = LootTable.Beast;
 
             if (controller != null)
             {

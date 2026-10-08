@@ -232,6 +232,9 @@ namespace WowSandbox
 
             // --- Horizontal movement ---------------------------------------
             float baseSpeed = _swimming ? swimSpeed : (walking ? walkSpeed : runSpeed);
+            // Heavy armour you're not strong enough for slows everything, as in 5e.
+            if (_stats != null)
+                baseSpeed *= _stats.SpeedMultiplier;
             // Backpedalling is slower than moving forward.
             float forwardSpeed = forward >= 0f ? baseSpeed : baseSpeed * backpedalFactor;
 

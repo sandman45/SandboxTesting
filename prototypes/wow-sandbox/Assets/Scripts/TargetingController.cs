@@ -1,3 +1,4 @@
+using System;
 using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -30,6 +31,12 @@ namespace WowSandbox
         /// </summary>
         public Health Target => _target != null ? _target : null;
 
+        /// <summary>
+        /// Raised after a click selects something, dead or alive — LootPanel listens for
+        /// clicks on corpses.
+        /// </summary>
+        public event Action<Health> Clicked;
+
         /// <summary>Display name of the current target, or null if there isn't one.</summary>
         public string TargetName => Target != null ? _targetName : null;
 
@@ -54,6 +61,7 @@ namespace WowSandbox
                 {
                     _target = health;
                     _targetName = CleanName(health.name);
+                    Clicked?.Invoke(health);
                     return;
                 }
             }

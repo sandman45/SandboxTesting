@@ -6,7 +6,9 @@ namespace WowSandbox
     /// <summary>
     /// D&D-style character sheet, toggled with C: name, level and class, experience toward
     /// the next level, the six ability scores (modifier large, score small, as on a paper
-    /// sheet), and the combat numbers that derive from them.
+    /// sheet), the combat numbers that derive from them, and — with an Inventory — the
+    /// equipment slots. Scores raised by gear show green. Drag items from the bags onto a
+    /// slot to wear them; right-click a worn item to take it off.
     /// </summary>
     [RequireComponent(typeof(CharacterStats))]
     public class CharacterSheetPanel : HudPanel
@@ -14,6 +16,18 @@ namespace WowSandbox
         const float Width = 440f;
         const float Pad = 18f;
         const float ColumnWidth = (Width - Pad * 3f) / 2f;
+
+        static readonly (EquipSlot slot, string label)[] EquipmentSlots =
+        {
+            (EquipSlot.MainHand, "Main"),
+            (EquipSlot.OffHand, "Off"),
+            (EquipSlot.Head, "Head"),
+            (EquipSlot.Chest, "Chest"),
+            (EquipSlot.Hands, "Hands"),
+            (EquipSlot.Feet, "Feet"),
+            (EquipSlot.Neck, "Neck"),
+            (EquipSlot.Ring, "Ring"),
+        };
 
         static readonly (Ability ability, string label)[] Abilities =
         {
@@ -27,6 +41,8 @@ namespace WowSandbox
 
         CharacterStats _stats;
         HealthController _health;
+        Inventory _inventory;
+        ItemSlotView[] _equipment;
 
         Text _name;
         Text _subtitle;
@@ -36,13 +52,15 @@ namespace WowSandbox
 
         Text _armorClass, _hitPoints, _proficiency, _initiative;
         Text _attack, _damage, _hitDice, _perception;
+        Text _speed, _armor;
 
-        protected override Vector2 PanelSize => new(Width, 352f);
+        protected override Vector2 PanelSize => new(Width, _inventory != null ? 470f : 384f);
 
         protected override void Awake()
         {
             _stats = GetComponent<CharacterStats>();
             _health = GetComponent<HealthController>();
+            _inventory = GetComponent<Inventory>();
             base.Awake();
         }
 
@@ -89,6 +107,45 @@ namespace WowSandbox
             _damage = Row(1, 1, "Damage");
             _hitDice = Row(1, 2, "Hit Dice");
             _perception = Row(1, 3, "Passive Perception");
+            _speed = Row(0, 4, "Speed");
+            _armor = Row(1, 4, "Armor");
+
+            if (_inventory != null)
+                BuildEquipment();
+        }
+
+        void BuildEquipment()
+        {
+            Heading("Equipment", -372f);
+
+            float inner = Width - Pad * 2f;
+            const float size = 46f;
+            float gap = (inner - size * EquipmentSlots.Length) / (EquipmentSlots.Length - 1);
+            _equipment = new ItemSlotView[EquipmentSlots.Length];
+
+            for (int i = 0; i < EquipmentSlots.Length; i++)
+            {
+                var (slot, label) = EquipmentSlots[i];
+                var view = ItemSlotView.Create(label, Root, new Vector2(0f, 1f),
+                    new Vector2(Pad + i * (size + gap), -396f), size, label);
+                view.Source = () => _inventory.Equipped(slot);
+                view.Ref = SlotRef.Equip(slot);
+                view.Reader = _stats;
+                view.TooltipHint = "Right-click to unequip";
+                view.RightClicked = _ =>
+                {
+                    if (!_inventory.Unequip(slot, out var error) && error != null)
+                        Hud.Error(error);
+                };
+                view.DroppedOn = (from, to) =>
+                {
+                    if (from.Ref.Area == SlotArea.Loot)
+                        Hud.Error("Loot it into your bags first.");
+                    else if (!_inventory.Move(from.Ref, to.Ref, out var error) && error != null)
+                        Hud.Error(error);
+                };
+                _equipment[i] = view;
+            }
         }
 
         void Heading(string title, float y)
@@ -128,7 +185,11 @@ namespace WowSandbox
             for (int i = 0; i < Abilities.Length; i++)
             {
                 _modifiers[i].text = Signed(_stats.Modifier(Abilities[i].ability));
-                _scores[i].text = _stats.Score(Abilities[i].ability).ToString();
+                var ability = Abilities[i].ability;
+                bool boosted = _stats.GearAbility(ability) > 0;
+                _scores[i].text = _stats.Score(ability).ToString();
+                _scores[i].color = boosted ? HudTheme.Friendly : HudTheme.TextDim;
+                _modifiers[i].color = boosted ? HudTheme.Friendly : HudTheme.Text;
             }
 
             _armorClass.text = _stats.ArmorClass.ToString();
@@ -141,6 +202,15 @@ namespace WowSandbox
             _damage.text = _stats.DamageDice;
             _hitDice.text = $"{_stats.level}d{_stats.hitDie}";
             _perception.text = _stats.PassivePerception.ToString();
+            _speed.text = $"{_stats.SpeedFeet} ft";
+            _speed.color = _stats.ArmorTooHeavy ? HudTheme.Hostile : HudTheme.Text;
+            _armor.text = _stats.ArmorWorn == ArmorCategory.None ? "None" : _stats.ArmorWorn.ToString();
+
+            if (_equipment != null)
+            {
+                foreach (var view in _equipment)
+                    view.Refresh();
+            }
         }
 
         static string Signed(int value) => value >= 0 ? $"+{value}" : value.ToString();

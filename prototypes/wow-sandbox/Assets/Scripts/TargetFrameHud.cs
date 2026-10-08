@@ -27,6 +27,7 @@ namespace WowSandbox
         HudBar _healthBar;
         Health _shown;
         CharacterStats _shownStats;
+        LootDrop _shownLoot;
         CharacterStats _playerStats;
 
         void Awake()
@@ -48,6 +49,7 @@ namespace WowSandbox
             {
                 _shown = target;
                 _shownStats = target.GetComponent<CharacterStats>();
+                _shownLoot = target.GetComponent<LootDrop>();
                 _healthBar.Snap(target.Health01);
             }
 
@@ -69,7 +71,7 @@ namespace WowSandbox
             if (target.IsDead)
             {
                 _name.color = HudTheme.Dead;
-                _healthBar.Label.text = "Dead";
+                _healthBar.Label.text = _shownLoot != null && _shownLoot.HasLoot ? "Dead  ·  click to loot" : "Dead";
                 return;
             }
 

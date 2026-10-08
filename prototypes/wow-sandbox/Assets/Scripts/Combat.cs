@@ -19,8 +19,9 @@ namespace WowSandbox
     /// <summary>
     /// D&D attack resolution. Roll a d20, add the attacker's attack bonus, and meet or beat
     /// the target's armour class to hit. A natural 20 always hits and crits (damage dice are
-    /// rolled twice); a natural 1 always misses. Damage is the weapon dice plus STR, at least
-    /// 1. A killing blow hands the target's XP to the attacker.
+    /// rolled twice); a natural 1 always misses. Damage is CharacterStats.RollDamage —
+    /// weapon dice plus STR and any magic bonus. A killing blow hands the target's XP to
+    /// the attacker.
     /// </summary>
     public static class Combat
     {
@@ -47,9 +48,7 @@ namespace WowSandbox
 
             if (result.Hit)
             {
-                int dice = attacker.weaponDieCount * (result.Critical ? 2 : 1);
-                result.Damage = Mathf.Max(1,
-                    Dice.Roll(dice, attacker.weaponDieSides) + attacker.Modifier(Ability.Strength));
+                result.Damage = attacker.RollDamage(result.Critical);
                 target.TakeDamage(result.Damage);
 
                 if (target.IsDead)

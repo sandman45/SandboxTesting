@@ -93,6 +93,9 @@ namespace WowSandbox.EditorTools
             if (avatar != null)
                 animator.avatar = avatar;
 
+            // Character exports leave any equipped helm at the feet — put it back on the head.
+            HelmFitter.Fit(root, instance);
+
             var movement = root.AddComponent<WowCharacterController>();
             // The model child carries the facing offset above and the swim pitch at runtime.
             movement.modelRoot = instance.transform;
@@ -112,8 +115,7 @@ namespace WowSandbox.EditorTools
             stats.intelligence = 10;
             stats.charisma = 8;
             stats.hitDie = 10;
-            stats.weaponDieCount = 1;
-            stats.weaponDieSides = 8; // longsword
+            // Weapon and armour come from Inventory's starter kit (chain mail, longsword, shield).
 
             root.AddComponent<HealthController>();
             root.AddComponent<BreathController>();
@@ -122,7 +124,10 @@ namespace WowSandbox.EditorTools
             root.AddComponent<TargetFrameHud>();
             var nameplates = root.AddComponent<NameplateHud>();
             root.AddComponent<CombatTextHud>();
+            root.AddComponent<Inventory>();
             root.AddComponent<CharacterSheetPanel>();
+            root.AddComponent<InventoryPanel>();
+            root.AddComponent<LootPanel>();
 
             var camera = Camera.main;
             if (camera == null)
@@ -155,7 +160,7 @@ namespace WowSandbox.EditorTools
             Selection.activeGameObject = root;
             Debug.Log($"[WarriorSetup] Spawned WarriorPlayer (model height {height:F2} units). " +
                       "Press Play: W/S move, A/D turn, Q/E strafe, right-drag steers, left-drag orbits, " +
-                      "left-click targets, 1 attacks, C opens the character sheet. " +
+                      "left-click targets, 1 attacks, C opens the character sheet, B the bags. " +
                       "In water: Space swims up, X swims down.");
         }
 

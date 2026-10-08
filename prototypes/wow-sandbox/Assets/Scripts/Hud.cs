@@ -62,6 +62,20 @@ namespace WowSandbox
             return new Color(0.6f, 0.6f, 0.6f);
         }
 
+        public static Color RarityColor(ItemRarity rarity) => rarity switch
+        {
+            ItemRarity.Uncommon => new Color(0.12f, 0.85f, 0.2f),
+            ItemRarity.Rare => new Color(0.3f, 0.58f, 1f),
+            ItemRarity.VeryRare => new Color(0.72f, 0.38f, 0.98f),
+            ItemRarity.Legendary => new Color(1f, 0.55f, 0.1f),
+            _ => new Color(0.93f, 0.93f, 0.93f),
+        };
+
+        public static string RarityName(ItemRarity rarity) =>
+            rarity == ItemRarity.VeryRare ? "Very Rare" : rarity.ToString();
+
+        public static string Hex(Color color) => ColorUtility.ToHtmlStringRGB(color);
+
         public static Color ReactionColor(Reaction reaction) => reaction switch
         {
             Reaction.Hostile => Hostile,
@@ -215,6 +229,14 @@ namespace WowSandbox
             return image;
         }
 
+        /// <summary>Adds a thin rounded outline (no fill), corners of roughly <paramref name="radius"/>.</summary>
+        public static Image Ring(GameObject go, Color color, float radius)
+        {
+            var image = Rounded(go, color, radius);
+            image.sprite = RingSprite();
+            return image;
+        }
+
         /// <summary>
         /// Dark rounded backing plus a thin gilt border. Returns the border so callers can
         /// tint it — the frames flash it red when taking damage.
@@ -258,6 +280,39 @@ namespace WowSandbox
             var rect = Rect(name, parent, anchor, position, size);
             var text = Label("Text", rect, fontSize, alignment, color, style);
             return text;
+        }
+
+        /// <summary>A small rounded button with a text label.</summary>
+        public static Button TextButton(string label, Transform parent, Vector2 anchor, Vector2 position, Vector2 size,
+            UnityEngine.Events.UnityAction onClick)
+        {
+            var rect = Rect(label, parent, anchor, position, size);
+            var image = Rounded(rect.gameObject, Color.white, 5f);
+            image.raycastTarget = true;
+            Label("Label", rect, 14, TextAnchor.MiddleCenter, HudTheme.Text, FontStyle.Bold).text = label;
+
+            var button = rect.gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            var colors = button.colors;
+            colors.normalColor = new Color(0.36f, 0.27f, 0.12f, 0.95f);
+            colors.highlightedColor = colors.selectedColor = new Color(0.55f, 0.42f, 0.18f, 1f);
+            colors.pressedColor = new Color(0.25f, 0.18f, 0.08f, 1f);
+            button.colors = colors;
+            button.onClick.AddListener(onClick);
+            return button;
+        }
+
+        /// <summary>WoW's red top-of-screen error: "Inventory is full.", "You are too far away."</summary>
+        public static void Error(string message) => Messages().Show(message, new Color(1f, 0.2f, 0.15f));
+
+        /// <summary>Yellow top-of-screen notice, e.g. for loot received. Rich text allowed.</summary>
+        public static void Info(string message) => Messages().Show(message, new Color(1f, 0.85f, 0.3f));
+
+        static HudMessages Messages()
+        {
+            Layer(HudLayer.Frames);
+            var messages = _canvas.GetComponent<HudMessages>();
+            return messages != null ? messages : _canvas.gameObject.AddComponent<HudMessages>();
         }
 
         /// <summary>A small square close button with an "X", top-right of <paramref name="parent"/>.</summary>

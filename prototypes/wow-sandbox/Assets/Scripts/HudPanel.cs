@@ -17,6 +17,8 @@ namespace WowSandbox
     public abstract class HudPanel : MonoBehaviour
     {
         public Key toggleKey = Key.C;
+        [Tooltip("A second key that also toggles it. None for no second key.")]
+        public Key altToggleKey = Key.None;
 
         static readonly List<HudPanel> _open = new();
         static int _escapeHandledFrame = -1;
@@ -50,7 +52,9 @@ namespace WowSandbox
             var keyboard = Keyboard.current;
             if (keyboard != null)
             {
-                if (keyboard[toggleKey].wasPressedThisFrame)
+                // Key.None isn't a real key — indexing the keyboard with it throws.
+                if ((toggleKey != Key.None && keyboard[toggleKey].wasPressedThisFrame) ||
+                    (altToggleKey != Key.None && keyboard[altToggleKey].wasPressedThisFrame))
                 {
                     Toggle();
                 }
@@ -92,6 +96,9 @@ namespace WowSandbox
                 return;
             IsOpen = false;
             _open.Remove(this);
+            // The pointer may be resting on one of this panel's slots, which won't get its
+            // exit event once hidden.
+            HudTooltip.Hide();
             if (Root != null)
                 Root.gameObject.SetActive(false);
         }

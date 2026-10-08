@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -45,6 +46,9 @@ namespace WowSandbox
 
         /// <summary>Every enabled Health in the scene — what the nameplates iterate.</summary>
         public static IReadOnlyList<Health> All => _all;
+
+        /// <summary>Raised once, when this unit dies — LootDrop rolls its loot on it.</summary>
+        public event Action Died;
 
         public float Current => _health;
         public float Health01 => maxHealth > 0f ? Mathf.Clamp01(_health / maxHealth) : 1f;
@@ -115,7 +119,17 @@ namespace WowSandbox
             Debug.Log($"[Health] {name} died.", this);
 
             if (_hasDeathTrigger)
+            {
+                // A Hit trigger can still be pending here — set by a blow that landed while
+                // the Hit clip was already playing, which Any State won't re-enter. Left set,
+                // it fires the moment Death starts, plays the flinch, and Hit's exit hands
+                // back to locomotion: a corpse standing back up. Clear it first.
+                if (_hasHitTrigger)
+                    _animator.ResetTrigger(HitHash);
                 _animator.SetTrigger(DeathHash);
+            }
+
+            Died?.Invoke();
 
             // WanderingNpc covers ChickenWanderer too, it's a subclass.
             var wanderer = GetComponent<WanderingNpc>();
@@ -126,11 +140,31 @@ namespace WowSandbox
             if (agent != null)
                 agent.enabled = false;
 
-            var capsule = GetComponent<Collider>();
-            if (capsule != null)
-                capsule.enabled = false; // a corpse shouldn't be re-targetable
+            MakeCorpseClickable();
 
             StartCoroutine(DespawnAfterDelay(UnityEngine.Random.Range(despawnDelaySeconds.x, despawnDelaySeconds.y)));
+        }
+
+        /// <summary>
+        /// The corpse stays clickable so it can be looted, but stops being a solid
+        /// obstacle: the collider turns into a trigger (raycasts still hit triggers; the
+        /// player's CharacterController walks through them). An upright capsule would also
+        /// miss a body lying on the ground, so it's squashed into a low, wide blob around
+        /// where the corpse falls.
+        /// </summary>
+        void MakeCorpseClickable()
+        {
+            var collider = GetComponent<Collider>();
+            if (collider == null)
+                return;
+
+            collider.isTrigger = true;
+            if (collider is CapsuleCollider capsule)
+            {
+                capsule.radius = Mathf.Max(capsule.radius, capsule.height * 0.35f);
+                capsule.height = capsule.radius * 2f;
+                capsule.center = new Vector3(0f, capsule.radius * 0.6f, 0f);
+            }
         }
 
         IEnumerator DespawnAfterDelay(float delay)
