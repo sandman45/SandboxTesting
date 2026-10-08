@@ -1,9 +1,19 @@
+using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
 namespace WowSandbox
 {
+    /// <summary>How an NPC regards the player — colours its name on the HUD, as in WoW.</summary>
+    public enum Reaction
+    {
+        Hostile,
+        Neutral,
+        Friendly,
+    }
+
     /// <summary>
     /// A plain hit-point stat for anything that isn't the player — chickens, and whatever
     /// humanoid NpcSpawner places (thieves included). Nothing deals damage to NPCs except
@@ -16,6 +26,8 @@ namespace WowSandbox
     public class Health : MonoBehaviour
     {
         public float maxHealth = 100f;
+        [Tooltip("Colours this unit's name on the target frame and nameplate.")]
+        public Reaction reaction = Reaction.Neutral;
 
         [Header("Death")]
         [Tooltip("How long the corpse sticks around before despawning, picked at random " +
@@ -30,18 +42,46 @@ namespace WowSandbox
         static readonly int DeathHash = Animator.StringToHash("Death");
         static readonly int HitHash = Animator.StringToHash("Hit");
 
+        static readonly List<Health> _all = new();
+
+        /// <summary>Every enabled Health in the scene — what the nameplates iterate.</summary>
+        public static IReadOnlyList<Health> All => _all;
+
+        /// <summary>Raised once, when this unit dies — LootDrop rolls its loot on it.</summary>
+        public event Action Died;
+
+        public float Current => _health;
         public float Health01 => maxHealth > 0f ? Mathf.Clamp01(_health / maxHealth) : 1f;
         public bool IsDead { get; private set; }
 
+        /// <summary>
+        /// Height of the unit's top above its root, in world units — where nameplates and
+        /// damage numbers sit. Measured once from the collider the spawners size to the model,
+        /// since that collider gets disabled on death.
+        /// </summary>
+        public float Height { get; private set; }
+
         void Awake()
         {
+            // With stats present, D&D hit points win over the inspector number.
+            var stats = GetComponent<CharacterStats>();
+            if (stats != null)
+                maxHealth = stats.MaxHitPoints;
+
             _health = maxHealth;
+            var capsule = GetComponent<CapsuleCollider>();
+            Height = capsule != null
+                ? (capsule.center.y + capsule.height * 0.5f) * transform.lossyScale.y
+                : 2f;
             // Lives on the imported model child, not this root — same as everywhere else
             // in the sandbox that looks one up.
             _animator = GetComponentInChildren<Animator>();
             _hasDeathTrigger = HasParameter(_animator, DeathHash);
             _hasHitTrigger = HasParameter(_animator, HitHash);
         }
+
+        void OnEnable() => _all.Add(this);
+        void OnDisable() => _all.Remove(this);
 
         public void TakeDamage(float amount)
         {
@@ -79,7 +119,17 @@ namespace WowSandbox
             Debug.Log($"[Health] {name} died.", this);
 
             if (_hasDeathTrigger)
+            {
+                // A Hit trigger can still be pending here — set by a blow that landed while
+                // the Hit clip was already playing, which Any State won't re-enter. Left set,
+                // it fires the moment Death starts, plays the flinch, and Hit's exit hands
+                // back to locomotion: a corpse standing back up. Clear it first.
+                if (_hasHitTrigger)
+                    _animator.ResetTrigger(HitHash);
                 _animator.SetTrigger(DeathHash);
+            }
+
+            Died?.Invoke();
 
             // WanderingNpc covers ChickenWanderer too, it's a subclass.
             var wanderer = GetComponent<WanderingNpc>();
@@ -90,11 +140,31 @@ namespace WowSandbox
             if (agent != null)
                 agent.enabled = false;
 
-            var capsule = GetComponent<Collider>();
-            if (capsule != null)
-                capsule.enabled = false; // a corpse shouldn't be re-targetable
+            MakeCorpseClickable();
 
-            StartCoroutine(DespawnAfterDelay(Random.Range(despawnDelaySeconds.x, despawnDelaySeconds.y)));
+            StartCoroutine(DespawnAfterDelay(UnityEngine.Random.Range(despawnDelaySeconds.x, despawnDelaySeconds.y)));
+        }
+
+        /// <summary>
+        /// The corpse stays clickable so it can be looted, but stops being a solid
+        /// obstacle: the collider turns into a trigger (raycasts still hit triggers; the
+        /// player's CharacterController walks through them). An upright capsule would also
+        /// miss a body lying on the ground, so it's squashed into a low, wide blob around
+        /// where the corpse falls.
+        /// </summary>
+        void MakeCorpseClickable()
+        {
+            var collider = GetComponent<Collider>();
+            if (collider == null)
+                return;
+
+            collider.isTrigger = true;
+            if (collider is CapsuleCollider capsule)
+            {
+                capsule.radius = Mathf.Max(capsule.radius, capsule.height * 0.35f);
+                capsule.height = capsule.radius * 2f;
+                capsule.center = new Vector3(0f, capsule.radius * 0.6f, 0f);
+            }
         }
 
         IEnumerator DespawnAfterDelay(float delay)

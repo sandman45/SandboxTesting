@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace WowSandbox
 {
@@ -12,11 +11,7 @@ namespace WowSandbox
     /// swimming starts at the waist so you can wade and swim with your head in the air.
     /// This asks WaterVolume the same "how far under" question at head height instead,
     /// the same pattern WaterVolume's own doc comment describes the controller and camera
-    /// already using.
-    ///
-    /// The bar is built in code rather than as a Canvas prefab, so there's no UI asset to
-    /// keep in sync with the rest of the sandbox — the same reasoning as UnderwaterEffect
-    /// building its own Volume at runtime.
+    /// already using. PlayerFrameHud draws the bar.
     /// </summary>
     [RequireComponent(typeof(CharacterController))]
     public class BreathController : MonoBehaviour
@@ -28,18 +23,12 @@ namespace WowSandbox
         public float refillTime = 5f;
         [Tooltip("Fraction of the capsule's height the head sits at, for the submersion check.")]
         [Range(0.5f, 1f)] public float headHeightFraction = 0.92f;
-        [Tooltip("Health lost per second once breath hits zero and you're still under. Only " +
+        [Tooltip("Percent of max health lost per second once breath hits zero and you're still " +
+                 "under — a percentage so it drowns a level 1 and a level 20 equally fast. Only " +
                  "applies if a HealthController is present; otherwise drowning just respawns " +
                  "you at the last breath, same as before health existed.")]
-        public float drowningDamagePerSecond = 12f;
+        public float drowningPercentPerSecond = 12f;
 
-        [Header("Bar")]
-        public Vector2 barSize = new(220f, 18f);
-        [Tooltip("Anchored from bottom-centre of the screen.")]
-        public Vector2 barOffset = new(0f, 70f);
-        public Color fullColor = new(0.25f, 0.55f, 0.95f);
-        public Color lowColor = new(0.85f, 0.15f, 0.1f);
-        public float fadeSpeed = 4f;
 
         CharacterController _controller;
         HealthController _health;
@@ -49,13 +38,11 @@ namespace WowSandbox
         Vector3 _lastSafePosition;
         Quaternion _lastSafeRotation;
 
-        CanvasGroup _canvasGroup;
-        Image _fill;
-
-        static Sprite _whiteSprite;
-
         /// <summary>Current breath as a 0-1 fraction of <see cref="maxBreath"/>.</summary>
         public float Breath01 => maxBreath > 0f ? Mathf.Clamp01(_breath / maxBreath) : 1f;
+
+        /// <summary>True while the head is under the surface, as of this frame's Update.</summary>
+        public bool IsSubmerged { get; private set; }
 
         void Awake()
         {
@@ -64,14 +51,13 @@ namespace WowSandbox
             _breath = maxBreath;
             _lastSafePosition = transform.position;
             _lastSafeRotation = transform.rotation;
-            BuildBar();
         }
 
         void Update()
         {
-            bool submerged = IsHeadSubmerged();
+            IsSubmerged = IsHeadSubmerged();
 
-            if (submerged)
+            if (IsSubmerged)
             {
                 _breath -= Time.deltaTime;
                 if (_breath <= 0f)
@@ -86,8 +72,6 @@ namespace WowSandbox
                 _lastSafeRotation = transform.rotation;
                 _breath = Mathf.Min(maxBreath, _breath + maxBreath / Mathf.Max(refillTime, 0.01f) * Time.deltaTime);
             }
-
-            UpdateBar(submerged);
         }
 
         /// <summary>Tops breath back up. Called by HealthController after it respawns you.</summary>
@@ -115,7 +99,7 @@ namespace WowSandbox
         {
             if (_health != null)
             {
-                _health.TakeDamage(drowningDamagePerSecond * Time.deltaTime);
+                _health.TakeDamage(_health.maxHealth * drowningPercentPerSecond * 0.01f * Time.deltaTime);
                 return;
             }
 
@@ -126,79 +110,6 @@ namespace WowSandbox
             _controller.enabled = true;
 
             _breath = maxBreath;
-        }
-
-        void UpdateBar(bool submerged)
-        {
-            bool visible = submerged || Breath01 < 0.999f;
-            float targetAlpha = visible ? 1f : 0f;
-            _canvasGroup.alpha = Mathf.MoveTowards(_canvasGroup.alpha, targetAlpha, fadeSpeed * Time.deltaTime);
-
-            _fill.fillAmount = Breath01;
-            _fill.color = Color.Lerp(lowColor, fullColor, Breath01);
-        }
-
-        void BuildBar()
-        {
-            var canvasGO = new GameObject("BreathBarCanvas") { hideFlags = HideFlags.DontSave };
-            canvasGO.transform.SetParent(transform, false);
-
-            var canvas = canvasGO.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 50;
-
-            var scaler = canvasGO.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-
-            canvasGO.AddComponent<GraphicRaycaster>();
-
-            _canvasGroup = canvasGO.AddComponent<CanvasGroup>();
-            _canvasGroup.alpha = 0f;
-            _canvasGroup.interactable = false;
-            _canvasGroup.blocksRaycasts = false;
-
-            var sprite = WhiteSprite();
-
-            var backGO = new GameObject("Background");
-            backGO.transform.SetParent(canvasGO.transform, false);
-            var backRect = backGO.AddComponent<RectTransform>();
-            backRect.anchorMin = backRect.anchorMax = new Vector2(0.5f, 0f);
-            backRect.pivot = new Vector2(0.5f, 0f);
-            backRect.anchoredPosition = barOffset;
-            backRect.sizeDelta = barSize + new Vector2(4f, 4f);
-            var backImage = backGO.AddComponent<Image>();
-            backImage.sprite = sprite;
-            backImage.color = new Color(0f, 0f, 0f, 0.6f);
-
-            var fillGO = new GameObject("Fill");
-            fillGO.transform.SetParent(backGO.transform, false);
-            var fillRect = fillGO.AddComponent<RectTransform>();
-            fillRect.anchorMin = Vector2.zero;
-            fillRect.anchorMax = Vector2.one;
-            fillRect.offsetMin = new Vector2(2f, 2f);
-            fillRect.offsetMax = new Vector2(-2f, -2f);
-            _fill = fillGO.AddComponent<Image>();
-            _fill.sprite = sprite;
-            _fill.type = Image.Type.Filled;
-            _fill.fillMethod = Image.FillMethod.Horizontal;
-            _fill.fillOrigin = (int)Image.OriginHorizontal.Left;
-            _fill.color = fullColor;
-        }
-
-        /// <summary>A 1x1 white pixel to tint, so the bar needs no sprite asset either.</summary>
-        static Sprite WhiteSprite()
-        {
-            if (_whiteSprite != null)
-                return _whiteSprite;
-
-            var texture = new Texture2D(1, 1) { hideFlags = HideFlags.DontSave };
-            texture.SetPixel(0, 0, Color.white);
-            texture.Apply();
-
-            _whiteSprite = Sprite.Create(texture, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f));
-            _whiteSprite.hideFlags = HideFlags.DontSave;
-            return _whiteSprite;
         }
     }
 }

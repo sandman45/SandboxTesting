@@ -125,8 +125,23 @@ namespace WowSandbox.EditorTools
 
             root.AddComponent<ChickenWanderer>();
 
-            var health = root.AddComponent<Health>();
-            health.maxHealth = 5f; // chickens are a one-hit kill in WoW too
+            // A tiny beast: a d4 of hit points and a weak peck, worth a scrap of XP.
+            var stats = root.AddComponent<CharacterStats>();
+            stats.characterName = "Chicken";
+            stats.className = "Beast";
+            stats.strength = 2;
+            stats.dexterity = 12;
+            stats.constitution = 8;
+            stats.intelligence = 2;
+            stats.wisdom = 10;
+            stats.charisma = 4;
+            stats.hitDie = 4;
+            stats.weaponDieSides = 1;
+            stats.experienceValue = 10;
+
+            var health = root.AddComponent<Health>(); // max HP comes from the stats above
+            health.reaction = Reaction.Neutral;
+            root.AddComponent<LootDrop>().table = LootTable.Beast;
 
             if (controller != null)
             {

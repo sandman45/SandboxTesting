@@ -93,6 +93,9 @@ namespace WowSandbox.EditorTools
             if (avatar != null)
                 animator.avatar = avatar;
 
+            // Character exports leave any equipped helm at the feet — put it back on the head.
+            HelmFitter.Fit(root, instance);
+
             var movement = root.AddComponent<WowCharacterController>();
             // The model child carries the facing offset above and the swim pitch at runtime.
             movement.modelRoot = instance.transform;
@@ -100,10 +103,33 @@ namespace WowSandbox.EditorTools
             // keeps the tuned swim pose even if that default changes later.
             movement.swimPitch = 0f;
 
+            // A starting human fighter: 5e's standard array, STR first. HealthController
+            // takes its max HP from these, so they go on before it.
+            var stats = root.AddComponent<CharacterStats>();
+            stats.characterName = "Warrior";
+            stats.className = "Fighter";
+            stats.strength = 15;
+            stats.constitution = 14;
+            stats.dexterity = 13;
+            stats.wisdom = 12;
+            stats.intelligence = 10;
+            stats.charisma = 8;
+            stats.hitDie = 10;
+            // Weapon and armour come from Inventory's starter kit (chain mail, longsword, shield).
+
             root.AddComponent<HealthController>();
             root.AddComponent<BreathController>();
             root.AddComponent<TargetingController>();
+            root.AddComponent<PlayerFrameHud>();
             root.AddComponent<TargetFrameHud>();
+            var nameplates = root.AddComponent<NameplateHud>();
+            root.AddComponent<CombatTextHud>();
+            root.AddComponent<Inventory>();
+            root.AddComponent<CharacterSheetPanel>();
+            root.AddComponent<InventoryPanel>();
+            root.AddComponent<LootPanel>();
+            root.AddComponent<MinimapHud>();
+            root.AddComponent<WorldMapPanel>();
 
             var camera = Camera.main;
             if (camera == null)
@@ -130,12 +156,13 @@ namespace WowSandbox.EditorTools
             movement.jumpHeight *= scale;
             movement.gravity *= scale;
             movement.attackRange *= scale;
+            nameplates.maxDistance *= scale;
 
             Undo.RegisterCreatedObjectUndo(root, "Spawn Warrior Player");
             Selection.activeGameObject = root;
             Debug.Log($"[WarriorSetup] Spawned WarriorPlayer (model height {height:F2} units). " +
                       "Press Play: W/S move, A/D turn, Q/E strafe, right-drag steers, left-drag orbits, " +
-                      "left-click targets, 1 attacks. " +
+                      "left-click targets, 1 attacks, C opens the character sheet, B the bags, M the map. " +
                       "In water: Space swims up, X swims down.");
         }
 

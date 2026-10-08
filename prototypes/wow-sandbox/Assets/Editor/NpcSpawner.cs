@@ -20,6 +20,8 @@ namespace WowSandbox.EditorTools
         float _scatterRadius = 12f;
         float _wanderRadius = 15f;
         float _walkSpeed = 1.6f;
+        Reaction _reaction = Reaction.Hostile;
+        int _level = 2;
         Vector3 _centre = Vector3.zero;
 
         [MenuItem("WoW Sandbox/Spawn Wandering NPCs")]
@@ -42,6 +44,8 @@ namespace WowSandbox.EditorTools
             EditorGUILayout.Space();
             _count = EditorGUILayout.IntSlider("Count", _count, 1, 30);
             _walkSpeed = EditorGUILayout.Slider("Walk speed", _walkSpeed, 0.3f, 6f);
+            _reaction = (Reaction)EditorGUILayout.EnumPopup("Reaction", _reaction);
+            _level = EditorGUILayout.IntSlider("Level", _level, 1, CharacterStats.MaxLevel);
             _scatterRadius = EditorGUILayout.Slider("Scatter radius", _scatterRadius, 1f, 100f);
             _wanderRadius = EditorGUILayout.Slider("Wander radius", _wanderRadius, 1f, 100f);
 
@@ -146,7 +150,25 @@ namespace WowSandbox.EditorTools
             var wanderer = root.AddComponent<WanderingNpc>();
             wanderer.wanderRadius = _wanderRadius;
 
-            root.AddComponent<Health>();
+            // A bandit-ish humanoid: quick rather than strong, leather armour, d8 hit die.
+            var stats = root.AddComponent<CharacterStats>();
+            stats.characterName = name;
+            stats.className = "Rogue";
+            stats.level = _level;
+            stats.strength = 11;
+            stats.dexterity = 14;
+            stats.constitution = 12;
+            stats.intelligence = 10;
+            stats.wisdom = 10;
+            stats.charisma = 10;
+            stats.hitDie = 8;
+            stats.armorBonus = 1; // leather
+            stats.weaponDieSides = 6; // shortsword
+            stats.experienceValue = 25 * _level;
+
+            var health = root.AddComponent<Health>(); // max HP comes from the stats above
+            health.reaction = _reaction;
+            root.AddComponent<LootDrop>().table = LootTable.Humanoid;
 
             if (controller != null)
             {
@@ -156,6 +178,9 @@ namespace WowSandbox.EditorTools
                 animator.runtimeAnimatorController = controller;
                 animator.applyRootMotion = false;
             }
+
+            // Character exports leave any equipped helm at the feet — put it back on the head.
+            HelmFitter.Fit(root, instance);
         }
 
         static float MeasureHeight(GameObject instance)
