@@ -200,6 +200,10 @@ namespace WowSandbox
             Trade("Bent Lockpick", "Lp", 2 * Money.Silver),
             Trade("Stolen Trinket", "Tr", 5 * Money.Silver),
             Trade("Silver Earring", "Er", 2 * Money.Gold),
+            Trade("Raw Fish", "Fi", 5),
+            Trade("Shark Tooth", "Th", 5 * Money.Silver),
+            Trade("Shark Fin", "Fn", 1 * Money.Gold),
+            Trade("Giant Shark Tooth", "GT", 5 * Money.Gold),
         };
 
         /// <summary>Hand-made, never rolled. Reach them through Inventory's context menu for now.</summary>

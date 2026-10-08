@@ -17,11 +17,13 @@ namespace WowSandbox.EditorTools
         /// <summary>Radius of the sky dome models at scale 1, from their glTF bounds.</summary>
         const float DomeRadiusAtUnitScale = 43f;
 
-        float _viewDistance = 600f;
+        // Defaults close the world in WoW-style: the far side of the island and the edge of
+        // the sea both sit inside the fog.
+        float _viewDistance = 320f;
         bool _enableFog = true;
         Color _fogColor = new Color(0.63f, 0.72f, 0.84f);
-        [Range(0f, 1f)] float _fogStart = 0.35f;
-        [Range(0f, 1f)] float _fogEnd = 0.95f;
+        [Range(0f, 1f)] float _fogStart = 0.2f;
+        [Range(0f, 1f)] float _fogEnd = 0.8f;
 
         [MenuItem("WoW Sandbox/Set View Distance")]
         public static void ShowWindow()

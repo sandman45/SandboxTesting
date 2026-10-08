@@ -30,6 +30,7 @@ namespace WowSandbox.EditorTools
         // Level
         float _seaLevel = 0.15f;
         float _margin = 1.1f;
+        const float MaxMargin = 4f;
         int _resolution = 256;
 
         // Look
@@ -74,7 +75,26 @@ namespace WowSandbox.EditorTools
 
             var filter = existing.GetComponent<MeshFilter>();
             if (filter != null && filter.sharedMesh != null && terrain.terrainData.size.x > 0f)
-                _margin = Mathf.Clamp(filter.sharedMesh.bounds.size.x / terrain.terrainData.size.x, 1f, 3f);
+            {
+                _margin = Mathf.Clamp(filter.sharedMesh.bounds.size.x / terrain.terrainData.size.x, 1f, MaxMargin);
+                // BuildGrid makes (resolution + 1)² vertices.
+                _resolution = Mathf.Max(2, Mathf.RoundToInt(Mathf.Sqrt(filter.sharedMesh.vertexCount)) - 1);
+            }
+
+            // Same for the look: rebuilding writes a fresh material from these fields, so
+            // start them from the current one or any tuning done on it is lost.
+            var renderer = existing.GetComponent<MeshRenderer>();
+            var material = renderer != null ? renderer.sharedMaterial : null;
+            if (material == null)
+                return;
+            if (material.HasProperty("_ShallowColor")) _shallow = material.GetColor("_ShallowColor");
+            if (material.HasProperty("_DeepColor")) _deep = material.GetColor("_DeepColor");
+            if (material.HasProperty("_DepthMaxDistance")) _depthMaxDistance = material.GetFloat("_DepthMaxDistance");
+            if (material.HasProperty("_FoamDistance")) _foamDistance = material.GetFloat("_FoamDistance");
+            if (material.HasProperty("_NormalStrength")) _normalStrength = material.GetFloat("_NormalStrength");
+            if (material.HasProperty("_ReflectionStrength")) _reflectionStrength = material.GetFloat("_ReflectionStrength");
+            if (material.HasProperty("_ScrollA")) _tileA = material.GetVector("_ScrollA").z;
+            if (material.HasProperty("_ScrollB")) _tileB = material.GetVector("_ScrollB").z;
         }
 
         void OnGUI()
@@ -103,7 +123,7 @@ namespace WowSandbox.EditorTools
             _margin = EditorGUILayout.Slider(
                 new GUIContent("Overhang", "Extends the water past the terrain edge so there's " +
                                            "no visible seam at the horizon."),
-                _margin, 1f, 3f);
+                _margin, 1f, MaxMargin);
             _resolution = EditorGUILayout.IntSlider(
                 new GUIContent("Grid resolution", "Quads per side. Only matters for the waves: " +
                                                   "waves shorter than ~2.5 quads can't move the " +

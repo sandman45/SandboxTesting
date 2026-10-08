@@ -130,6 +130,8 @@ namespace WowSandbox.EditorTools
             root.AddComponent<LootPanel>();
             root.AddComponent<MinimapHud>();
             root.AddComponent<WorldMapPanel>();
+            root.AddComponent<DeepSeaDanger>();
+            root.AddComponent<DeathScreen>();
 
             var camera = Camera.main;
             if (camera == null)
@@ -184,6 +186,8 @@ namespace WowSandbox.EditorTools
             var attack = CopyClip(clips, AttackClip, loop: false);
             var swimIdle = CopyClip(clips, SwimIdleClip, loop: true);
             var swim = CopyClip(clips, SwimClip, loop: true);
+            // Held, not looped: the body stays down until the death screen's Respawn.
+            var death = CopyClip(clips, "Death", loop: false);
 
             if (idle == null || walk == null || run == null)
             {
@@ -256,6 +260,21 @@ namespace WowSandbox.EditorTools
                 backToLocomotion.hasExitTime = true;
                 backToLocomotion.exitTime = 0.85f;
                 backToLocomotion.duration = 0.1f;
+            }
+
+            if (death != null)
+            {
+                controller.AddParameter("Death", AnimatorControllerParameterType.Trigger);
+                var deathState = stateMachine.AddState("Death");
+                deathState.motion = death;
+
+                // From anywhere, swimming included, and no way back out: HealthController
+                // rebinds the Animator to its default state when you respawn.
+                var toDeath = stateMachine.AddAnyStateTransition(deathState);
+                toDeath.AddCondition(AnimatorConditionMode.If, 0f, "Death");
+                toDeath.duration = 0.1f;
+                toDeath.hasExitTime = false;
+                toDeath.canTransitionToSelf = false;
             }
 
             EditorUtility.SetDirty(controller);

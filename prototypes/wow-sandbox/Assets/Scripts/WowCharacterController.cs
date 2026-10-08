@@ -74,6 +74,7 @@ namespace WowSandbox
         float _verticalVelocity;
         float _animSpeed;
         bool _swimming;
+        bool _autoRun;
         bool _atSurface;
 
         // Moving platform (a floating ship's deck): where we stand on it, in its own space,
@@ -102,6 +103,11 @@ namespace WowSandbox
 
         /// <summary>True while the right mouse button is steering the character.</summary>
         public bool IsSteering { get; private set; }
+
+        /// <summary>True while auto-run is carrying the character forward.</summary>
+        public bool IsAutoRunning => _autoRun;
+
+        public void StopAutoRun() => _autoRun = false;
 
         /// <summary>True while the character is in deep enough water to swim.</summary>
         public bool IsSwimming => _swimming;
@@ -199,10 +205,23 @@ namespace WowSandbox
 
             RidePlatform();
 
+            // --- Auto-run -----------------------------------------------------
+            // Middle mouse (or Num Lock, as in WoW) toggles it; pressing forward or back
+            // takes manual control again. It's just a held W, so it runs, walks with Shift,
+            // swims, and steers with A/D or the right mouse button like normal movement.
+            bool toggleAutoRun = keyboard.numLockKey.wasPressedThisFrame ||
+                                 (mouse != null && mouse.middleButton.wasPressedThisFrame && !Hud.PointerOverUi);
+            if (toggleAutoRun)
+                _autoRun = !_autoRun;
+            if (keyboard.wKey.wasPressedThisFrame || keyboard.upArrowKey.wasPressedThisFrame ||
+                keyboard.sKey.wasPressedThisFrame || keyboard.downArrowKey.wasPressedThisFrame)
+                _autoRun = false;
+
             // --- Read input -------------------------------------------------
-            float forward = 0f;
+            float forward = _autoRun ? 1f : 0f;
             if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed) forward += 1f;
             if (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed) forward -= 1f;
+            forward = Mathf.Clamp(forward, -1f, 1f);
 
             float strafe = 0f;
             if (keyboard.eKey.isPressed) strafe += 1f;
@@ -467,12 +486,22 @@ namespace WowSandbox
             toTarget.y = 0f;
 
             float distance = toTarget.magnitude;
+            if (_swimming)
+            {
+                // In the water things can be above or below you, so reach is measured in 3D,
+                // body to body — a shark under your feet is in range, one far beneath isn't.
+                var targetCollider = target.GetComponent<Collider>();
+                Vector3 chest = transform.position + Vector3.up * (_controller.height * 0.6f);
+                Vector3 nearest = targetCollider != null ? targetCollider.ClosestPoint(chest) : target.transform.position;
+                distance = Vector3.Distance(_controller.ClosestPoint(nearest), nearest);
+            }
             if (distance > attackRange)
                 return;
 
-            // A target standing exactly on top of you has no meaningful direction to be
-            // "in front" in — let it through rather than dividing by a near-zero vector.
-            if (distance > 0.01f && Vector3.Angle(transform.forward, toTarget) > attackAngle * 0.5f)
+            // A target right on top of (or, swimming, right under) you has no meaningful
+            // direction to be "in front" in — let it through rather than judging the angle of
+            // a near-zero vector.
+            if (toTarget.magnitude > 0.5f && Vector3.Angle(transform.forward, toTarget) > attackAngle * 0.5f)
                 return;
 
             if (_stats != null)

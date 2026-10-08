@@ -47,6 +47,10 @@ namespace WowSandbox
         /// <summary>Every enabled Health in the scene — what the nameplates iterate.</summary>
         public static IReadOnlyList<Health> All => _all;
 
+        /// <summary>Raised whenever this unit takes damage, with the amount — how a neutral
+        /// creature knows it's been provoked.</summary>
+        public event Action<float> Damaged;
+
         /// <summary>Raised once, when this unit dies — LootDrop rolls its loot on it.</summary>
         public event Action Died;
 
@@ -69,10 +73,10 @@ namespace WowSandbox
                 maxHealth = stats.MaxHitPoints;
 
             _health = maxHealth;
-            var capsule = GetComponent<CapsuleCollider>();
-            Height = capsule != null
-                ? (capsule.center.y + capsule.height * 0.5f) * transform.lossyScale.y
-                : 2f;
+            // The collider's top, whichever way it lies — upright for people and chickens,
+            // lengthwise for sharks.
+            var collider = GetComponent<Collider>();
+            Height = collider != null ? collider.bounds.max.y - transform.position.y : 2f;
             // Lives on the imported model child, not this root — same as everywhere else
             // in the sandbox that looks one up.
             _animator = GetComponentInChildren<Animator>();
@@ -89,6 +93,7 @@ namespace WowSandbox
                 return;
 
             _health = Mathf.Max(0f, _health - amount);
+            Damaged?.Invoke(amount);
             if (_health <= 0f)
             {
                 Die();
@@ -159,7 +164,9 @@ namespace WowSandbox
                 return;
 
             collider.isTrigger = true;
-            if (collider is CapsuleCollider capsule)
+            // Only an upright capsule needs squashing; a lengthwise one (a shark) already
+            // lies along the body.
+            if (collider is CapsuleCollider { direction: 1 } capsule)
             {
                 capsule.radius = Mathf.Max(capsule.radius, capsule.height * 0.35f);
                 capsule.height = capsule.radius * 2f;

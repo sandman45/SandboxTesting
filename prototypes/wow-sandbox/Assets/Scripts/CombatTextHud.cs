@@ -10,7 +10,8 @@ namespace WowSandbox
     /// a kill adds the XP it earned. Each number stays pinned to the spot it was dealt
     /// rather than to the unit, so a fleeing target leaves its numbers behind like in WoW.
     ///
-    /// Levelling up (from CharacterStats on the same object) gets a banner mid-screen.
+    /// Levelling up (from CharacterStats on the same object) gets a banner mid-screen, and
+    /// hits taken by the player show in red over their own head.
     /// </summary>
     [DefaultExecutionOrder(1000)]
     public class CombatTextHud : MonoBehaviour
@@ -47,6 +48,7 @@ namespace WowSandbox
         void OnEnable()
         {
             Combat.AttackResolved += OnAttack;
+            Combat.PlayerAttacked += OnPlayerAttacked;
             if (_stats != null)
                 _stats.LeveledUp += OnLeveledUp;
         }
@@ -54,6 +56,7 @@ namespace WowSandbox
         void OnDisable()
         {
             Combat.AttackResolved -= OnAttack;
+            Combat.PlayerAttacked -= OnPlayerAttacked;
             if (_stats != null)
                 _stats.LeveledUp -= OnLeveledUp;
         }
@@ -73,6 +76,19 @@ namespace WowSandbox
             if (result.ExperienceAwarded > 0)
                 Show($"+{result.ExperienceAwarded} XP", world, jitter + new Vector2(0f, -34f),
                     HudTheme.Experience, 0.8f, duration * 1.6f);
+        }
+
+        void OnPlayerAttacked(HealthController player, AttackResult result)
+        {
+            var body = player.GetComponent<CharacterController>();
+            Vector3 head = player.transform.position + Vector3.up * (body != null ? body.height : 2f);
+            var jitter = new Vector2(Random.Range(-30f, 30f), 0f);
+
+            if (!result.Hit)
+                Show("Miss", head, jitter, HudTheme.Miss, 0.8f, duration);
+            else
+                Show($"-{result.Damage}{(result.Critical ? "!" : "")}", head, jitter, HudTheme.DamageFlash,
+                    result.Critical ? 1.3f : 1f, duration);
         }
 
         void OnLeveledUp(int level) =>
