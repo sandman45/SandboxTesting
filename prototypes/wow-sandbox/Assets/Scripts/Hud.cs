@@ -12,6 +12,8 @@ namespace WowSandbox
         CombatText = 1,
         Frames = 2,
         Panels = 3,
+        /// <summary>Full-screen effects over everything, like fading to black.</summary>
+        Overlay = 4,
     }
 
     /// <summary>
@@ -106,7 +108,7 @@ namespace WowSandbox
         public static float Scale = 1.3f;
 
         static Canvas _canvas;
-        static readonly RectTransform[] _layers = new RectTransform[4];
+        static readonly RectTransform[] _layers = new RectTransform[5];
         static Sprite _rounded;
         static Sprite _ring;
         static Sprite _circle;

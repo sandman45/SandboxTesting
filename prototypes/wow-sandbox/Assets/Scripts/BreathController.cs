@@ -99,7 +99,8 @@ namespace WowSandbox
         {
             if (_health != null)
             {
-                _health.TakeDamage(_health.maxHealth * drowningPercentPerSecond * 0.01f * Time.deltaTime);
+                _health.TakeDamage(_health.maxHealth * drowningPercentPerSecond * 0.01f * Time.deltaTime,
+                    DeathCause.Drowned, null);
                 return;
             }
 

@@ -30,25 +30,22 @@ namespace WowSandbox
         /// <summary>XP for killing something that has no CharacterStats.</summary>
         public const int DefaultExperience = 10;
 
-        /// <summary>Raised after every resolved attack, hit or miss.</summary>
+        /// <summary>Raised after every resolved attack on an NPC, hit or miss.</summary>
         public static event Action<Health, AttackResult> AttackResolved;
+
+        /// <summary>Raised after every attack on the player, hit or miss.</summary>
+        public static event Action<HealthController, AttackResult> PlayerAttacked;
 
         public static AttackResult MeleeAttack(CharacterStats attacker, Health target)
         {
-            var result = new AttackResult();
             if (attacker == null || target == null || target.IsDead)
-                return result;
+                return new AttackResult();
 
             var defender = target.GetComponent<CharacterStats>();
-            result.TargetArmorClass = defender != null ? defender.ArmorClass : DefaultArmorClass;
-            result.Roll = Dice.Roll(1, 20);
-            result.Total = result.Roll + attacker.AttackBonus;
-            result.Critical = result.Roll == 20;
-            result.Hit = result.Critical || (result.Roll != 1 && result.Total >= result.TargetArmorClass);
+            var result = Roll(attacker, defender != null ? defender.ArmorClass : DefaultArmorClass);
 
             if (result.Hit)
             {
-                result.Damage = attacker.RollDamage(result.Critical);
                 target.TakeDamage(result.Damage);
 
                 if (target.IsDead)
@@ -66,6 +63,43 @@ namespace WowSandbox
                       (result.Killed ? $", killed (+{result.ExperienceAwarded} XP)" : ""), attacker);
 
             AttackResolved?.Invoke(target, result);
+            return result;
+        }
+
+        /// <summary>
+        /// An NPC attacking the player — same roll, against the player's armour class (their
+        /// equipment counts, in water too). Dying is HealthController's business.
+        /// </summary>
+        public static AttackResult AttackPlayer(CharacterStats attacker, HealthController target)
+        {
+            if (attacker == null || target == null || target.IsDead)
+                return new AttackResult();
+
+            var defender = target.GetComponent<CharacterStats>();
+            var result = Roll(attacker, defender != null ? defender.ArmorClass : DefaultArmorClass);
+            if (result.Hit)
+            {
+                var cause = attacker.GetComponent<SwimmingCreature>() != null ? DeathCause.Shark : DeathCause.Creature;
+                target.TakeDamage(result.Damage, cause, attacker.characterName);
+            }
+
+            Debug.Log($"[Combat] {attacker.characterName} → player: d20 {result.Roll} = {result.Total} " +
+                      $"vs AC {result.TargetArmorClass} — " +
+                      (result.Hit ? $"{(result.Critical ? "CRIT " : "")}hit for {result.Damage}" : "miss"), attacker);
+
+            PlayerAttacked?.Invoke(target, result);
+            return result;
+        }
+
+        /// <summary>The d20 roll and, on a hit, the damage — shared by both directions of attack.</summary>
+        static AttackResult Roll(CharacterStats attacker, int armorClass)
+        {
+            var result = new AttackResult { TargetArmorClass = armorClass, Roll = Dice.Roll(1, 20) };
+            result.Total = result.Roll + attacker.AttackBonus;
+            result.Critical = result.Roll == 20;
+            result.Hit = result.Critical || (result.Roll != 1 && result.Total >= armorClass);
+            if (result.Hit)
+                result.Damage = attacker.RollDamage(result.Critical);
             return result;
         }
     }

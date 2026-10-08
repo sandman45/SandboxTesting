@@ -12,6 +12,8 @@ namespace WowSandbox
         Beast,
         /// <summary>Thieves and other people: coin, trade goods, gear, sometimes magic.</summary>
         Humanoid,
+        /// <summary>Sharks: teeth and fins, and now and then whatever's in its stomach.</summary>
+        Sea,
     }
 
     /// <summary>
@@ -70,6 +72,18 @@ namespace WowSandbox
                         _items.Add(ItemCatalog.Create("Chicken Feather", Random.Range(1, 4)));
                     else if (roll < 0.9f)
                         _items.Add(ItemCatalog.Create("Raw Chicken"));
+                    break;
+
+                case LootTable.Sea:
+                    var shark = GetComponent<CharacterStats>();
+                    bool giant = shark != null && shark.level >= 8;
+                    if (Random.value < 0.7f)
+                        _items.Add(ItemCatalog.Create(giant ? "Giant Shark Tooth" : "Shark Tooth", Random.Range(1, 3)));
+                    if (Random.value < 0.4f)
+                        _items.Add(ItemCatalog.Create("Shark Fin"));
+                    // Something it swallowed — the same odds a thief carries anything.
+                    if (Random.value < 0.15f)
+                        _items.Add(PickWeighted(HumanoidDrops)());
                     break;
 
                 case LootTable.Humanoid:
