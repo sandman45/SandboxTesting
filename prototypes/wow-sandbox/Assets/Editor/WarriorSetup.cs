@@ -103,7 +103,10 @@ namespace WowSandbox.EditorTools
             root.AddComponent<HealthController>();
             root.AddComponent<BreathController>();
             root.AddComponent<TargetingController>();
+            root.AddComponent<PlayerFrameHud>();
             root.AddComponent<TargetFrameHud>();
+            var nameplates = root.AddComponent<NameplateHud>();
+            root.AddComponent<CombatTextHud>();
 
             var camera = Camera.main;
             if (camera == null)
@@ -130,6 +133,7 @@ namespace WowSandbox.EditorTools
             movement.jumpHeight *= scale;
             movement.gravity *= scale;
             movement.attackRange *= scale;
+            nameplates.maxDistance *= scale;
 
             Undo.RegisterCreatedObjectUndo(root, "Spawn Warrior Player");
             Selection.activeGameObject = root;

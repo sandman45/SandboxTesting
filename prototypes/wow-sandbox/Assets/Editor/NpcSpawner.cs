@@ -20,6 +20,7 @@ namespace WowSandbox.EditorTools
         float _scatterRadius = 12f;
         float _wanderRadius = 15f;
         float _walkSpeed = 1.6f;
+        Reaction _reaction = Reaction.Hostile;
         Vector3 _centre = Vector3.zero;
 
         [MenuItem("WoW Sandbox/Spawn Wandering NPCs")]
@@ -42,6 +43,7 @@ namespace WowSandbox.EditorTools
             EditorGUILayout.Space();
             _count = EditorGUILayout.IntSlider("Count", _count, 1, 30);
             _walkSpeed = EditorGUILayout.Slider("Walk speed", _walkSpeed, 0.3f, 6f);
+            _reaction = (Reaction)EditorGUILayout.EnumPopup("Reaction", _reaction);
             _scatterRadius = EditorGUILayout.Slider("Scatter radius", _scatterRadius, 1f, 100f);
             _wanderRadius = EditorGUILayout.Slider("Wander radius", _wanderRadius, 1f, 100f);
 
@@ -146,7 +148,8 @@ namespace WowSandbox.EditorTools
             var wanderer = root.AddComponent<WanderingNpc>();
             wanderer.wanderRadius = _wanderRadius;
 
-            root.AddComponent<Health>();
+            var health = root.AddComponent<Health>();
+            health.reaction = _reaction;
 
             if (controller != null)
             {

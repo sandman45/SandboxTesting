@@ -127,6 +127,7 @@ namespace WowSandbox.EditorTools
 
             var health = root.AddComponent<Health>();
             health.maxHealth = 5f; // chickens are a one-hit kill in WoW too
+            health.reaction = Reaction.Neutral;
 
             if (controller != null)
             {
