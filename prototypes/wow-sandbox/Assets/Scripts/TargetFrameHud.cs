@@ -4,8 +4,8 @@ using UnityEngine.UI;
 namespace WowSandbox
 {
     /// <summary>
-    /// Unit frame for the current target, top-right — across the screen from
-    /// PlayerFrameHud's, so the two never crowd each other at larger HUD scales: name
+    /// Unit frame for the current target, bottom-right — the minimap has the top-right
+    /// corner, and the player frame the top-left: name
     /// coloured by how it regards you (red hostile, yellow neutral, green friendly), its
     /// level coloured by difficulty relative to yours (WoW's grey-green-yellow-orange-red),
     /// health with numbers and a percentage, and "Dead" once it's a corpse. Fades out
@@ -14,8 +14,8 @@ namespace WowSandbox
     [RequireComponent(typeof(TargetingController))]
     public class TargetFrameHud : MonoBehaviour
     {
-        [Tooltip("Anchored from the top-right of the screen.")]
-        public Vector2 topRightOffset = new(-20f, -20f);
+        [Tooltip("Anchored from the bottom-right of the screen.")]
+        public Vector2 bottomRightOffset = new(-20f, 20f);
         public float fadeSpeed = 8f;
 
         static readonly Vector2 FrameSize = new(250f, 62f);
@@ -85,7 +85,7 @@ namespace WowSandbox
         {
             var topLeft = new Vector2(0f, 1f);
 
-            var frame = Hud.Rect("TargetFrame", Hud.Layer(HudLayer.Frames), Vector2.one, topRightOffset, FrameSize);
+            var frame = Hud.Rect("TargetFrame", Hud.Layer(HudLayer.Frames), new Vector2(1f, 0f), bottomRightOffset, FrameSize);
             Hud.Panel(frame);
             _group = frame.gameObject.AddComponent<CanvasGroup>();
             _group.alpha = 0f;

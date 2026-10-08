@@ -128,6 +128,8 @@ namespace WowSandbox.EditorTools
             root.AddComponent<CharacterSheetPanel>();
             root.AddComponent<InventoryPanel>();
             root.AddComponent<LootPanel>();
+            root.AddComponent<MinimapHud>();
+            root.AddComponent<WorldMapPanel>();
 
             var camera = Camera.main;
             if (camera == null)
@@ -160,7 +162,7 @@ namespace WowSandbox.EditorTools
             Selection.activeGameObject = root;
             Debug.Log($"[WarriorSetup] Spawned WarriorPlayer (model height {height:F2} units). " +
                       "Press Play: W/S move, A/D turn, Q/E strafe, right-drag steers, left-drag orbits, " +
-                      "left-click targets, 1 attacks, C opens the character sheet, B the bags. " +
+                      "left-click targets, 1 attacks, C opens the character sheet, B the bags, M the map. " +
                       "In water: Space swims up, X swims down.");
         }
 

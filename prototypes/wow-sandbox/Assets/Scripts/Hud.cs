@@ -109,6 +109,9 @@ namespace WowSandbox
         static readonly RectTransform[] _layers = new RectTransform[4];
         static Sprite _rounded;
         static Sprite _ring;
+        static Sprite _circle;
+        static Sprite _circleRing;
+        static Sprite _arrow;
         static Font _font;
 
         public static Font Font => _font != null ? _font : _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -334,6 +337,62 @@ namespace WowSandbox
             button.colors = colors;
             button.onClick.AddListener(onClick);
             return button;
+        }
+
+        /// <summary>A filled anti-aliased circle — map dots, and the minimap's round mask.</summary>
+        public static Sprite Circle => _circle != null ? _circle : _circle = MakeMapSprite(64, CircleDistance(0f));
+
+        /// <summary>Just the rim of a circle, for the minimap's border.</summary>
+        public static Sprite CircleRing => _circleRing != null ? _circleRing : _circleRing = MakeMapSprite(64, CircleDistance(1.6f));
+
+        /// <summary>A chevron pointing up — the player's arrow on the maps.</summary>
+        public static Sprite Arrow => _arrow != null ? _arrow : _arrow = MakeMapSprite(32, ArrowCoverage);
+
+        static System.Func<float, float, float> CircleDistance(float ringWidth) => (x, y) =>
+        {
+            // x, y in -1..1 across the sprite; returns coverage 0-1 with a 1-pixel soft edge.
+            float r = Mathf.Sqrt(x * x + y * y) * 32f;
+            float outside = r - 31f;
+            float alpha = Mathf.Clamp01(0.5f - outside);
+            if (ringWidth > 0f)
+                alpha -= Mathf.Clamp01(0.5f - (outside + ringWidth));
+            return Mathf.Clamp01(alpha);
+        };
+
+        static float ArrowCoverage(float x, float y)
+        {
+            // Tip at the top, two back corners, and a notch cut into the base.
+            bool inside = y < 0.95f && y > -0.85f
+                          && Mathf.Abs(x) < (0.95f - y) * 0.48f
+                          && y > -0.35f - Mathf.Abs(x) * 0.8f;
+            return inside ? 1f : 0f;
+        }
+
+        static Sprite MakeMapSprite(int size, System.Func<float, float, float> coverage)
+        {
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                hideFlags = HideFlags.DontSave,
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+            };
+
+            var pixels = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float u = (x + 0.5f) / size * 2f - 1f;
+                    float v = (y + 0.5f) / size * 2f - 1f;
+                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)(coverage(u, v) * 255f));
+                }
+            }
+
+            texture.SetPixels32(pixels);
+            texture.Apply();
+            var sprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
+            sprite.hideFlags = HideFlags.DontSave;
+            return sprite;
         }
 
         static Sprite RoundedSprite() => _rounded != null ? _rounded : _rounded = MakeRoundedSprite(0f);
