@@ -42,6 +42,10 @@ namespace WowSandbox
             if (_camera == null || mouse == null || !mouse.leftButton.wasPressedThisFrame)
                 return;
 
+            // A click on a HUD panel is for the panel, not the world behind it.
+            if (Hud.PointerOverUi)
+                return;
+
             Ray ray = _camera.ScreenPointToRay(mouse.position.ReadValue());
             if (Physics.Raycast(ray, out RaycastHit hit, range))
             {

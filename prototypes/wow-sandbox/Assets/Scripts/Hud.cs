@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
 namespace WowSandbox
@@ -9,6 +11,7 @@ namespace WowSandbox
         Nameplates = 0,
         CombatText = 1,
         Frames = 2,
+        Panels = 3,
     }
 
     /// <summary>
@@ -31,6 +34,11 @@ namespace WowSandbox
         public static readonly Color HealthFull = new(0.2f, 0.75f, 0.25f);
         public static readonly Color HealthLow = new(0.85f, 0.15f, 0.1f);
         public static readonly Color Breath = new(0.25f, 0.55f, 0.95f);
+        public static readonly Color Experience = new(0.62f, 0.36f, 0.9f);
+        public static readonly Color Heading = new(0.9f, 0.76f, 0.42f);
+        public static readonly Color Critical = new(1f, 0.55f, 0.15f);
+        public static readonly Color Miss = new(0.75f, 0.75f, 0.75f);
+        public static readonly Color SubPanel = new(0f, 0f, 0f, 0.35f);
 
         public static readonly Color Hostile = new(0.92f, 0.22f, 0.16f);
         public static readonly Color Neutral = new(0.96f, 0.82f, 0.22f);
@@ -39,6 +47,20 @@ namespace WowSandbox
         /// <summary>Green at full, sliding to red as it empties — kept green until half.</summary>
         public static Color HealthColor(float health01) =>
             Color.Lerp(HealthLow, HealthFull, Mathf.Clamp01(health01 * 2f));
+
+        /// <summary>
+        /// WoW's difficulty colours for a level relative to yours: grey far below, green
+        /// below, yellow around even, orange above, red well above.
+        /// </summary>
+        public static Color LevelColor(int targetLevel, int playerLevel)
+        {
+            int difference = targetLevel - playerLevel;
+            if (difference >= 5) return new Color(0.95f, 0.2f, 0.15f);
+            if (difference >= 3) return new Color(1f, 0.5f, 0.15f);
+            if (difference >= -2) return new Color(1f, 0.85f, 0.2f);
+            if (difference >= -6) return new Color(0.3f, 0.8f, 0.3f);
+            return new Color(0.6f, 0.6f, 0.6f);
+        }
 
         public static Color ReactionColor(Reaction reaction) => reaction switch
         {
@@ -70,7 +92,7 @@ namespace WowSandbox
         public static float Scale = 1.3f;
 
         static Canvas _canvas;
-        static readonly RectTransform[] _layers = new RectTransform[3];
+        static readonly RectTransform[] _layers = new RectTransform[4];
         static Sprite _rounded;
         static Sprite _ring;
         static Font _font;
@@ -106,6 +128,16 @@ namespace WowSandbox
             scaler.referenceResolution = new Vector2(1920f, 1080f) / Mathf.Max(Scale, 0.1f);
             scaler.matchWidthOrHeight = 0.5f;
 
+            // Only panels set raycastTarget, so this only ever reports hits on those.
+            go.AddComponent<GraphicRaycaster>();
+            if (EventSystem.current == null)
+            {
+                var events = new GameObject("EventSystem");
+                events.AddComponent<EventSystem>();
+                // No actions asset: the module falls back to the Input System's default UI actions.
+                events.AddComponent<InputSystemUIInputModule>();
+            }
+
             // Created in enum order, so sibling order is draw order.
             foreach (HudLayer layer in System.Enum.GetValues(typeof(HudLayer)))
                 _layers[(int)layer] = Stretch(layer.ToString(), go.transform);
@@ -138,6 +170,13 @@ namespace WowSandbox
             if (removed > 0)
                 Debug.Log($"[Hud] Removed {removed} HUD canvas(es) left over from an earlier session.");
         }
+
+        /// <summary>
+        /// True while the mouse is over a HUD panel — what the targeting click and camera
+        /// drag check so clicking on a panel doesn't also act on the world behind it.
+        /// </summary>
+        public static bool PointerOverUi =>
+            EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
 
         /// <summary>A rect pinned to <paramref name="anchor"/> (which is also its pivot).</summary>
         public static RectTransform Rect(string name, Transform parent, Vector2 anchor, Vector2 position, Vector2 size)
@@ -210,6 +249,36 @@ namespace WowSandbox
             outline.effectColor = new Color(0f, 0f, 0f, 0.85f);
             outline.effectDistance = new Vector2(1f, -1f);
             return text;
+        }
+
+        /// <summary>Outlined text in its own rect, pinned like <see cref="Rect"/>.</summary>
+        public static Text Label(string name, Transform parent, Vector2 anchor, Vector2 position, Vector2 size,
+            int fontSize, TextAnchor alignment, Color color, FontStyle style = FontStyle.Normal)
+        {
+            var rect = Rect(name, parent, anchor, position, size);
+            var text = Label("Text", rect, fontSize, alignment, color, style);
+            return text;
+        }
+
+        /// <summary>A small square close button with an "X", top-right of <paramref name="parent"/>.</summary>
+        public static Button CloseButton(RectTransform parent, UnityEngine.Events.UnityAction onClick)
+        {
+            var rect = Rect("Close", parent, Vector2.one, new Vector2(-8f, -8f), new Vector2(24f, 24f));
+            // White image, coloured by the button's tint — the tint multiplies, so it can only
+            // brighten on hover if the base it multiplies is white.
+            var image = Rounded(rect.gameObject, Color.white, 4f);
+            image.raycastTarget = true;
+            Label("X", rect, 14, TextAnchor.MiddleCenter, HudTheme.Text, FontStyle.Bold);
+
+            var button = rect.gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            var colors = button.colors;
+            colors.normalColor = new Color(0.4f, 0.1f, 0.08f, 0.9f);
+            colors.highlightedColor = colors.selectedColor = new Color(0.7f, 0.16f, 0.1f, 1f);
+            colors.pressedColor = new Color(0.3f, 0.06f, 0.05f, 1f);
+            button.colors = colors;
+            button.onClick.AddListener(onClick);
+            return button;
         }
 
         static Sprite RoundedSprite() => _rounded != null ? _rounded : _rounded = MakeRoundedSprite(0f);

@@ -57,6 +57,7 @@ namespace WowSandbox
         [Tooltip("Half-angle of the frontal cone your target has to be inside, in degrees. " +
                  "90 means anywhere in front of you; 180 would let you hit things behind you.")]
         [Range(10f, 180f)] public float attackAngle = 100f;
+        [Tooltip("Flat damage per hit, used only when there's no CharacterStats to roll with.")]
         public float attackDamage = 10f;
 
         [Header("Animation")]
@@ -68,6 +69,7 @@ namespace WowSandbox
 
         CharacterController _controller;
         TargetingController _targeting;
+        CharacterStats _stats;
         Animator _animator;
         float _verticalVelocity;
         float _animSpeed;
@@ -110,6 +112,9 @@ namespace WowSandbox
             // Optional: an older player rig without TargetingController still attacks, it
             // just never lands a hit — see TryAttackTarget.
             _targeting = GetComponent<TargetingController>();
+            // Optional too: with stats, swings roll d20 against armour class (see Combat);
+            // without, every swing in range lands for attackDamage as before.
+            _stats = GetComponent<CharacterStats>();
             // The Animator usually lives on the imported glTF child, not the root.
             _animator = GetComponentInChildren<Animator>();
 
@@ -446,12 +451,13 @@ namespace WowSandbox
         /// Lands the swing on TargetingController's current target, if there is one, it's
         /// within attackRange, and it's inside the frontal cone attackAngle describes.
         /// Whiffing (no target, too far, or facing the wrong way) still plays the animation
-        /// above — this only decides whether it also deals damage.
+        /// above — this only decides whether it also gets to roll for damage, which is
+        /// Combat's job when there's a CharacterStats to roll with.
         /// </summary>
         void TryAttackTarget()
         {
             var target = _targeting != null ? _targeting.Target : null;
-            if (target == null)
+            if (target == null || target.IsDead)
                 return;
 
             Vector3 toTarget = target.transform.position - transform.position;
@@ -466,7 +472,10 @@ namespace WowSandbox
             if (distance > 0.01f && Vector3.Angle(transform.forward, toTarget) > attackAngle * 0.5f)
                 return;
 
-            target.TakeDamage(attackDamage);
+            if (_stats != null)
+                Combat.MeleeAttack(_stats, target);
+            else
+                target.TakeDamage(attackDamage);
         }
 
         /// <summary>

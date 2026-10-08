@@ -1,4 +1,3 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -47,9 +46,6 @@ namespace WowSandbox
         /// <summary>Every enabled Health in the scene — what the nameplates iterate.</summary>
         public static IReadOnlyList<Health> All => _all;
 
-        /// <summary>Raised after any NPC takes damage, with the amount dealt (killing blows included).</summary>
-        public static event Action<Health, float> AnyDamaged;
-
         public float Current => _health;
         public float Health01 => maxHealth > 0f ? Mathf.Clamp01(_health / maxHealth) : 1f;
         public bool IsDead { get; private set; }
@@ -63,6 +59,11 @@ namespace WowSandbox
 
         void Awake()
         {
+            // With stats present, D&D hit points win over the inspector number.
+            var stats = GetComponent<CharacterStats>();
+            if (stats != null)
+                maxHealth = stats.MaxHitPoints;
+
             _health = maxHealth;
             var capsule = GetComponent<CapsuleCollider>();
             Height = capsule != null
@@ -84,7 +85,6 @@ namespace WowSandbox
                 return;
 
             _health = Mathf.Max(0f, _health - amount);
-            AnyDamaged?.Invoke(this, amount);
             if (_health <= 0f)
             {
                 Die();

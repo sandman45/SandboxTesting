@@ -6,9 +6,10 @@ namespace WowSandbox
     /// <summary>
     /// Unit frame for the current target, top-right — across the screen from
     /// PlayerFrameHud's, so the two never crowd each other at larger HUD scales: name
-    /// coloured by how it regards you (red hostile, yellow neutral, green friendly), health
-    /// with numbers and a percentage, and "Dead" once it's a corpse. Fades out whenever
-    /// TargetingController has nothing selected.
+    /// coloured by how it regards you (red hostile, yellow neutral, green friendly), its
+    /// level coloured by difficulty relative to yours (WoW's grey-green-yellow-orange-red),
+    /// health with numbers and a percentage, and "Dead" once it's a corpse. Fades out
+    /// whenever TargetingController has nothing selected.
     /// </summary>
     [RequireComponent(typeof(TargetingController))]
     public class TargetFrameHud : MonoBehaviour
@@ -22,13 +23,16 @@ namespace WowSandbox
         TargetingController _targeting;
         CanvasGroup _group;
         Text _name;
-        Text _percent;
+        Text _level;
         HudBar _healthBar;
         Health _shown;
+        CharacterStats _shownStats;
+        CharacterStats _playerStats;
 
         void Awake()
         {
             _targeting = GetComponent<TargetingController>();
+            _playerStats = GetComponent<CharacterStats>();
             Build();
         }
 
@@ -43,7 +47,20 @@ namespace WowSandbox
             if (target != _shown)
             {
                 _shown = target;
+                _shownStats = target.GetComponent<CharacterStats>();
                 _healthBar.Snap(target.Health01);
+            }
+
+            if (_shownStats != null)
+            {
+                _level.text = $"Lv {_shownStats.level}";
+                _level.color = target.IsDead || _playerStats == null
+                    ? HudTheme.TextDim
+                    : HudTheme.LevelColor(_shownStats.level, _playerStats.level);
+            }
+            else
+            {
+                _level.text = "";
             }
 
             _name.text = _targeting.TargetName;
@@ -52,15 +69,14 @@ namespace WowSandbox
             if (target.IsDead)
             {
                 _name.color = HudTheme.Dead;
-                _percent.text = "";
                 _healthBar.Label.text = "Dead";
                 return;
             }
 
             _name.color = HudTheme.ReactionColor(target.reaction);
-            _percent.text = $"{Mathf.CeilToInt(target.Health01 * 100f)}%";
             _healthBar.FillColor = HudTheme.HealthColor(target.Health01);
-            _healthBar.Label.text = $"{Mathf.CeilToInt(target.Current)} / {Mathf.CeilToInt(target.maxHealth)}";
+            _healthBar.Label.text = $"{Mathf.CeilToInt(target.Current)} / {Mathf.CeilToInt(target.maxHealth)}" +
+                                    $"  ({Mathf.CeilToInt(target.Health01 * 100f)}%)";
         }
 
         void Build()
@@ -73,8 +89,8 @@ namespace WowSandbox
             _group.alpha = 0f;
 
             _name = Hud.Label("Name", frame, 16, TextAnchor.MiddleLeft, HudTheme.Text, FontStyle.Bold);
-            _percent = Hud.Label("Percent", frame, 13, TextAnchor.MiddleRight, HudTheme.TextDim);
-            foreach (var label in new[] { _name, _percent })
+            _level = Hud.Label("Level", frame, 14, TextAnchor.MiddleRight, HudTheme.TextDim, FontStyle.Bold);
+            foreach (var label in new[] { _name, _level })
             {
                 var rect = label.rectTransform;
                 rect.anchorMin = new Vector2(0f, 1f);

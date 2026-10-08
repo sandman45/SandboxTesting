@@ -21,6 +21,7 @@ namespace WowSandbox.EditorTools
         float _wanderRadius = 15f;
         float _walkSpeed = 1.6f;
         Reaction _reaction = Reaction.Hostile;
+        int _level = 2;
         Vector3 _centre = Vector3.zero;
 
         [MenuItem("WoW Sandbox/Spawn Wandering NPCs")]
@@ -44,6 +45,7 @@ namespace WowSandbox.EditorTools
             _count = EditorGUILayout.IntSlider("Count", _count, 1, 30);
             _walkSpeed = EditorGUILayout.Slider("Walk speed", _walkSpeed, 0.3f, 6f);
             _reaction = (Reaction)EditorGUILayout.EnumPopup("Reaction", _reaction);
+            _level = EditorGUILayout.IntSlider("Level", _level, 1, CharacterStats.MaxLevel);
             _scatterRadius = EditorGUILayout.Slider("Scatter radius", _scatterRadius, 1f, 100f);
             _wanderRadius = EditorGUILayout.Slider("Wander radius", _wanderRadius, 1f, 100f);
 
@@ -148,7 +150,23 @@ namespace WowSandbox.EditorTools
             var wanderer = root.AddComponent<WanderingNpc>();
             wanderer.wanderRadius = _wanderRadius;
 
-            var health = root.AddComponent<Health>();
+            // A bandit-ish humanoid: quick rather than strong, leather armour, d8 hit die.
+            var stats = root.AddComponent<CharacterStats>();
+            stats.characterName = name;
+            stats.className = "Rogue";
+            stats.level = _level;
+            stats.strength = 11;
+            stats.dexterity = 14;
+            stats.constitution = 12;
+            stats.intelligence = 10;
+            stats.wisdom = 10;
+            stats.charisma = 10;
+            stats.hitDie = 8;
+            stats.armorBonus = 1; // leather
+            stats.weaponDieSides = 6; // shortsword
+            stats.experienceValue = 25 * _level;
+
+            var health = root.AddComponent<Health>(); // max HP comes from the stats above
             health.reaction = _reaction;
 
             if (controller != null)

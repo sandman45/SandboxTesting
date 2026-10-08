@@ -23,10 +23,11 @@ namespace WowSandbox
         public float refillTime = 5f;
         [Tooltip("Fraction of the capsule's height the head sits at, for the submersion check.")]
         [Range(0.5f, 1f)] public float headHeightFraction = 0.92f;
-        [Tooltip("Health lost per second once breath hits zero and you're still under. Only " +
+        [Tooltip("Percent of max health lost per second once breath hits zero and you're still " +
+                 "under — a percentage so it drowns a level 1 and a level 20 equally fast. Only " +
                  "applies if a HealthController is present; otherwise drowning just respawns " +
                  "you at the last breath, same as before health existed.")]
-        public float drowningDamagePerSecond = 12f;
+        public float drowningPercentPerSecond = 12f;
 
 
         CharacterController _controller;
@@ -98,7 +99,7 @@ namespace WowSandbox
         {
             if (_health != null)
             {
-                _health.TakeDamage(drowningDamagePerSecond * Time.deltaTime);
+                _health.TakeDamage(_health.maxHealth * drowningPercentPerSecond * 0.01f * Time.deltaTime);
                 return;
             }
 

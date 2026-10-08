@@ -6,6 +6,9 @@ namespace WowSandbox
     /// Hit points. Nothing deals damage yet except BreathController once you run out of
     /// air underwater — TakeDamage is public so combat, fall damage, etc. can hang off it
     /// later without this needing to know about them. PlayerFrameHud draws it.
+    ///
+    /// With CharacterStats on the same object, max health is its D&D hit points instead of
+    /// the inspector value, and levelling up raises it and heals you to full.
     /// </summary>
     [RequireComponent(typeof(CharacterController))]
     public class HealthController : MonoBehaviour
@@ -28,13 +31,46 @@ namespace WowSandbox
         /// <summary>True once health has hit zero and Die() has fired for it.</summary>
         public bool IsDead { get; private set; }
 
+        CharacterStats _stats;
+
         void Awake()
         {
             _controller = GetComponent<CharacterController>();
             _breath = GetComponent<BreathController>();
+            _stats = GetComponent<CharacterStats>();
+            if (_stats != null)
+                maxHealth = _stats.MaxHitPoints;
             _health = maxHealth;
             _spawnPosition = transform.position;
             _spawnRotation = transform.rotation;
+        }
+
+        void OnEnable()
+        {
+            if (_stats == null)
+                return;
+            _stats.Changed += OnStatsChanged;
+            _stats.LeveledUp += OnLeveledUp;
+        }
+
+        void OnDisable()
+        {
+            if (_stats == null)
+                return;
+            _stats.Changed -= OnStatsChanged;
+            _stats.LeveledUp -= OnLeveledUp;
+        }
+
+        void OnStatsChanged()
+        {
+            maxHealth = _stats.MaxHitPoints;
+            _health = Mathf.Min(_health, maxHealth);
+        }
+
+        void OnLeveledUp(int newLevel)
+        {
+            maxHealth = _stats.MaxHitPoints;
+            _health = maxHealth;
         }
 
         /// <summary>Reduces health by <paramref name="amount"/>, dying at zero.</summary>

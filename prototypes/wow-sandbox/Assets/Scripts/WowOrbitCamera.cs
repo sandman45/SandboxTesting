@@ -49,6 +49,8 @@ namespace WowSandbox
         // Tracks whether the current left-button hold has moved past the click threshold
         // yet, so a plain click never engages the cursor lock a drag needs.
         bool _leftDragConfirmed;
+        bool _leftPressOnUi;
+        bool _rightPressOnUi;
         float _leftDragDistance;
 
         WowCharacterController _character;
@@ -69,8 +71,15 @@ namespace WowSandbox
             var mouse = Mouse.current;
             if (mouse != null)
             {
-                bool leftHeld = mouse.leftButton.isPressed;
-                bool steering = mouse.rightButton.isPressed;
+                // A press that starts on a HUD panel belongs to the panel for as long as it's
+                // held, even if the mouse then wanders off it mid-drag.
+                if (mouse.leftButton.wasPressedThisFrame)
+                    _leftPressOnUi = Hud.PointerOverUi;
+                if (mouse.rightButton.wasPressedThisFrame)
+                    _rightPressOnUi = Hud.PointerOverUi;
+
+                bool leftHeld = mouse.leftButton.isPressed && !_leftPressOnUi;
+                bool steering = mouse.rightButton.isPressed && !_rightPressOnUi;
                 Vector2 rawDelta = mouse.delta.ReadValue();
 
                 if (mouse.leftButton.wasPressedThisFrame)
