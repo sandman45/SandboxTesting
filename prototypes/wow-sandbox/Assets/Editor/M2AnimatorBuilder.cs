@@ -203,6 +203,67 @@ namespace WowSandbox.EditorTools
             back.duration = 0.1f;
         }
 
+        /// <summary>
+        /// Extra states for the Ancient Leviathan's storm appearance, on top of BuildSwimming's:
+        /// Cast0..CastN one-shots from whichever of its SpellCast/CustomSpell clips exist (it
+        /// picks among them at random), and Submerge, which plays once and settles into the
+        /// looping Submerged — no way back out, it's going under and then gets hidden.
+        /// </summary>
+        public static void AddLeviathanStates(AnimatorController controller, string modelPath, string outputDir)
+        {
+            var clips = AssetDatabase.LoadAllAssetRepresentationsAtPath(modelPath)
+                                     .OfType<AnimationClip>()
+                                     .ToArray();
+            var stateMachine = controller.layers[0].stateMachine;
+            var locomotion = stateMachine.defaultState;
+
+            int casts = 0;
+            foreach (string name in new[] { "SpellCast", "CustomSpell01", "CustomSpell02", "CustomSpell03",
+                                            "CustomSpell04", "CustomSpell05", "CustomSpell06", "CustomSpell07" })
+            {
+                var clip = Find(clips, name);
+                if (clip == null)
+                    continue;
+                string trigger = "Cast" + casts++;
+                AddOneShot(controller, locomotion, trigger, CopyOnce(clip, trigger, outputDir));
+            }
+
+            var submerge = Find(clips, "Submerge");
+            if (submerge == null)
+            {
+                Debug.Log($"[M2AnimatorBuilder] No Submerge clip in {Path.GetFileName(modelPath)} — " +
+                          "the leviathan will sink without one.");
+            }
+            else
+            {
+                controller.AddParameter("Submerge", AnimatorControllerParameterType.Trigger);
+                var sinking = stateMachine.AddState("Submerge");
+                sinking.motion = CopyOnce(submerge, "Submerge", outputDir);
+
+                var into = stateMachine.AddAnyStateTransition(sinking);
+                into.AddCondition(AnimatorConditionMode.If, 0f, "Submerge");
+                into.duration = 0.2f;
+                into.hasExitTime = false;
+                into.canTransitionToSelf = false;
+
+                var held = Find(clips, "Submerged");
+                if (held != null)
+                {
+                    var under = stateMachine.AddState("Submerged");
+                    under.motion = CopyLooping(held, "Submerged", outputDir);
+                    var settle = sinking.AddTransition(under);
+                    settle.hasExitTime = true;
+                    settle.exitTime = 1f;
+                    settle.duration = 0.2f;
+                }
+            }
+
+            Debug.Log($"[M2AnimatorBuilder] Leviathan storm states: {casts} cast clip(s)" +
+                      (submerge != null ? " and Submerge." : "."));
+            EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+        }
+
         /// <summary>wow.export names clips "Stand (ID 0 variation 0)" — match the leading name.</summary>
         static AnimationClip Find(AnimationClip[] clips, string prefix) =>
             clips.FirstOrDefault(c => c.name.StartsWith(prefix + " ") || c.name == prefix);

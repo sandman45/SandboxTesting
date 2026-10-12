@@ -51,7 +51,11 @@ namespace WowSandbox
             {
                 var offset = new Vector2(world.x - position.x, world.z - position.z) * scale;
                 return offset.magnitude <= edge ? offset : (Vector2?)null;
-            }, 7f);
+            }, 7f, world =>
+            {
+                var offset = new Vector2(world.x - position.x, world.z - position.z);
+                return offset.normalized * edge;
+            });
 
             var coordinates = WorldMap.ToCoordinates(position);
             _coordinates.text = $"{coordinates.x:0.0}, {coordinates.y:0.0}";

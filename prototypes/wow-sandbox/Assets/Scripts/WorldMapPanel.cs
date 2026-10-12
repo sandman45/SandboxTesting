@@ -69,7 +69,11 @@ namespace WowSandbox
                 if (uv.x < 0f || uv.x > 1f || uv.y < 0f || uv.y > 1f)
                     return (Vector2?)null;
                 return (uv - new Vector2(0.5f, 0.5f)) * MapSize;
-            }, 10f);
+            }, 10f, world =>
+            {
+                var uv = WorldMap.ToUv(world);
+                return (new Vector2(Mathf.Clamp01(uv.x), Mathf.Clamp01(uv.y)) - new Vector2(0.5f, 0.5f)) * MapSize;
+            });
 
             var coordinates = WorldMap.ToCoordinates(transform.position);
             _coordinates.text = $"You are here: {coordinates.x:0.0}, {coordinates.y:0.0}";

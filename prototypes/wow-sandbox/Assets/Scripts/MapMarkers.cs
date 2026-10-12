@@ -8,13 +8,16 @@ namespace WowSandbox
     /// <summary>
     /// The player's arrow and a dot per living NPC (in its reaction colour, the target's
     /// drawn larger) over a map image. Shared by the minimap and the full map; each passes
-    /// its own world-to-map mapping, returning null for anything that's off its edge.
+    /// its own world-to-map mapping, returning null for anything that's off its edge. The
+    /// leviathan, while it looms out at sea, gets a big pulsing mark of its own — pinned to
+    /// the map's rim when it's off the edge, so it still shows which way it is.
     /// </summary>
     public class MapMarkers
     {
         readonly RectTransform _parent;
         readonly Image _arrow;
         readonly List<Image> _dots = new();
+        Image _leviathan;
 
         /// <param name="parent">Rect the markers live in; positions are relative to its centre.</param>
         public MapMarkers(RectTransform parent, float arrowSize)
@@ -30,8 +33,12 @@ namespace WowSandbox
             outline.effectColor = new Color(0f, 0f, 0f, 0.8f);
         }
 
-        public void Update(Transform player, Health target, Func<Vector3, Vector2?> toMap, float dotSize)
+        /// <param name="pinToEdge">Where a point off the map's edge sits on its rim.</param>
+        public void Update(Transform player, Health target, Func<Vector3, Vector2?> toMap, float dotSize,
+                           Func<Vector3, Vector2> pinToEdge)
         {
+            UpdateLeviathan(toMap, pinToEdge, dotSize);
+
             int used = 0;
             foreach (var health in Health.All)
             {
@@ -60,6 +67,36 @@ namespace WowSandbox
             _arrow.rectTransform.anchoredPosition = playerPosition.Value;
             _arrow.rectTransform.localEulerAngles = new Vector3(0f, 0f, -player.eulerAngles.y);
             _arrow.rectTransform.SetAsLastSibling();
+        }
+
+        void UpdateLeviathan(Func<Vector3, Vector2?> toMap, Func<Vector3, Vector2> pinToEdge, float dotSize)
+        {
+            var leviathan = Leviathan.Looming;
+            if (leviathan == null)
+            {
+                if (_leviathan != null)
+                    _leviathan.enabled = false;
+                return;
+            }
+
+            if (_leviathan == null)
+            {
+                var rect = Hud.Rect("Leviathan", _parent, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * 8f);
+                _leviathan = rect.gameObject.AddComponent<Image>();
+                _leviathan.sprite = Hud.Circle;
+                _leviathan.raycastTarget = false;
+                var outline = rect.gameObject.AddComponent<Outline>();
+                outline.effectColor = new Color(0f, 0f, 0f, 0.9f);
+                outline.effectDistance = new Vector2(2f, -2f);
+            }
+
+            Vector3 position = leviathan.transform.position;
+            _leviathan.enabled = true;
+            _leviathan.rectTransform.anchoredPosition = toMap(position) ?? pinToEdge(position);
+            float pulse = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 3f);
+            _leviathan.rectTransform.sizeDelta = Vector2.one * dotSize * Mathf.Lerp(2.6f, 3.2f, pulse);
+            _leviathan.color = Color.Lerp(new Color(0.45f, 0.05f, 0.35f), new Color(0.85f, 0.15f, 0.6f), pulse);
+            _leviathan.rectTransform.SetAsLastSibling();
         }
 
         Image Dot(int index)
