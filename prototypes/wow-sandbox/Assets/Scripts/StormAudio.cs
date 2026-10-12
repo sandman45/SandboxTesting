@@ -4,26 +4,39 @@ using UnityEngine;
 namespace WowSandbox
 {
     /// <summary>
-    /// Rain and thunder for StormWeather, synthesised in code — no audio assets, nothing to
-    /// import or license, the same reasoning as the generated rain texture and ripple maps.
+    /// Rain, thunder and the leviathan's rumble for StormWeather.
     ///
-    /// Rain is a seamless loop of band-limited noise with individual droplet ticks, its volume
-    /// following the rain's own onset on the storm dial. Under a roof (or below deck) it's
-    /// low-passed into the dull drum of rain overhead; underwater, nearly gone.
+    /// Rain is the recorded light and heavy loops from the WoW export, crossfading as the rain
+    /// builds, with the lightning-storm loop coming in near the peak. In the editor they're
+    /// picked up from WowExports/sound/ambience/weather if the slots are empty; without them
+    /// it falls back to rain synthesised in code (band-limited noise with droplet ticks). Under
+    /// a roof (or below deck) it's low-passed into the dull drum of rain overhead; underwater,
+    /// nearly gone.
     ///
     /// Thunder answers each lightning strike after the time sound takes to cover the distance,
     /// as a few rolls of brown-noise rumble. Close strikes open with a crack; far ones arrive
     /// quieter and duller, as distance filters the highs out of real thunder.
+    ///
+    /// While the leviathan looms out at sea there's a deep, constant rumble under everything,
+    /// and each of its roars arrives like slow, low thunder.
     /// </summary>
     [DisallowMultipleComponent]
     public class StormAudio : MonoBehaviour
     {
         const int SampleRate = 44100;
 
+        const string WeatherSounds = "Assets/WowExports/sound/ambience/weather/";
+
         [Header("Rain")]
+        [Tooltip("Recorded light rain. Empty slots are filled from the WoW export in the editor.")]
+        public AudioClip lightRainLoop;
+        [Tooltip("Recorded heavy rain, crossfaded in as the rain builds.")]
+        public AudioClip heavyRainLoop;
+        [Tooltip("Rain amount (0-1) over which the light loop gives way to the heavy one.")]
+        public Vector2 heavyRainOnset = new Vector2(0.35f, 0.9f);
         [Range(0f, 1f)] public float rainVolume = 0.3f;
-        [Tooltip("0 = dull, heavy patter; 1 = bright and hissy. Takes effect the next time " +
-                 "Play starts — the rain is synthesised once, then looped.")]
+        [Tooltip("For the synthesised fallback rain only. 0 = dull, heavy patter; 1 = bright and " +
+                 "hissy. Takes effect the next time Play starts.")]
         [Range(0f, 1f)] public float rainBrightness = 0.25f;
         [Tooltip("How far above the camera to look for a roof. Under one, the rain is muffled.")]
         public float roofCheckHeight = 40f;
@@ -37,19 +50,39 @@ namespace WowSandbox
         [Tooltip("Strikes closer than this get the sharp opening crack.")]
         public float crackDistance = 160f;
 
+        [Header("Storm")]
+        [Tooltip("A wind-and-thunder bed under the rain at the height of the storm.")]
+        public AudioClip stormLoop;
+        [Range(0f, 1f)] public float stormLoopVolume = 0.5f;
+        [Tooltip("Storm intensity over which the storm loop fades in.")]
+        public Vector2 stormLoopOnset = new Vector2(0.7f, 1f);
+
+        [Header("Leviathan")]
+        [Range(0f, 1f)] public float leviathanVolume = 0.8f;
+
         StormWeather _weather;
         Camera _camera;
 
-        AudioSource _rain;
-        AudioLowPassFilter _rainFilter;
+        /// <summary>A looping source with its own low-pass, eased toward a target volume.</summary>
+        class Layer
+        {
+            public AudioSource source;
+            public AudioLowPassFilter filter;
+        }
+
+        Layer _lightRain;
+        Layer _heavyRain;
+        Layer _storm;
+        Layer _rumble;
         readonly List<AudioSource> _thunderSources = new();
         readonly List<AudioLowPassFilter> _thunderFilters = new();
-        AudioClip _rainClip;
+        AudioClip _rainClip;      // synthesised, only when there's no recorded rain
+        AudioClip _rumbleClip;
         AudioClip[] _rumbles;
         AudioClip[] _cracks;
 
-        // Strikes waiting for their sound to arrive: when, how far.
-        readonly List<(float time, float distance)> _pending = new();
+        // Thunder (or a roar) waiting for its sound to arrive: when, how far, which.
+        readonly List<(float time, float distance, bool roar)> _pending = new();
 
         float _rainCutoff = 22000f;
 
@@ -63,23 +96,45 @@ namespace WowSandbox
                 return;
             }
 
+            FillFromExports();
             BuildClips();
             BuildSources();
             _weather.LightningStruck += OnStrike;
+            Leviathan.Roared += OnRoar;
+        }
+
+        void Reset() => FillFromExports();
+
+        /// <summary>The WoW export's weather loops, for any slot left empty. Editor only — they're
+        /// gitignored with the rest of WowExports, so a build would need them assigned.</summary>
+        void FillFromExports()
+        {
+#if UNITY_EDITOR
+            if (lightRainLoop == null)
+                lightRainLoop = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(WeatherSounds + "rainlightloop.ogg");
+            if (heavyRainLoop == null)
+                heavyRainLoop = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(WeatherSounds + "rainheavyloop.ogg");
+            if (stormLoop == null)
+                stormLoop = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(WeatherSounds + "fx_weather_80_lightningstorm_loop.ogg");
+#endif
         }
 
         void OnDisable()
         {
             if (_weather != null)
                 _weather.LightningStruck -= OnStrike;
+            Leviathan.Roared -= OnRoar;
 
             foreach (var source in _thunderSources)
                 if (source != null) Destroy(source.gameObject);
             _thunderSources.Clear();
             _thunderFilters.Clear();
 
-            if (_rain != null) Destroy(_rain.gameObject);
+            foreach (var layer in new[] { _lightRain, _heavyRain, _storm, _rumble })
+                if (layer != null && layer.source != null) Destroy(layer.source.gameObject);
+            _lightRain = _heavyRain = _storm = _rumble = null;
             DestroyClip(_rainClip);
+            DestroyClip(_rumbleClip);
             if (_rumbles != null) foreach (var clip in _rumbles) DestroyClip(clip);
             if (_cracks != null) foreach (var clip in _cracks) DestroyClip(clip);
             _pending.Clear();
@@ -92,7 +147,15 @@ namespace WowSandbox
 
         void OnStrike(Vector3 ground, float distance)
         {
-            _pending.Add((Time.time + distance / Mathf.Max(soundSpeed, 1f), distance));
+            _pending.Add((Time.time + distance / Mathf.Max(soundSpeed, 1f), distance, false));
+        }
+
+        void OnRoar(Leviathan leviathan)
+        {
+            if (_camera == null)
+                return;
+            float distance = Vector3.Distance(_camera.transform.position, leviathan.transform.position);
+            _pending.Add((Time.time + distance / Mathf.Max(soundSpeed, 1f), distance, true));
         }
 
         void Update()
@@ -114,44 +177,76 @@ namespace WowSandbox
                 if (Time.time < _pending[i].time)
                     continue;
 
-                PlayThunder(_pending[i].distance, submerged, underRoof);
+                PlayThunder(_pending[i].distance, submerged, underRoof, _pending[i].roar);
                 _pending.RemoveAt(i);
             }
         }
 
         void UpdateRain(bool submerged, bool underRoof)
         {
-            if (_rain == null)
+            if (_lightRain == null)
                 return;
 
-            float amount = _weather.RainAmount;
-            float volume = amount * rainVolume;
+            float muffle = 1f;
             float cutoff = 22000f;
-
             if (submerged)
             {
-                volume *= 0.15f;
+                muffle = 0.15f;
                 cutoff = 350f;
             }
             else if (underRoof)
             {
                 // Rain drumming on the roof: still loud, but all the hiss gone.
-                volume *= 0.75f;
+                muffle = 0.75f;
                 cutoff = 900f;
             }
 
             // Ease the filter rather than snapping it, or walking through a doorway clicks.
             _rainCutoff = Mathf.Lerp(_rainCutoff, cutoff, 1f - Mathf.Exp(-Time.deltaTime * 6f));
-            _rainFilter.cutoffFrequency = _rainCutoff;
-            _rain.volume = Mathf.MoveTowards(_rain.volume, volume, Time.deltaTime * 0.8f);
 
-            if (_rain.volume > 0.001f && !_rain.isPlaying)
-                _rain.Play();
-            else if (_rain.volume <= 0.001f && _rain.isPlaying)
-                _rain.Stop();
+            float amount = _weather.RainAmount;
+            float light = amount, heavy = 0f;
+            if (_heavyRain != null)
+            {
+                // Equal-power, so the rain doesn't dip in the middle of the changeover.
+                float mix = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(heavyRainOnset.x, heavyRainOnset.y, amount));
+                light = amount * Mathf.Cos(mix * Mathf.PI * 0.5f);
+                heavy = amount * Mathf.Sin(mix * Mathf.PI * 0.5f);
+            }
+
+            SetLayer(_lightRain, light * rainVolume * muffle, _rainCutoff);
+            SetLayer(_heavyRain, heavy * rainVolume * muffle, _rainCutoff);
+
+            float storm = Mathf.InverseLerp(stormLoopOnset.x, stormLoopOnset.y, _weather.intensity);
+            SetLayer(_storm, storm * stormLoopVolume * muffle, _rainCutoff);
+
+            // Felt more than heard, and it carries underwater — sound travels well there.
+            float rumble = Leviathan.Looming != null ? leviathanVolume * 0.6f : 0f;
+            SetLayer(_rumble, rumble, submerged ? 300f : 22000f, fadeSeconds: 4f);
         }
 
-        void PlayThunder(float distance, bool submerged, bool underRoof)
+        static void SetLayer(Layer layer, float volume, float cutoff, float fadeSeconds = 1.25f)
+        {
+            if (layer == null || layer.source.clip == null)
+                return;
+
+            layer.filter.cutoffFrequency = cutoff;
+            var source = layer.source;
+            source.volume = Mathf.MoveTowards(source.volume, volume, Time.deltaTime / fadeSeconds);
+
+            if (source.volume > 0.001f && !source.isPlaying)
+            {
+                // Somewhere into the loop, so every storm doesn't open on the same gust.
+                source.time = Random.Range(0f, source.clip.length * 0.9f);
+                source.Play();
+            }
+            else if (source.volume <= 0.001f && source.isPlaying)
+            {
+                source.Stop();
+            }
+        }
+
+        void PlayThunder(float distance, bool submerged, bool underRoof, bool roar)
         {
             AudioSource source = null;
             AudioLowPassFilter filter = null;
@@ -180,12 +275,21 @@ namespace WowSandbox
             float far = Mathf.InverseLerp(40f, 400f, distance);
             bool close = distance < crackDistance;
 
-            var clips = close ? _cracks : _rumbles;
+            var clips = close && !roar ? _cracks : _rumbles;
             source.clip = clips[Random.Range(0, clips.Length)];
-            source.volume = thunderVolume * Mathf.Lerp(1f, 0.45f, far) * (submerged ? 0.3f : 1f);
-            source.pitch = Random.Range(0.85f, 1.1f);
+            if (roar)
+            {
+                // The same rolling rumble, slowed right down: deeper and longer than any thunder.
+                source.volume = leviathanVolume * (submerged ? 0.6f : 1f);
+                source.pitch = Random.Range(0.5f, 0.62f);
+            }
+            else
+            {
+                source.volume = thunderVolume * Mathf.Lerp(1f, 0.45f, far) * (submerged ? 0.3f : 1f);
+                source.pitch = Random.Range(0.85f, 1.1f);
+            }
 
-            float cutoff = Mathf.Lerp(5000f, 700f, far);
+            float cutoff = roar ? 900f : Mathf.Lerp(5000f, 700f, far);
             if (submerged) cutoff = 300f;
             else if (underRoof) cutoff = Mathf.Min(cutoff, 1500f);
             filter.cutoffFrequency = cutoff;
@@ -195,16 +299,13 @@ namespace WowSandbox
 
         void BuildSources()
         {
-            var rainGo = new GameObject("StormRainAudio") { hideFlags = HideFlags.DontSave };
-            rainGo.transform.SetParent(transform, false);
-            _rain = rainGo.AddComponent<AudioSource>();
-            _rain.clip = _rainClip;
-            _rain.loop = true;
-            _rain.volume = 0f;
-            _rain.spatialBlend = 0f;   // all around you, not from a point
-            _rain.playOnAwake = false;
-            _rainFilter = rainGo.AddComponent<AudioLowPassFilter>();
-            _rainFilter.cutoffFrequency = 22000f;
+            // Only one recorded loop? It does for both.
+            var light = lightRainLoop != null ? lightRainLoop : heavyRainLoop;
+            _lightRain = MakeLayer("StormRainAudio", light != null ? light : _rainClip);
+            _heavyRain = heavyRainLoop != null && lightRainLoop != null
+                ? MakeLayer("StormHeavyRainAudio", heavyRainLoop) : null;
+            _storm = stormLoop != null ? MakeLayer("StormLoopAudio", stormLoop) : null;
+            _rumble = MakeLayer("LeviathanRumbleAudio", _rumbleClip);
 
             // A few voices, so a new strike doesn't cut off the rumble of the last one.
             for (int i = 0; i < 3; i++)
@@ -223,12 +324,29 @@ namespace WowSandbox
                                  "Add one to the main camera.", this);
         }
 
+        Layer MakeLayer(string name, AudioClip clip)
+        {
+            var go = new GameObject(name) { hideFlags = HideFlags.DontSave };
+            go.transform.SetParent(transform, false);
+            var source = go.AddComponent<AudioSource>();
+            source.clip = clip;
+            source.loop = true;
+            source.volume = 0f;
+            source.spatialBlend = 0f;   // all around you, not from a point
+            source.playOnAwake = false;
+            var filter = go.AddComponent<AudioLowPassFilter>();
+            filter.cutoffFrequency = 22000f;
+            return new Layer { source = source, filter = filter };
+        }
+
         // --- Synthesis -------------------------------------------------------------------
 
         void BuildClips()
         {
             var random = new System.Random(20261001);
-            _rainClip = BuildRain(random, rainBrightness);
+            if (lightRainLoop == null && heavyRainLoop == null)
+                _rainClip = BuildRain(random, rainBrightness);
+            _rumbleClip = BuildDeepRumble(random);
             _rumbles = new AudioClip[3];
             _cracks = new AudioClip[3];
             for (int i = 0; i < 3; i++)
@@ -321,6 +439,47 @@ namespace WowSandbox
 
             NormaliseRms(loop, 0.18f);
             var clip = AudioClip.Create("StormRain", length, 1, SampleRate, false);
+            clip.SetData(loop, 0);
+            return clip;
+        }
+
+        /// <summary>
+        /// The leviathan's presence: brown noise with everything above ~140 Hz taken out and a
+        /// slow, uneven swell, cross-faded into a seamless loop like the rain.
+        /// </summary>
+        static AudioClip BuildDeepRumble(System.Random random)
+        {
+            const float seconds = 6f;
+            const float fade = 1f;
+            int length = (int)(SampleRate * seconds);
+            int fadeLength = (int)(SampleRate * fade);
+            var samples = new float[length + fadeLength];
+
+            float brown = 0f, low = 0f, low2 = 0f;
+            for (int i = 0; i < samples.Length; i++)
+            {
+                float white = (float)(random.NextDouble() * 2.0 - 1.0);
+                brown = brown * 0.999f + white * 0.05f;
+                low += (brown - low) * 0.02f;
+                low2 += (low - low2) * 0.02f;
+
+                float t = (i % length) / (float)length;
+                float swell = 1f + 0.35f * Mathf.Sin(2f * Mathf.PI * 2f * t)
+                                 + 0.15f * Mathf.Sin(2f * Mathf.PI * 3f * t + 0.7f);
+                samples[i] = low2 * swell;
+            }
+
+            var loop = new float[length];
+            for (int i = 0; i < length; i++)
+                loop[i] = samples[i];
+            for (int i = 0; i < fadeLength; i++)
+            {
+                float t = i / (float)fadeLength;
+                loop[i] = samples[length + i] * Mathf.Cos(t * Mathf.PI * 0.5f) + samples[i] * Mathf.Sin(t * Mathf.PI * 0.5f);
+            }
+
+            NormaliseRms(loop, 0.3f);
+            var clip = AudioClip.Create("LeviathanRumble", length, 1, SampleRate, false);
             clip.SetData(loop, 0);
             return clip;
         }

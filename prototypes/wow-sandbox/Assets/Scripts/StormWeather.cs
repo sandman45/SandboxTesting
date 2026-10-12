@@ -101,6 +101,15 @@ namespace WowSandbox
         [Tooltip("How far from the camera strikes land.")]
         public Vector2 strikeDistance = new Vector2(80f, 350f);
         public float flashIntensity = 3f;
+        [Tooltip("How far each flash throws the fog back, 0-1: lightning lights up the distance " +
+                 "for a moment, which is when you catch sight of anything out there.")]
+        [Range(0f, 1f)] public float flashFogReveal = 1f;
+        [Tooltip("Fog end distance at the height of a flash.")]
+        public float flashRevealDistance = 450f;
+        [Tooltip("Seconds for the fog to close back in after a flash.")]
+        public float revealFadeSeconds = 0.6f;
+        [Tooltip("Share of strikes that land near StrikeFocus while it's set.")]
+        [Range(0f, 1f)] public float focusedStrikeChance = 0.6f;
 
         float _transitionTarget = -1f;
         float _transitionRate;
@@ -147,6 +156,7 @@ namespace WowSandbox
         float _nextStrike;
         float _strikeTime = -100f;
         float[] _pulses = new float[0];
+        float _reveal;
 
         static readonly int OvercastColorId = Shader.PropertyToID("_WeatherOvercastColor");
         static readonly int OvercastId = Shader.PropertyToID("_WeatherOvercast");
@@ -164,6 +174,9 @@ namespace WowSandbox
 
         /// <summary>A strike: where it hit the ground, and how far that is from the camera.</summary>
         public event System.Action<Vector3, float> LightningStruck;
+
+        /// <summary>Somewhere strikes should favour — the leviathan while it looms. Null for anywhere.</summary>
+        public Vector3? StrikeFocus { get; set; }
 
         /// <summary>Eases intensity to a value over some seconds.</summary>
         public void TransitionTo(float target, float seconds)
@@ -224,6 +237,9 @@ namespace WowSandbox
             // Audio yourself in the editor to keep tuned volumes.
             if (GetComponent<StormAudio>() == null)
                 gameObject.AddComponent<StormAudio>();
+            // Likewise the leviathan at the storm's peak; it stands down if there's no leviathan.
+            if (GetComponent<StormLeviathan>() == null)
+                gameObject.AddComponent<StormLeviathan>();
             _aboveWaterFog = _sceneFog;
         }
 
@@ -284,6 +300,9 @@ namespace WowSandbox
                 _waves.stormIntensity = intensity;
 
             float flash = UpdateLightning();
+            // The flash itself is a few milliseconds of pulses; the glimpse of the distance it
+            // gives lingers a little longer, or you'd never register what you saw.
+            _reveal = Mathf.Max(flash, _reveal - Time.deltaTime / Mathf.Max(revealFadeSeconds, 0.01f));
             UpdateSkyAndLight(flash);
             UpdateFog(flash);
         }
@@ -387,6 +406,10 @@ namespace WowSandbox
                 start = Mathf.Lerp(clearStart, 0f, closing),
                 end = Mathf.Lerp(clearEnd, stormFogEnd, closing),
             };
+
+            float reveal = _reveal * flashFogReveal;
+            fog.start = Mathf.Lerp(fog.start, clearStart, reveal);
+            fog.end = Mathf.Lerp(fog.end, Mathf.Max(clearEnd, flashRevealDistance), reveal);
 
             _aboveWaterFog = fog;
 
@@ -753,9 +776,18 @@ namespace WowSandbox
                 _pulses[i] = i == 0 ? 0f : _pulses[i - 1] + Random.Range(0.05f, 0.14f);
 
             Vector3 origin = _camera.transform.position;
-            float angle = Random.Range(0f, Mathf.PI * 2f);
-            float distance = Random.Range(strikeDistance.x, strikeDistance.y);
-            Vector3 ground = origin + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * distance;
+            Vector3 ground;
+            if (StrikeFocus.HasValue && Random.value < focusedStrikeChance)
+            {
+                var scatter = Random.insideUnitCircle * 60f;
+                ground = StrikeFocus.Value + new Vector3(scatter.x, 0f, scatter.y);
+            }
+            else
+            {
+                float angle = Random.Range(0f, Mathf.PI * 2f);
+                float distance = Random.Range(strikeDistance.x, strikeDistance.y);
+                ground = origin + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * distance;
+            }
             ground.y = GroundHeight(ground);
             LightningStruck?.Invoke(ground, Vector3.Distance(origin, ground));
             Vector3 top = new Vector3(ground.x + Random.Range(-30f, 30f), origin.y + 160f,

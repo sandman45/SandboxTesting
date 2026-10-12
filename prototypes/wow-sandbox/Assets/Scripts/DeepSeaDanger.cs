@@ -124,7 +124,8 @@ namespace WowSandbox
 
         IEnumerator Attack()
         {
-            bool canLeviathan = _leviathan != null;
+            // Not while it's already out — looming offshore in a storm, say.
+            bool canLeviathan = _leviathan != null && !_leviathan.InUse;
             if (canLeviathan && (Random.value < leviathanChance || _templates.Count == 0))
                 yield return LeviathanGrab();
             else if (_templates.Count > 0)
@@ -285,7 +286,7 @@ namespace WowSandbox
         [ContextMenu("Summon Leviathan Now")]
         void DebugLeviathan()
         {
-            if (Application.isPlaying && _leviathan != null && !_eventRunning)
+            if (Application.isPlaying && _leviathan != null && !_leviathan.InUse && !_eventRunning)
                 StartCoroutine(LeviathanGrab());
         }
     }

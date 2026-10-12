@@ -50,7 +50,10 @@ namespace WowSandbox.EditorTools
             if (existing != null)
                 Undo.DestroyObjectImmediate(existing.gameObject);
 
-            var controller = M2AnimatorBuilder.BuildSwimming(LeviathanPath, "Assets/WowExports/_Generated/AncientLeviathan");
+            const string generated = "Assets/WowExports/_Generated/AncientLeviathan";
+            var controller = M2AnimatorBuilder.BuildSwimming(LeviathanPath, generated);
+            if (controller != null)
+                M2AnimatorBuilder.AddLeviathanStates(controller, LeviathanPath, generated);
 
             var root = new GameObject(ObjectName);
             var instance = (GameObject)PrefabUtility.InstantiatePrefab(model, root.transform);
