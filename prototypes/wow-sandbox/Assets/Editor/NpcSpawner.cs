@@ -1,6 +1,9 @@
+using System.Collections.Generic;
 using System.IO;
 using Unity.AI.Navigation;
 using UnityEditor;
+using UnityEditor.Animations;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -8,7 +11,8 @@ namespace WowSandbox.EditorTools
 {
     /// <summary>
     /// Spawns wandering NPCs from any wow.export M2 glTF — warriors, thieves, whatever
-    /// else gets exported. Same behaviour as the chickens, sized for the model it's given.
+    /// else gets exported. Same behaviour as the chickens, sized for the model it's given,
+    /// plus NpcCombat: Hostile ones attack you on sight, and anything fights back.
     /// </summary>
     public class NpcSpawner : EditorWindow
     {
@@ -87,6 +91,8 @@ namespace WowSandbox.EditorTools
             string name = Path.GetFileNameWithoutExtension(modelPath);
             var controller = M2AnimatorBuilder.BuildLocomotion(
                 modelPath, $"Assets/WowExports/_Generated/{name}");
+            if (controller != null)
+                M2AnimatorBuilder.AddCombatStates(controller, modelPath);
 
             var group = new GameObject($"{name}_NPCs");
             Undo.RegisterCreatedObjectUndo(group, "Spawn Wandering NPCs");
@@ -130,6 +136,7 @@ namespace WowSandbox.EditorTools
             instance.transform.localRotation = Quaternion.Euler(0f, ModelYawOffset, 0f);
 
             float height = MeasureHeight(instance);
+            Vendor.HideEyeGlow(instance);
 
             var agent = root.AddComponent<NavMeshAgent>();
             agent.speed = _walkSpeed;
@@ -149,6 +156,7 @@ namespace WowSandbox.EditorTools
 
             var wanderer = root.AddComponent<WanderingNpc>();
             wanderer.wanderRadius = _wanderRadius;
+            root.AddComponent<NpcCombat>();
 
             // A bandit-ish humanoid: quick rather than strong, leather armour, d8 hit die.
             var stats = root.AddComponent<CharacterStats>();
@@ -181,6 +189,47 @@ namespace WowSandbox.EditorTools
 
             // Character exports leave any equipped helm at the feet — put it back on the head.
             HelmFitter.Fit(root, instance);
+        }
+
+        /// <summary>
+        /// Gives the wandering humanoids already in the scene NpcCombat, and their animator
+        /// controllers Run and Attack — edited in place, so nothing needs respawning. Skips
+        /// chickens (beasts) and anything friendly. Safe to run again.
+        /// </summary>
+        [MenuItem("WoW Sandbox/Make NPCs Fight")]
+        public static void MakeNpcsFight()
+        {
+            int armed = 0, controllers = 0;
+            var patched = new HashSet<AnimatorController>();
+            foreach (var wanderer in Object.FindObjectsByType<WanderingNpc>(FindObjectsInactive.Include))
+            {
+                var health = wanderer.GetComponent<Health>();
+                var loot = wanderer.GetComponent<LootDrop>();
+                if (wanderer is ChickenWanderer || health == null || health.reaction == Reaction.Friendly ||
+                    loot == null || loot.table != LootTable.Humanoid)
+                    continue;
+
+                if (wanderer.GetComponent<NpcCombat>() == null)
+                {
+                    Undo.AddComponent<NpcCombat>(wanderer.gameObject);
+                    armed++;
+                }
+
+                var animator = wanderer.GetComponentInChildren<Animator>();
+                if (animator == null || animator.runtimeAnimatorController is not AnimatorController controller ||
+                    !patched.Add(controller))
+                    continue;
+
+                var source = PrefabUtility.GetCorrespondingObjectFromSource(animator.gameObject);
+                string modelPath = source != null ? AssetDatabase.GetAssetPath(source) : null;
+                if (!string.IsNullOrEmpty(modelPath) && M2AnimatorBuilder.AddCombatStates(controller, modelPath))
+                    controllers++;
+            }
+
+            if (armed > 0)
+                EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+            Debug.Log($"[NpcSpawner] Gave {armed} NPC(s) NpcCombat and added Run/Attack to {controllers} " +
+                      "animator controller(s). Save the scene to keep them.");
         }
 
         static float MeasureHeight(GameObject instance)

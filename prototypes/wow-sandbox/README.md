@@ -67,7 +67,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | **WoW Sandbox → Add Mesh Colliders to Selection** | Adds MeshColliders across a whole hierarchy — a WMO is many group meshes, not one. Non-convex, so you can walk *into* buildings. Skips skinned meshes, and skips foliage geosets so trees collide on the trunk rather than on their leaf cards. |
 | **WoW Sandbox → Add Colliders to All Scenery** | Same, swept across the whole scene instead of the selection — the step that actually gets missed after placing a batch of doodads. Idempotent. Skips the water surface, the sky dome and anything belonging to a character. |
 | **WoW Sandbox → Bake NavMesh** | Creates/updates a NavMeshSurface and bakes. Re-run after moving buildings or regenerating terrain. **This does not stop the player** — see below. |
-| **WoW Sandbox → Populate Chickens** | Scatters wandering chickens around the selection, snapped to the NavMesh. |
+| **WoW Sandbox → Populate Chickens** | Scatters wandering chickens around the selection, snapped to the NavMesh, in a random mix of every `chicken2_*` colour exported. |
 | **WoW Sandbox → Spawn Wandering NPCs** | Same, for any M2 glTF you drag in — sized from the model's own bounds. |
 | **WoW Sandbox → Setup Sky and Sun** | Procedural sky plus a matching directional light; ambient comes from the sky. Also forces the camera's Clear Flags to Skybox, without which the sky never draws at all. |
 | **WoW Sandbox → Setup Sky Dome** | Rebuilds an exported WoW sky model's cloud layers as transparent, depth-less materials pinned to the camera. |
@@ -83,7 +83,9 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | **WoW Sandbox → Add Ship Ladders** | Hangs four rope ladders (`ShipLadder`) on the floating ship, midship and aft on both sides, finding the rail and deck by raycasting the ship's colliders. Placeholder ropes and rungs. Re-running replaces hand-moved ladders. |
 | **WoW Sandbox → Add Ship Helm** | Adds `ShipSailing` to the ship and an invisible click box (`ShipHelm`) to drag over the wheel, which is part of the hull mesh. The box's forward (yellow line) must point to the bow. Its `Stand` child is where you stand to steer. |
 | **WoW Sandbox → Add Sea Life** | Fills the shallows with fish schools (`fishbasic01`, `AmbientSwimmer`) and fishing spots (`fishfrenzy`, `FishingSpot`), from the beach out to *Max distance offshore* (45, inside the Dangerous Waters line). Re-running replaces the batch; tick **Keep existing** to add that many more, spaced away from the ones already there. |
-| **WoW Sandbox → Add Fishing Animations** | Adds the fishing states (cast, wait, cheer) to the warrior controller already in use, in place. Use this rather than *Build Warrior Animator*, which recreates the controller and leaves the player in the scene without one. Safe to re-run. |
+| **WoW Sandbox → Update Warrior Animations** | Adds the fishing states (cast, wait, cheer) and the hit flinch (`CombatWound`) to the warrior controller already in use, in place. Use this rather than *Build Warrior Animator*, which recreates the controller and leaves the player in the scene without one. Safe to re-run. |
+| **WoW Sandbox → Make NPCs Fight** | Gives the wandering humanoids already in the scene `NpcCombat`, and adds Run and Attack to their animator controllers in place, so nothing needs respawning. New spawns from *Spawn Wandering NPCs* get it automatically. Skips chickens and friendlies. |
+| **WoW Sandbox → Add Shipwreck** | Lays the `md_shipwreck` hull and stern half-buried at the waterline, opposite the pirate ship by default (*Bearing*), scaled down (the hull is ~97 units at full size). It adds colliders and re-bakes the NavMesh. Re-running replaces the wreck. |
 | **WoW Sandbox → Add Vendor** | Places Quartermaster Briggs (the bearded-pirate export) on the beach nearest the ship and gives the player a `VendorPanel`. |
 
 **Floating ships:** add **Ship Buoyancy** to a ship (after its dry zone). In Play it rises, falls, pitches and rolls with `WaterWaves`, eased by *Response Time*, and the dry zone travels with it. The waterline is wherever you placed it in the editor. Standing on the deck carries you with it — `WowCharacterController` rides anything with a kinematic Rigidbody under its feet, which Ship Buoyancy adds.
@@ -129,6 +131,12 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | Legendary | Gilded Kingfish | 0% | 3% |
 
 - **The warrior's fishing animation:** he faces the water, casts with an overhand throw, holds a ready pose while waiting, and cheers for a Rare or better fish. Not while swimming. These are stand-in clips; see *Known gaps*.
+
+**Fighting NPCs:** `NpcCombat`, on the wandering humanoids.
+- **Aggro:** a Hostile one that sees you within 12 units on land runs at you and swings every 2 s (d20 against your AC). Anything you hit fights back, whatever its reaction.
+- **Leashing:** it gives up and runs home, healing, once you die, take to the water, get 40 units from its home, or stand where it can't path (the ship's deck).
+- **Taking hits:** a blow that lands makes you flinch (`CombatWound`, not while swimming) and breaks a fishing cast.
+- **Loot:** humanoids drop Rare items about 1 time in 20 and Very Rare about 1 in 100 (`LootDrop.HumanoidDrops`).
 
 **Controls** (WoW-style, character-relative — never camera-relative):
 
@@ -186,10 +194,10 @@ The camera stores its yaw as an **offset from the character's facing** rather th
 - **Collide tree trunks, not tree leaves — but only on M2s.** M2 doodads split into one geoset per material, so a palm arrives as a `_wood_` mesh and a `_fronds_` mesh; a MeshCollider on the fronds puts invisible walls out in the air wherever the leaf cards hang. The collider tool matches material names against a foliage word list and skips those geosets. **WMOs are exempt**, because there the same words mean architecture: `12tr_amani_hut01`'s roof is built from `mat_12tr_amani_leafy_roof_01` and `mat_12tr_amani_leafs_01`, and skipping those drops you through the hut's roof.
 - **Code-generated normal maps must be unpacked as plain RGB.** A `Texture2D` created in code never passes through a `TextureImporter`, so it can't be tagged as a normal map — `UnpackNormal` would decode it as DXT5nm on desktop (x from alpha, y from green). The water shader calls `UnpackNormalRGB` explicitly.
 - **`WaterVolume.Contains` is false inside a hull's dry zone, on purpose.** So "is this point still sea?" can't use it: the ship's own bow probe sat inside its dry zone and the ship refused to move ("can't sail past the edge of the sea"). Use `WaterVolume.AnyCovers` for area-only checks. The same hole shows up in a top-down map snapshot as a ship-shaped patch of seabed unless the dry zones are suspended for the capture (`WaterDryZone.Suspend`).
-- **HD character exports carry an `EyeGlow` geoset textured with the eye-reflection map.** In WoW it's blended faintly over the eyes; imported as an ordinary opaque mesh it's a solid white sheet over them. `Vendor.HideEyeGlow` turns it off — the real eyes are a separate geoset underneath.
+- **HD character exports carry an `EyeGlow` geoset textured with the eye-reflection map.** In WoW it's blended faintly over the eyes; imported as an ordinary opaque mesh it's a solid white sheet over them. `Vendor.HideEyeGlow` turns it off on the vendor and, at Play, on every wandering NPC (the Kul Tiran thieves have it too). The real eyes are a separate geoset underneath.
 - **The pirate ship's wheel is baked into the hull mesh** (`exterior1`/`exterior2`), not a doodad, so there's no object to click. `ShipHelm` is an invisible trigger box placed over it.
 - **The Ancient Leviathan's natural pose is root rotation (0, 0, 0)** — kraken-like, upright with tentacles down. Pointing its root forward at the sky (as the swim-too-far grab still does) makes its roars and casts look aimed at the sky.
-- **Build Warrior Animator (and Spawn Warrior Player) delete and recreate `Warrior.controller`**, which gives it a new GUID. A player already in the scene is left pointing at nothing. To change the existing controller, edit it in place, as *Add Fishing Animations* does.
+- **Build Warrior Animator (and Spawn Warrior Player) delete and recreate `Warrior.controller`**, which gives it a new GUID. A player already in the scene is left pointing at nothing. To change the existing controller, edit it in place, as *Update Warrior Animations* does.
 - **wow.export's sound exports are `.ogg`**, and the rain loops live under `sound/ambience/weather/`.
 
 **Known gaps:**
@@ -197,8 +205,6 @@ The camera stores its yaw as an **offset from the character's facing** rather th
 - **Turning in place plays idle**, so the character pivots with their feet planted — there are no turn clips in the export.
 - **The ship's ladders are placeholders** — plain ropes and rungs, positioned by raycast. A better ladder model and placement are still to do.
 - **Running the ship aground hasn't been tested** in-editor yet.
-- **Rare and better loot drops are switched off** (drops are capped at Uncommon; one weight in `LootDrop.HumanoidDrops`). Inventory's ⋮ menu can still give them for testing.
-- **No player hit-reaction animation** when you take damage.
 - **Fishing uses stand-in animations.** The warrior (`humanmalewarriorlight`, an old creature model) has no `FishingCast`/`FishingLoop` clips, so fishing borrows `AttackThrown` for the cast, `ReadyThrown` while waiting and `EmoteCheer` for a prize. The player-race character export (e.g. the bearded pirate, `character/human/bearded-pirate/humanmale_hd.gltf`) has the real `FishingCast` (ID 133) and `FishingLoop` (ID 134). Its skeleton is different, though, so those clips can't play on the warrior.
 - **Swapping the player to a character-export model is on the table.** It would bring real fishing animations, and it's also the likely path to **showing equipped gear**, such as a sword in hand or a shield on the arm, which the creature warrior can't do. Character exports carry their equipment, but as unskinned meshes at the feet: helms already go through `HelmFitter`/`HelmAttachment`, and weapons and shields would need the same fit onto the hand and arm bones. *Spawn Warrior Player* would need its clip names checked against the new model (`Stand`/`Walk`/`Run`/`Attack1H`/`SwimIdle`/`Swim`/`Death`). Fishing would then use `FishingCast`/`FishingLoop` instead of the stand-ins.
 

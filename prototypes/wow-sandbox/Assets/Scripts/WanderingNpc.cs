@@ -43,6 +43,8 @@ namespace WowSandbox
             _agent = GetComponent<NavMeshAgent>();
             _animator = GetComponentInChildren<Animator>();
             _home = transform.position;
+            // HD character exports (the Kul Tiran thieves) carry a white EyeGlow sheet.
+            Vendor.HideEyeGlow(gameObject);
 
             CacheSpeedParameter();
 

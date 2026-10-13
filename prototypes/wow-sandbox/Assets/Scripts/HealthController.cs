@@ -31,6 +31,7 @@ namespace WowSandbox
         public float maxHealth = 100f;
 
         static readonly int DeathHash = Animator.StringToHash("Death");
+        static readonly int HitHash = Animator.StringToHash("Hit");
 
         CharacterController _controller;
         BreathController _breath;
@@ -72,6 +73,7 @@ namespace WowSandbox
 
         void OnEnable()
         {
+            Combat.PlayerAttacked += OnAttacked;
             if (_stats == null)
                 return;
             _stats.Changed += OnStatsChanged;
@@ -80,6 +82,7 @@ namespace WowSandbox
 
         void OnDisable()
         {
+            Combat.PlayerAttacked -= OnAttacked;
             if (_stats == null)
                 return;
             _stats.Changed -= OnStatsChanged;
@@ -96,6 +99,19 @@ namespace WowSandbox
         {
             maxHealth = _stats.MaxHitPoints;
             _health = maxHealth;
+        }
+
+        /// <summary>
+        /// A melee blow that lands makes you flinch (the warrior's Hit state, from Update
+        /// Warrior Animations) — not misses, not drowning, and not in the water, where the
+        /// clip would stand you upright mid-stroke.
+        /// </summary>
+        void OnAttacked(HealthController target, AttackResult result)
+        {
+            if (target != this || !result.Hit || IsDead || (_movement != null && _movement.IsSwimming))
+                return;
+            if (HasParameter(HitHash))
+                _animator.SetTrigger(HitHash);
         }
 
         /// <summary>Reduces health by <paramref name="amount"/>, dying at zero.</summary>
@@ -142,7 +158,13 @@ namespace WowSandbox
             }
 
             if (HasParameter(DeathHash))
+            {
+                // A pending Hit would fire the flinch and hand back to locomotion — standing
+                // the body back up. Same trap as Health.Die.
+                if (HasParameter(HitHash))
+                    _animator.ResetTrigger(HitHash);
                 _animator.SetTrigger(DeathHash);
+            }
 
             Died?.Invoke(cause);
         }

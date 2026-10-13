@@ -55,12 +55,12 @@ namespace WowSandbox.EditorTools
         }
 
         /// <summary>
-        /// Adds the fishing states to the warrior controller already in use, in place — unlike
-        /// Build Warrior Animator, which deletes and recreates the asset, so a player already in
-        /// the scene would lose its controller. Safe to run again.
+        /// Adds the fishing and hit-reaction states to the warrior controller already in use,
+        /// in place — unlike Build Warrior Animator, which deletes and recreates the asset, so a
+        /// player already in the scene would lose its controller. Safe to run again.
         /// </summary>
-        [MenuItem("WoW Sandbox/Add Fishing Animations")]
-        public static void AddFishingAnimations()
+        [MenuItem("WoW Sandbox/Update Warrior Animations")]
+        public static void UpdateWarriorAnimations()
         {
             string controllerPath = $"{GeneratedRoot}/Warrior.controller";
             var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(controllerPath);
@@ -70,12 +70,57 @@ namespace WowSandbox.EditorTools
                 return;
             }
 
-            if (AddFishingStates(controller, LoadSubAssets<AnimationClip>()))
+            var clips = LoadSubAssets<AnimationClip>();
+            bool fishing = AddFishingStates(controller, clips);
+            bool hit = AddHitState(controller, clips);
+            if (fishing || hit)
             {
                 EditorUtility.SetDirty(controller);
                 AssetDatabase.SaveAssets();
-                Debug.Log("[WarriorSetup] Fishing animations added to the warrior controller.", controller);
+                Debug.Log("[WarriorSetup] Warrior controller updated:" + (fishing ? " fishing" : "") +
+                          (hit ? " hit reaction" : "") + ".", controller);
             }
+        }
+
+        /// <summary>
+        /// Hit (trigger): a flinch from the CombatWound clip that plays through and hands back to
+        /// locomotion. HealthController fires it when a melee blow lands. Replaces any Hit state
+        /// already there.
+        /// </summary>
+        static bool AddHitState(AnimatorController controller, AnimationClip[] clips)
+        {
+            var wound = CopyClip(clips, "CombatWound", loop: false);
+            if (wound == null)
+                return false;
+
+            var stateMachine = controller.layers[0].stateMachine;
+            var locomotion = stateMachine.defaultState;
+            foreach (var child in stateMachine.states)
+            {
+                if (child.state.name == "Hit")
+                    stateMachine.RemoveState(child.state);
+            }
+            foreach (var parameter in controller.parameters)
+            {
+                if (parameter.name == "Hit")
+                    controller.RemoveParameter(parameter);
+            }
+
+            controller.AddParameter("Hit", AnimatorControllerParameterType.Trigger);
+            var hitState = stateMachine.AddState("Hit");
+            hitState.motion = wound;
+
+            var toHit = stateMachine.AddAnyStateTransition(hitState);
+            toHit.AddCondition(AnimatorConditionMode.If, 0f, "Hit");
+            toHit.duration = 0.05f;
+            toHit.hasExitTime = false;
+            toHit.canTransitionToSelf = false;
+
+            var back = hitState.AddTransition(locomotion);
+            back.hasExitTime = true;
+            back.exitTime = 0.85f;
+            back.duration = 0.1f;
+            return true;
         }
 
         // The export has no FishingCast/FishingLoop (those live on player-race models), so
@@ -389,6 +434,7 @@ namespace WowSandbox.EditorTools
             }
 
             AddFishingStates(controller, clips);
+            AddHitState(controller, clips);
 
             EditorUtility.SetDirty(controller);
             AssetDatabase.SaveAssets();
