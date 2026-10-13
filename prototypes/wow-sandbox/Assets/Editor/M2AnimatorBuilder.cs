@@ -142,6 +142,51 @@ namespace WowSandbox.EditorTools
         }
 
         /// <summary>
+        /// For NPCs that fight (NpcCombat): a Run clip at Speed 2 in the locomotion blend, for
+        /// chasing, and an Attack one-shot. Works on a controller already in use — it edits in
+        /// place, adding only what's missing — so NPCs already in the scene keep theirs.
+        /// Returns whether anything was added.
+        /// </summary>
+        public static bool AddCombatStates(AnimatorController controller, string modelPath)
+        {
+            var clips = AssetDatabase.LoadAllAssetRepresentationsAtPath(modelPath)
+                                     .OfType<AnimationClip>()
+                                     .ToArray();
+            string outputDir = Path.GetDirectoryName(AssetDatabase.GetAssetPath(controller))?.Replace('\\', '/');
+            var stateMachine = controller.layers[0].stateMachine;
+            var locomotion = stateMachine.defaultState;
+            bool changed = false;
+
+            if (locomotion != null && locomotion.motion is BlendTree tree &&
+                tree.children.All(child => child.threshold < 1.5f))
+            {
+                var run = Find(clips, "Run");
+                if (run != null)
+                {
+                    tree.AddChild(CopyLooping(run, "Run", outputDir), 2f);
+                    changed = true;
+                }
+            }
+
+            if (controller.parameters.All(parameter => parameter.name != "Attack"))
+            {
+                var attack = Find(clips, "Attack1H") ?? Find(clips, "AttackUnarmed");
+                if (attack != null)
+                {
+                    AddOneShot(controller, locomotion, "Attack", CopyOnce(attack, "Attack", outputDir));
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                EditorUtility.SetDirty(controller);
+                AssetDatabase.SaveAssets();
+            }
+            return changed;
+        }
+
+        /// <summary>
         /// For animated props that only ever idle — a swirl of fish, say: one state looping
         /// the Stand clip. Null if the model has none.
         /// </summary>

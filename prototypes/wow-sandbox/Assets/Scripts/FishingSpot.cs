@@ -8,7 +8,7 @@ namespace WowSandbox
     /// WoW fishing pool. Click it from within reach — from the beach, the deck or the water —
     /// to cast: the line splashes down, a "Fishing" cast bar fills for castSeconds, and when
     /// it's full either a fish bites — a big splash and it's in your bags — or nothing does.
-    /// Moving, wandering out of reach or dying interrupts the cast. The warrior acts it out
+    /// Moving, wandering out of reach, being hit or dying interrupts the cast. The warrior acts it out
     /// (WarriorSetup's FishCast/Fishing/Cheer animator states) unless swimming. After a few catches the school scatters: it vanishes and
     /// comes back a while later.
     ///
@@ -98,8 +98,18 @@ namespace WowSandbox
                 StartCast();
         }
 
+        void OnEnable() => Combat.PlayerAttacked += OnPlayerAttacked;
+
+        // Taking a blow knocks you off your fishing.
+        void OnPlayerAttacked(HealthController target, AttackResult result)
+        {
+            if (_casting == this && result.Hit)
+                EndCast(interrupted: true);
+        }
+
         void OnDisable()
         {
+            Combat.PlayerAttacked -= OnPlayerAttacked;
             if (_casting == this)
             {
                 _casting = null;

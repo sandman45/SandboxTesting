@@ -27,15 +27,15 @@ namespace WowSandbox
         [Tooltip("Humanoids: chance of dropping an item at all, on top of their coin.")]
         [Range(0f, 1f)] public float itemChance = 0.85f;
 
-        // Weights for what a humanoid's item is. Rare and Very Rare are switched off for now
-        // (2026-10-08) — give them weight again to bring them back into drops.
+        // Weights for what a humanoid's item is: about 1 drop in 20 is Rare and 1 in 100 Very
+        // Rare, like WoW's blues and purples. Legendaries never drop.
         static readonly (Func<Item> make, int weight)[] HumanoidDrops =
         {
             (ItemCatalog.RandomTradeGood, 40),
             (ItemCatalog.RandomMundane, 35),
             (() => ItemCatalog.RandomMagic(ItemRarity.Uncommon), 18),
-            (() => ItemCatalog.RandomMagic(ItemRarity.Rare), 0),
-            (() => ItemCatalog.RandomMagic(ItemRarity.VeryRare), 0),
+            (() => ItemCatalog.RandomMagic(ItemRarity.Rare), 5),
+            (() => ItemCatalog.RandomMagic(ItemRarity.VeryRare), 1),
         };
 
         readonly List<Item> _items = new();

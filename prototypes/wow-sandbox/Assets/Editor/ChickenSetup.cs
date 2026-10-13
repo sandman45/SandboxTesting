@@ -1,6 +1,7 @@
+using System.IO;
+using System.Linq;
 using Unity.AI.Navigation;
 using UnityEditor;
-using UnityEditor.Animations;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -16,7 +17,8 @@ namespace WowSandbox.EditorTools
     /// </summary>
     public static class ChickenSetup
     {
-        const string ModelPath = "Assets/WowExports/creature/chicken2/chicken2_white.gltf";
+        /// <summary>Every colour exported here (chicken2_white, _black, _brown…) gets used.</summary>
+        const string ModelFolder = "Assets/WowExports/creature/chicken2";
         const string GeneratedRoot = "Assets/WowExports/_Generated/Chicken";
 
         /// <summary>Same -X facing convention as the warrior; see WarriorSetup.ModelYawOffset.</summary>
@@ -48,10 +50,17 @@ namespace WowSandbox.EditorTools
         [MenuItem("WoW Sandbox/Populate Chickens")]
         public static void PopulateChickens()
         {
-            var model = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
-            if (model == null)
+            // One animator controller per colour: each export has its own clip assets.
+            var breeds = Directory.GetFiles(ModelFolder, "chicken2_*.gltf")
+                .Select(path => path.Replace('\\', '/'))
+                .Select(path => (model: AssetDatabase.LoadAssetAtPath<GameObject>(path),
+                                 controller: (RuntimeAnimatorController)M2AnimatorBuilder.BuildLocomotion(
+                                     path, $"{GeneratedRoot}/{Path.GetFileNameWithoutExtension(path)}")))
+                .Where(breed => breed.model != null)
+                .ToArray();
+            if (breeds.Length == 0)
             {
-                Debug.LogError($"[ChickenSetup] Could not load the chicken at {ModelPath}.");
+                Debug.LogError($"[ChickenSetup] No chicken2_*.gltf exports in {ModelFolder}.");
                 return;
             }
 
@@ -62,8 +71,6 @@ namespace WowSandbox.EditorTools
             Vector3 centre = Selection.activeGameObject != null
                 ? Selection.activeGameObject.transform.position
                 : Vector3.zero;
-
-            var controller = BuildAnimatorController();
 
             var flock = new GameObject("Chickens");
             Undo.RegisterCreatedObjectUndo(flock, "Populate Chickens");
@@ -79,6 +86,7 @@ namespace WowSandbox.EditorTools
                 if (!NavMesh.SamplePosition(candidate, out NavMeshHit hit, 12f, NavMesh.AllAreas))
                     continue;
 
+                var (model, controller) = breeds[Random.Range(0, breeds.Length)];
                 CreateChicken(model, controller, hit.position, flock.transform, i);
                 placed++;
             }
@@ -92,7 +100,7 @@ namespace WowSandbox.EditorTools
             }
 
             Selection.activeGameObject = flock;
-            Debug.Log($"[ChickenSetup] Placed {placed} chicken(s) around {centre}.");
+            Debug.Log($"[ChickenSetup] Placed {placed} chicken(s) around {centre}, in {breeds.Length} colour(s).");
         }
 
         static void CreateChicken(GameObject model, RuntimeAnimatorController controller,
@@ -152,8 +160,5 @@ namespace WowSandbox.EditorTools
                 animator.applyRootMotion = false;
             }
         }
-
-        static AnimatorController BuildAnimatorController() =>
-            M2AnimatorBuilder.BuildLocomotion(ModelPath, GeneratedRoot);
     }
 }

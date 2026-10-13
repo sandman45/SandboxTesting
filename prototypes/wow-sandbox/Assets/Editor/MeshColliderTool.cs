@@ -99,6 +99,9 @@ namespace WowSandbox.EditorTools
             return true;
         }
 
+        /// <summary>The selection tool's sweep over one hierarchy, for other setup tools. Returns colliders added.</summary>
+        public static int AddCollidersTo(GameObject root) => AddCollidersTo(new[] { root }).Added;
+
         static Result AddCollidersTo(GameObject[] roots)
         {
             var result = new Result();
