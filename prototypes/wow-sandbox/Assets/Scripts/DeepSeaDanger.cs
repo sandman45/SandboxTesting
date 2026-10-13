@@ -277,14 +277,14 @@ namespace WowSandbox
         void SetFade(float alpha) => _fade.color = new Color(0f, 0f, 0f, alpha);
 
         [ContextMenu("Summon Sharks Now")]
-        void DebugSharks()
+        public void DebugSharks()
         {
             if (Application.isPlaying)
                 SummonSharks();
         }
 
         [ContextMenu("Summon Leviathan Now")]
-        void DebugLeviathan()
+        public void DebugLeviathan()
         {
             if (Application.isPlaying && _leviathan != null && !_leviathan.InUse && !_eventRunning)
                 StartCoroutine(LeviathanGrab());

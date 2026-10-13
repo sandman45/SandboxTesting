@@ -52,6 +52,9 @@ Since then, as of 2026-10-12:
 As of 2026-10-13:
 - **Sea life:** fish schools in the shallows.
 - **Fishing:** fishing spots with a cast bar, splashes and a fishing animation, and rarer fish further from shore.
+- **Combat:** thieves that fight, Rare loot drops back on.
+- **Scenery:** a shipwreck, mixed chicken colours, palms swaying in the wind.
+- **Menus:** a title screen, a settings menu on Esc, and developer options.
 
 ✅ **Doodad chain verified end-to-end** on `md_pirateship` exported as OBJ: wow.export writes `pirateship_ModelPlacementInformation.csv` plus each doodad's OBJ, and wow.unity rebuilds `pirateship.prefab` with all 36 doodads (cannons, lanterns, hammocks, anchor) in place. Drag the **`.prefab`**, not the `.obj`. The traps on the way are listed under "Export format" below.
 
@@ -87,6 +90,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | **WoW Sandbox → Update Warrior Animations** | Adds the fishing states (cast, wait, cheer) and the hit flinch (`CombatWound`) to the warrior controller already in use, in place. Use this rather than *Build Warrior Animator*, which recreates the controller and leaves the player in the scene without one. Safe to re-run. |
 | **WoW Sandbox → Make NPCs Fight** | Gives the wandering humanoids already in the scene `NpcCombat`, and adds Run and Attack to their animator controllers in place, so nothing needs respawning. New spawns from *Spawn Wandering NPCs* get it automatically. Skips chickens and friendlies. |
 | **WoW Sandbox → Add Shipwreck** | Lays the `md_shipwreck` hull and stern half-buried at the waterline, opposite the pirate ship by default (*Bearing*), scaled down (the hull is ~97 units at full size). It adds colliders and re-bakes the NavMesh. Re-running replaces the wreck. |
+| **WoW Sandbox → Place Player at Shipwreck** | Stands the player on the island side of the shipwreck, clear of it and facing it. That's where the game begins: the title screen circles them there, and it's the respawn point. Save the scene after. |
 | **WoW Sandbox → Add Vendor** | Places Quartermaster Briggs (the bearded-pirate export) on the beach nearest the ship and gives the player a `VendorPanel`. |
 
 **Floating ships:** add **Ship Buoyancy** to a ship (after its dry zone). In Play it rises, falls, pitches and rolls with `WaterWaves`, eased by *Response Time*, and the dry zone travels with it. The waterline is wherever you placed it in the editor. Standing on the deck carries you with it — `WowCharacterController` rides anything with a kinematic Rigidbody under its feet, which Ship Buoyancy adds.
@@ -139,6 +143,25 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 - **Taking hits:** a blow that lands makes you flinch (`CombatWound`, not while swimming) and breaks a fishing cast.
 - **Loot:** humanoids drop Rare items about 1 time in 20 and Very Rare about 1 in 100 (`LootDrop.HumanoidDrops`).
 
+**Title screen, settings and developer options:** none of these need setup. Each is created when you press Play.
+- **Title screen (`TitleScreen`):**
+  - **The shot:** Play opens on the warrior where the game begins, with the camera slowly circling them, **Tidegrave Isle** in gold, a pulsing **Click to Start**, and Settings and Quit buttons.
+  - **While it's up:** the world is calm and safe. The storm cycle waits (`StormWeather.BeginPlay`), nothing aggros, and the HUD and controls are held back.
+  - **Starting:** clicking, Enter or Space swoops the camera in behind the warrior.
+- **Settings (`SettingsPanel`, Esc):**
+  - **Opening:** Esc closes any open window first, then opens the menu.
+  - **Settings:** view distance (the sky dome scales with it), fog density, master/music/sound-effects volume and mouse sensitivity.
+  - **Applying:** changes take effect as you drag and are remembered between sessions (`GameSettings`, PlayerPrefs). Anything never changed follows the scene's own values, and **Defaults** returns to them.
+  - **Buttons:** Quit Game and Developer.
+- **Developer (`DevPanel`, from Settings):**
+  - **Weather:** storm Start/Roll In/Clear Up/Stop/Lightning, a live intensity readout, and the build-up, full-storm and clearing lengths.
+  - **Toggles:** Storm on Play and Skip Title.
+  - **Sea:** summon sharks or the Leviathan.
+  - **Spawn:** an enemy or a chicken in front of you, copied from ones in the scene at Play start.
+  - **Player:** God Mode, Heal, +10 Gold, Rare, Very Rare and Legendary items, and game speed.
+  - **What's remembered:** the storm settings and Skip Title (`DevOptions`); the rest lasts until Play ends.
+  - **Hiding it:** set `DevOptions.Enabled` to `false` to hide all of it for players.
+
 **Controls** (WoW-style, character-relative — never camera-relative):
 
 | Input | Action |
@@ -159,6 +182,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | `B` / `I` | Bags |
 | `C` | Character sheet |
 | `M` | World map (scroll over it to zoom) |
+| `Esc` | Close the top window; with none open, Settings |
 
 **Waves and storms:** the `WaterWaves` component on `WaterSurface` owns the waves. Drag **Storm intensity** from 0 (calm) to 1 (storm); each end is a sea state you can tune: height, choppiness (rolling swell → sharp peaks), chaos (waves with the wind → from every direction), speed, whitecaps and ripples. Everything intensity blends changes smoothly, so it's safe to animate, and in Play mode the component's ⋮ menu has **Roll In Storm** and **Calm Down** (20-second transitions; `TransitionTo(intensity, seconds)` from code). Wind direction, wavelength range, wave count and seed rebuild the wave set, so those jump rather than blend. Swimming, breath and the underwater view all follow the moving surface, and once you reach the surface you ride the swell until `X` takes you under.
 

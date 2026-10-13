@@ -133,6 +133,9 @@ namespace WowSandbox
 
         // Captured scene state.
         FogState _sceneFog;
+        // The player's clear-weather fog (GameSettings), in place of the scene's while set.
+        bool _hasClearFog;
+        float _clearFogStart, _clearFogEnd;
         Material _sceneSky;
         Light _sun;
         Color _sunColor;
@@ -211,21 +214,44 @@ namespace WowSandbox
         // The manual controls take over from the automatic cycle, so it doesn't yank the
         // weather back the moment you've set it.
         [ContextMenu("Roll In Storm (20s)")]
-        void RollInStorm()
+        public void RollInStorm()
         {
             _phase = CyclePhase.None;
             TransitionTo(1f, 20f);
         }
 
         [ContextMenu("Clear Up (20s)")]
-        void ClearUp()
+        public void ClearUp()
         {
             _phase = CyclePhase.None;
             TransitionTo(0f, 20f);
         }
 
         [ContextMenu("Strike Lightning Now")]
-        void StrikeNow() => Strike();
+        public void StrikeNow() => Strike();
+
+        /// <summary>Runs one full storm cycle from wherever the weather is now: build, hold, clear.</summary>
+        public void StartStormCycle()
+        {
+            TransitionTo(1f, buildUpSeconds * (1f - intensity));
+            _phase = CyclePhase.Building;
+        }
+
+        /// <summary>Fine weather this instant, and no cycle running.</summary>
+        public void StopStorm()
+        {
+            _phase = CyclePhase.None;
+            TransitionTo(0f, 0f);
+        }
+
+        /// <summary>What the automatic cycle is doing, for the developer panel.</summary>
+        public string PhaseName => _phase switch
+        {
+            CyclePhase.Building => "building",
+            CyclePhase.Holding => $"full storm, {Mathf.Max(_holdUntil - Time.time, 0f):0}s left",
+            CyclePhase.Clearing => "clearing",
+            _ => _transitionTarget >= 0f ? "changing" : "steady",
+        };
 
         void OnEnable()
         {
@@ -260,14 +286,25 @@ namespace WowSandbox
 
         void Start()
         {
-            if (buildsOnPlay)
-            {
-                intensity = startIntensity;
-                TransitionTo(1f, buildUpSeconds);
-                _phase = CyclePhase.Building;
-            }
+            // The developer panel's saved storm settings, if any.
+            DevOptions.Configure(this);
+            // Fine weather behind the title screen; it calls BeginPlay when you start.
+            if (TitleScreen.Showing)
+                intensity = 0f;
+            else
+                BeginPlay();
 
             ScheduleNextStrike();
+        }
+
+        /// <summary>Starts Play's storm cycle, if it builds on Play — as Play starts, or once the title screen goes.</summary>
+        public void BeginPlay()
+        {
+            if (!buildsOnPlay)
+                return;
+            intensity = startIntensity;
+            TransitionTo(1f, buildUpSeconds);
+            _phase = CyclePhase.Building;
         }
 
         void OnDisable()
@@ -404,12 +441,14 @@ namespace WowSandbox
         {
             float closing = Ramp(intensity, fogOnset);
 
-            // The scene's own clear-day distances, or the far plane if it had no fog.
-            float clearEnd = _sceneFog.enabled && _sceneFog.mode == FogMode.Linear
-                ? _sceneFog.end
+            // The player's clear-day distances, else the scene's own, or the far plane if it
+            // had no fog.
+            bool sceneLinear = _sceneFog.enabled && _sceneFog.mode == FogMode.Linear;
+            float clearEnd = _hasClearFog ? _clearFogEnd
+                : sceneLinear ? _sceneFog.end
                 : (_camera != null ? _camera.farClipPlane : 600f);
-            float clearStart = _sceneFog.enabled && _sceneFog.mode == FogMode.Linear
-                ? _sceneFog.start
+            float clearStart = _hasClearFog ? _clearFogStart
+                : sceneLinear ? _sceneFog.start
                 : clearEnd * 0.35f;
 
             // Near the edge of the sea, the fog comes in so the edge is always behind it.
@@ -429,7 +468,7 @@ namespace WowSandbox
 
             var fog = new FogState
             {
-                enabled = _sceneFog.enabled || closing > 0f || edgeFog,
+                enabled = _sceneFog.enabled || _hasClearFog || closing > 0f || edgeFog,
                 mode = FogMode.Linear,
                 color = Color.Lerp(_sceneFog.color, stormFogColor, closing) + Color.white * (flash * 0.25f),
                 density = _sceneFog.density,
@@ -446,6 +485,18 @@ namespace WowSandbox
 
             // UnderwaterEffect overrides this in LateUpdate while the camera is submerged.
             Apply(fog);
+        }
+
+        /// <summary>
+        /// The fine-weather fog distances to use instead of the scene's (GameSettings' fog
+        /// density). Storms and the edge of the sea still close in on top. Leaving Play puts
+        /// the scene's own back, as for everything else this changes.
+        /// </summary>
+        public void SetClearFog(float start, float end)
+        {
+            _hasClearFog = true;
+            _clearFogStart = start;
+            _clearFogEnd = end;
         }
 
         public static void Apply(FogState fog)
