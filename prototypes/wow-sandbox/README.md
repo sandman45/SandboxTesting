@@ -49,6 +49,10 @@ Since then, as of 2026-10-12:
 - **Edge-of-world fog** in any weather.
 - **A vendor** who sells gear and healing potions and buys your loot.
 
+As of 2026-10-13:
+- **Sea life:** fish schools in the shallows.
+- **Fishing:** fishing spots with a cast bar, splashes and a fishing animation, and rarer fish further from shore.
+
 ✅ **Doodad chain verified end-to-end** on `md_pirateship` exported as OBJ: wow.export writes `pirateship_ModelPlacementInformation.csv` plus each doodad's OBJ, and wow.unity rebuilds `pirateship.prefab` with all 36 doodads (cannons, lanterns, hammocks, anchor) in place. Drag the **`.prefab`**, not the `.obj`. The traps on the way are listed under "Export format" below.
 
 ## Playable sandbox
@@ -78,6 +82,8 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | **WoW Sandbox → Setup Deep Sea Danger** | Gives the player `DeepSeaDanger` and places the hidden Ancient Leviathan, with its cast and submerge animations. Re-run after pulling changes to the Leviathan's animator. |
 | **WoW Sandbox → Add Ship Ladders** | Hangs four rope ladders (`ShipLadder`) on the floating ship, midship and aft on both sides, finding the rail and deck by raycasting the ship's colliders. Placeholder ropes and rungs. Re-running replaces hand-moved ladders. |
 | **WoW Sandbox → Add Ship Helm** | Adds `ShipSailing` to the ship and an invisible click box (`ShipHelm`) to drag over the wheel, which is part of the hull mesh. The box's forward (yellow line) must point to the bow. Its `Stand` child is where you stand to steer. |
+| **WoW Sandbox → Add Sea Life** | Fills the shallows with fish schools (`fishbasic01`, `AmbientSwimmer`) and fishing spots (`fishfrenzy`, `FishingSpot`), from the beach out to *Max distance offshore* (45, inside the Dangerous Waters line). Re-running replaces the batch; tick **Keep existing** to add that many more, spaced away from the ones already there. |
+| **WoW Sandbox → Add Fishing Animations** | Adds the fishing states (cast, wait, cheer) to the warrior controller already in use, in place. Use this rather than *Build Warrior Animator*, which recreates the controller and leaves the player in the scene without one. Safe to re-run. |
 | **WoW Sandbox → Add Vendor** | Places Quartermaster Briggs (the bearded-pirate export) on the beach nearest the ship and gives the player a `VendorPanel`. |
 
 **Floating ships:** add **Ship Buoyancy** to a ship (after its dry zone). In Play it rises, falls, pitches and rolls with `WaterWaves`, eased by *Response Time*, and the dry zone travels with it. The waterline is wherever you placed it in the editor. Standing on the deck carries you with it — `WowCharacterController` rides anything with a kinematic Rigidbody under its feet, which Ship Buoyancy adds.
@@ -102,9 +108,27 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 - **Opening the shop:** click Quartermaster Briggs from close by. The shop opens beside your bags.
 - **Buying:** the Merchant tab has every mundane piece of gear at its D&D price, plus healing potions. Click an item, or drag it into the bags.
 - **Selling:** right-click a bag item while the shop is open, or drag it onto the shop. You get half its value, and Rare+ items ask first.
-- **Buyback:** the Buyback tab has your last 12 sales. **Sell Junk** sells every trade good.
+- **Buyback:** the Buyback tab has your last 12 sales. **Sell Junk** sells every Common trade good, so prize fish aren't sold with the junk.
 - **Potions:** right-click one in the bags, or press `2`, to drink it.
 - **Friendly NPCs** can't be attacked.
+
+**Sea life and fishing:**
+- **Fish schools:** each `fishbasic01` is already a small school of fish in one model. `AmbientSwimmer` cruises it between random points near home, 1–4 units down, above the seabed and inside the shallows. They're scenery: they can't be targeted or hurt.
+- **Fishing spots:** a `fishfrenzy` swirl rides just under the waves. Left-click it from within 15 units (from the beach, the deck or the water) to cast.
+  - **The cast:** a small splash where the line lands and a 3 s **Fishing** cast bar (`CastBarHud`). Moving, leaving reach or dying interrupts it.
+  - **The result:** when the bar fills there's a 60% chance of a bite, shown by a big splash (`WaterSplash`), and the fish goes into your bags.
+  - **Scattering:** after 3–5 catches the school scatters, and it comes back after 90 s.
+- **Prize fish:** the further a spot is past the island's edge, the better the odds, blending from *Near Odds* at the shore to *Far Odds* 45 units out.
+
+| Rarity | Fish | Shore | 45+ units out |
+|---|---|---|---|
+| Common | Raw Fish | 75% | 35% |
+| Uncommon | Silverscale Snapper | 20% | 33% |
+| Rare | Tidegrave Grouper | 4.5% | 20% |
+| Very Rare | Moonfin Eel | 0.5% | 9% |
+| Legendary | Gilded Kingfish | 0% | 3% |
+
+- **The warrior's fishing animation:** he faces the water, casts with an overhand throw, holds a ready pose while waiting, and cheers for a Rare or better fish. Not while swimming. These are stand-in clips; see *Known gaps*.
 
 **Controls** (WoW-style, character-relative — never camera-relative):
 
@@ -120,7 +144,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | `Space` | Jump (physics only — see below) — swims **up** while in water |
 | `X` | Swim **down** (in water only) |
 | Middle mouse / `Num Lock` | Auto-run (`W` or `S` cancels) |
-| Left-click | Target; on a corpse in reach, loot it; on a vendor, open the shop; on the ship's wheel, take the helm |
+| Left-click | Target; on a corpse in reach, loot it; on a vendor, open the shop; on the ship's wheel, take the helm; on a fishing spot, cast |
 | `1` | Attack your target |
 | `2` | Drink a healing potion |
 | `B` / `I` | Bags |
@@ -165,6 +189,7 @@ The camera stores its yaw as an **offset from the character's facing** rather th
 - **HD character exports carry an `EyeGlow` geoset textured with the eye-reflection map.** In WoW it's blended faintly over the eyes; imported as an ordinary opaque mesh it's a solid white sheet over them. `Vendor.HideEyeGlow` turns it off — the real eyes are a separate geoset underneath.
 - **The pirate ship's wheel is baked into the hull mesh** (`exterior1`/`exterior2`), not a doodad, so there's no object to click. `ShipHelm` is an invisible trigger box placed over it.
 - **The Ancient Leviathan's natural pose is root rotation (0, 0, 0)** — kraken-like, upright with tentacles down. Pointing its root forward at the sky (as the swim-too-far grab still does) makes its roars and casts look aimed at the sky.
+- **Build Warrior Animator (and Spawn Warrior Player) delete and recreate `Warrior.controller`**, which gives it a new GUID. A player already in the scene is left pointing at nothing. To change the existing controller, edit it in place, as *Add Fishing Animations* does.
 - **wow.export's sound exports are `.ogg`**, and the rain loops live under `sound/ambience/weather/`.
 
 **Known gaps:**
@@ -174,6 +199,8 @@ The camera stores its yaw as an **offset from the character's facing** rather th
 - **Running the ship aground hasn't been tested** in-editor yet.
 - **Rare and better loot drops are switched off** (drops are capped at Uncommon; one weight in `LootDrop.HumanoidDrops`). Inventory's ⋮ menu can still give them for testing.
 - **No player hit-reaction animation** when you take damage.
+- **Fishing uses stand-in animations.** The warrior (`humanmalewarriorlight`, an old creature model) has no `FishingCast`/`FishingLoop` clips, so fishing borrows `AttackThrown` for the cast, `ReadyThrown` while waiting and `EmoteCheer` for a prize. The player-race character export (e.g. the bearded pirate, `character/human/bearded-pirate/humanmale_hd.gltf`) has the real `FishingCast` (ID 133) and `FishingLoop` (ID 134). Its skeleton is different, though, so those clips can't play on the warrior.
+- **Swapping the player to a character-export model is on the table.** It would bring real fishing animations, and it's also the likely path to **showing equipped gear**, such as a sword in hand or a shield on the arm, which the creature warrior can't do. Character exports carry their equipment, but as unskinned meshes at the feet: helms already go through `HelmFitter`/`HelmAttachment`, and weapons and shields would need the same fit onto the hand and arm bones. *Spawn Warrior Player* would need its clip names checked against the new model (`Stand`/`Walk`/`Run`/`Attack1H`/`SwimIdle`/`Swim`/`Death`). Fishing would then use `FishingCast`/`FishingLoop` instead of the stand-ins.
 
 ## Export format: glTF for M2, OBJ for WMO
 

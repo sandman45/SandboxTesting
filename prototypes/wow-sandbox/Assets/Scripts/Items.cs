@@ -220,6 +220,19 @@ namespace WowSandbox
             Trade("Giant Shark Tooth", "GT", 5 * Money.Gold),
         };
 
+        /// <summary>
+        /// What FishingSpot can land, Common to Legendary — index by (int)ItemRarity. Kept out
+        /// of TradeGoods so a prize fish never turns up in a chicken's loot.
+        /// </summary>
+        public static readonly Item[] Fish =
+        {
+            TradeGoods.First(item => item.name == "Raw Fish"),
+            Catch("Silverscale Snapper", "Sn", ItemRarity.Uncommon, 5 * Money.Silver),
+            Catch("Tidegrave Grouper", "Gr", ItemRarity.Rare, 5 * Money.Gold),
+            Catch("Moonfin Eel", "Ee", ItemRarity.VeryRare, 25 * Money.Gold),
+            Catch("Gilded Kingfish", "Kf", ItemRarity.Legendary, 100 * Money.Gold),
+        };
+
         public static readonly Item[] Potions =
         {
             Potion("Potion of Healing", 2, 4, 2, 50 * Money.Gold),
@@ -236,7 +249,7 @@ namespace WowSandbox
         };
 
         static IEnumerable<Item> Equippable => Weapons.Concat(Armors).Append(Shield).Concat(Clothing).Concat(Jewelry);
-        static IEnumerable<Item> All => Equippable.Concat(TradeGoods).Concat(Potions).Concat(Legendaries);
+        static IEnumerable<Item> All => Equippable.Concat(TradeGoods).Concat(Fish.Skip(1)).Concat(Potions).Concat(Legendaries);
 
         /// <summary>A merchant's shelves: every mundane piece of gear, then the potions — fresh copies.</summary>
         public static Item[] VendorStock() => Equippable.Concat(Potions).Select(item => item.Clone()).ToArray();
@@ -380,6 +393,13 @@ namespace WowSandbox
             name = name, baseName = name, kind = ItemKind.TradeGood, glyph = glyph, iconColor = TradeColor,
             valueCopper = value, maxStack = 20,
         };
+
+        static Item Catch(string name, string glyph, ItemRarity rarity, int value)
+        {
+            var item = Trade(name, glyph, value);
+            item.rarity = rarity;
+            return item;
+        }
 
         static readonly Color PotionColor = new(0.72f, 0.16f, 0.16f);
 

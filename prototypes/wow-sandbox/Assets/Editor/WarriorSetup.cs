@@ -54,6 +54,117 @@ namespace WowSandbox.EditorTools
                 Debug.Log($"[WarriorSetup] Animator controller written to {GeneratedRoot}.");
         }
 
+        /// <summary>
+        /// Adds the fishing states to the warrior controller already in use, in place — unlike
+        /// Build Warrior Animator, which deletes and recreates the asset, so a player already in
+        /// the scene would lose its controller. Safe to run again.
+        /// </summary>
+        [MenuItem("WoW Sandbox/Add Fishing Animations")]
+        public static void AddFishingAnimations()
+        {
+            string controllerPath = $"{GeneratedRoot}/Warrior.controller";
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(controllerPath);
+            if (controller == null)
+            {
+                Debug.LogError($"[WarriorSetup] No warrior controller at {controllerPath} — run Spawn Warrior Player first.");
+                return;
+            }
+
+            if (AddFishingStates(controller, LoadSubAssets<AnimationClip>()))
+            {
+                EditorUtility.SetDirty(controller);
+                AssetDatabase.SaveAssets();
+                Debug.Log("[WarriorSetup] Fishing animations added to the warrior controller.", controller);
+            }
+        }
+
+        // The export has no FishingCast/FishingLoop (those live on player-race models), so
+        // fishing borrows: an overhand throw for the cast, the thrown-weapon ready pose held
+        // while you wait, and a cheer for a prize fish.
+        const string FishCastClip = "AttackThrown";
+        const string FishWaitClip = "ReadyThrown";
+        const string CheerClip = "EmoteCheer";
+        static readonly string[] FishingStates = { "FishCast", "FishWait", "Cheer" };
+        static readonly string[] FishingParameters = { "FishCast", "Fishing", "Cheer" };
+
+        /// <summary>
+        /// FishCast (trigger) plays the cast and settles into the wait pose, held while Fishing
+        /// (bool) is true; Cheer (trigger) plays once. All return to locomotion. Replaces any
+        /// fishing states already there. False if the model lacks the clips.
+        /// </summary>
+        static bool AddFishingStates(AnimatorController controller, AnimationClip[] clips)
+        {
+            var cast = CopyClip(clips, FishCastClip, loop: false);
+            var wait = CopyClip(clips, FishWaitClip, loop: true);
+            var cheer = CopyClip(clips, CheerClip, loop: false);
+            if (cast == null || wait == null)
+            {
+                Debug.LogWarning($"[WarriorSetup] No {FishCastClip}/{FishWaitClip} clips — the warrior will fish standing still.");
+                return false;
+            }
+
+            var stateMachine = controller.layers[0].stateMachine;
+            var locomotion = stateMachine.defaultState;
+            foreach (var child in stateMachine.states)
+            {
+                if (FishingStates.Contains(child.state.name))
+                    stateMachine.RemoveState(child.state);
+            }
+            foreach (var parameter in controller.parameters)
+            {
+                if (FishingParameters.Contains(parameter.name))
+                    controller.RemoveParameter(parameter);
+            }
+
+            controller.AddParameter("FishCast", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("Fishing", AnimatorControllerParameterType.Bool);
+
+            var castState = stateMachine.AddState("FishCast");
+            castState.motion = cast;
+            var waitState = stateMachine.AddState("FishWait");
+            waitState.motion = wait;
+
+            var toCast = stateMachine.AddAnyStateTransition(castState);
+            toCast.AddCondition(AnimatorConditionMode.If, 0f, "FishCast");
+            toCast.duration = 0.1f;
+            toCast.hasExitTime = false;
+            toCast.canTransitionToSelf = false;
+
+            var settle = castState.AddTransition(waitState);
+            settle.hasExitTime = true;
+            settle.exitTime = 0.9f;
+            settle.duration = 0.2f;
+
+            // Interrupted mid-throw, or done waiting.
+            foreach (var state in new[] { castState, waitState })
+            {
+                var stop = state.AddTransition(locomotion);
+                stop.AddCondition(AnimatorConditionMode.IfNot, 0f, "Fishing");
+                stop.hasExitTime = false;
+                stop.duration = 0.2f;
+            }
+
+            if (cheer != null)
+            {
+                controller.AddParameter("Cheer", AnimatorControllerParameterType.Trigger);
+                var cheerState = stateMachine.AddState("Cheer");
+                cheerState.motion = cheer;
+
+                var toCheer = stateMachine.AddAnyStateTransition(cheerState);
+                toCheer.AddCondition(AnimatorConditionMode.If, 0f, "Cheer");
+                toCheer.duration = 0.1f;
+                toCheer.hasExitTime = false;
+                toCheer.canTransitionToSelf = false;
+
+                var back = cheerState.AddTransition(locomotion);
+                back.hasExitTime = true;
+                back.exitTime = 0.9f;
+                back.duration = 0.2f;
+            }
+
+            return true;
+        }
+
         [MenuItem("WoW Sandbox/Spawn Warrior Player")]
         public static void SpawnPlayer()
         {
@@ -276,6 +387,8 @@ namespace WowSandbox.EditorTools
                 toDeath.hasExitTime = false;
                 toDeath.canTransitionToSelf = false;
             }
+
+            AddFishingStates(controller, clips);
 
             EditorUtility.SetDirty(controller);
             AssetDatabase.SaveAssets();

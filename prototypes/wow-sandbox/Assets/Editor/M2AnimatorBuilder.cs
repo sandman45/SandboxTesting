@@ -141,6 +141,37 @@ namespace WowSandbox.EditorTools
             return controller;
         }
 
+        /// <summary>
+        /// For animated props that only ever idle — a swirl of fish, say: one state looping
+        /// the Stand clip. Null if the model has none.
+        /// </summary>
+        public static AnimatorController BuildIdle(string modelPath, string outputDir)
+        {
+            var clips = AssetDatabase.LoadAllAssetRepresentationsAtPath(modelPath)
+                                     .OfType<AnimationClip>()
+                                     .ToArray();
+            var stand = Find(clips, "Stand");
+            if (stand == null)
+            {
+                Debug.LogWarning($"[M2AnimatorBuilder] No Stand clip in {Path.GetFileName(modelPath)}; found: " +
+                                 string.Join(", ", clips.Select(c => c.name)) +
+                                 ". If the export has _anim*.bin files, right-click the glTF and Reimport.");
+                return null;
+            }
+
+            Directory.CreateDirectory(outputDir);
+            stand = CopyLooping(stand, "Stand", outputDir);
+
+            string path = $"{outputDir}/Idle.controller";
+            AssetDatabase.DeleteAsset(path);
+            var controller = AnimatorController.CreateAnimatorControllerAtPath(path);
+            controller.layers[0].stateMachine.AddState("Stand").motion = stand;
+
+            EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+            return controller;
+        }
+
         static void AddDeath(AnimatorController controller, AnimationClip death, string modelPath)
         {
             if (death == null)
