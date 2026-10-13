@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace WowSandbox
 {
@@ -9,6 +10,8 @@ namespace WowSandbox
         Bag,
         Equipment,
         Loot,
+        /// <summary>A merchant's shelf or buyback row; Index is the row on the page.</summary>
+        Vendor,
     }
 
     /// <summary>Where an item sits: a bag slot, an equipment slot, or a row of a loot window.</summary>
@@ -49,6 +52,10 @@ namespace WowSandbox
         public int copper = 15 * Money.Gold;
         [Tooltip("Start with a fighter's kit: chain mail, longsword and shield worn, a dagger and cap in the bags.")]
         public bool starterKit = true;
+        [Tooltip("Seconds between potions.")]
+        public float potionCooldown = 2f;
+
+        float _nextPotion;
 
         Item[] _bagSlots;
         readonly Item[] _equipped = new Item[Enum.GetValues(typeof(EquipSlot)).Length];
@@ -91,6 +98,79 @@ namespace WowSandbox
             // Even with nothing worn: tells CharacterStats this character's weapon now comes
             // from equipment, so an empty main hand fights unarmed.
             EquipmentChanged();
+        }
+
+        void Update()
+        {
+            // 2 drinks a healing potion, as 1 swings the sword.
+            var keyboard = Keyboard.current;
+            if (keyboard != null && keyboard.digit2Key.wasPressedThisFrame)
+            {
+                int index = Array.FindIndex(Bag, item => item is { IsPotion: true });
+                if (index < 0)
+                    Hud.Error("You have no potions.");
+                else if (!Use(index, out var error) && error != null)
+                    Hud.Error(error);
+            }
+        }
+
+        /// <summary>Spends coin if there's enough of it.</summary>
+        public bool Spend(int amount)
+        {
+            if (amount < 0 || copper < amount)
+                return false;
+            copper -= amount;
+            Changed?.Invoke();
+            return true;
+        }
+
+        /// <summary>Takes the whole stack out of bag slot <paramref name="index"/>, or null if it's empty.</summary>
+        public Item TakeFromBag(int index)
+        {
+            var item = Bag[index];
+            if (item == null)
+                return null;
+            Bag[index] = null;
+            Changed?.Invoke();
+            return item;
+        }
+
+        /// <summary>Uses the item in bag slot <paramref name="index"/> — drinks a potion, one from the stack.</summary>
+        public bool Use(int index, out string error)
+        {
+            error = null;
+            var item = Bag[index];
+            if (item == null)
+                return false;
+            if (!item.IsPotion)
+            {
+                error = "You can't use that.";
+                return false;
+            }
+
+            var health = GetComponent<HealthController>();
+            if (health == null || health.IsDead)
+                return false;
+            if (health.Current >= health.maxHealth)
+            {
+                error = "You are already at full health.";
+                return false;
+            }
+            if (Time.time < _nextPotion)
+            {
+                error = "You can't drink another potion yet.";
+                return false;
+            }
+
+            int healed = Mathf.Max(1, Dice.Roll(item.healDieCount, item.healDieSides) + item.healBonus);
+            health.Heal(healed);
+            _nextPotion = Time.time + potionCooldown;
+            Hud.Info($"You drink a {item.name} and recover {healed} health.");
+
+            if (--item.count <= 0)
+                Bag[index] = null;
+            Changed?.Invoke();
+            return true;
         }
 
         public void AddCopper(int amount)
@@ -156,7 +236,8 @@ namespace WowSandbox
         {
             error = null;
             var item = At(from);
-            if (item == null || from.Equals(to) || from.Area == SlotArea.Loot || to.Area == SlotArea.Loot)
+            if (item == null || from.Equals(to) || from.Area is SlotArea.Loot or SlotArea.Vendor ||
+                to.Area is SlotArea.Loot or SlotArea.Vendor)
                 return false;
 
             if (to.Area == SlotArea.Equipment)

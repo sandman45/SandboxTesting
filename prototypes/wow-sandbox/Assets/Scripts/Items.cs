@@ -46,6 +46,8 @@ namespace WowSandbox
         Shield,
         Clothing,
         Jewelry,
+        /// <summary>Used up when used — potions.</summary>
+        Consumable,
     }
 
     /// <summary>
@@ -85,12 +87,19 @@ namespace WowSandbox
         public int protectionBonus;
         public int[] abilityBonuses = new int[6];
 
+        [Header("Potion")]
+        [Tooltip("Health restored when drunk: healDieCount d healDieSides + healBonus.")]
+        public int healDieCount;
+        public int healDieSides;
+        public int healBonus;
+
         [Header("Stack and value")]
         public int valueCopper;
         public int maxStack = 1;
         public int count = 1;
 
         public bool IsEquippable => slot != EquipSlot.None;
+        public bool IsPotion => kind == ItemKind.Consumable && healDieCount > 0;
         public bool Stackable => maxStack > 1;
         public int AbilityBonus(Ability ability) => abilityBonuses[(int)ability];
         public bool HasAbilityBonuses => abilityBonuses.Any(bonus => bonus != 0);
@@ -111,6 +120,11 @@ namespace WowSandbox
     {
         public const int Silver = 10;
         public const int Gold = 100;
+
+        /// <summary>What a vendor pays for the whole stack: half its value, as the D&D rules have it,
+        /// and never nothing for something that's worth something.</summary>
+        public static int SellPrice(Item item) =>
+            item == null || item.valueCopper <= 0 ? 0 : Mathf.Max(1, item.valueCopper * item.count / 2);
 
         /// <summary>"12g 5s 3c", skipping empty denominations; coloured when <paramref name="rich"/>.</summary>
         public static string Format(int copper, bool rich = false)
@@ -206,6 +220,12 @@ namespace WowSandbox
             Trade("Giant Shark Tooth", "GT", 5 * Money.Gold),
         };
 
+        public static readonly Item[] Potions =
+        {
+            Potion("Potion of Healing", 2, 4, 2, 50 * Money.Gold),
+            Potion("Potion of Greater Healing", 4, 4, 4, 150 * Money.Gold),
+        };
+
         /// <summary>Hand-made, never rolled. Reach them through Inventory's context menu for now.</summary>
         public static readonly Item[] Legendaries =
         {
@@ -216,7 +236,10 @@ namespace WowSandbox
         };
 
         static IEnumerable<Item> Equippable => Weapons.Concat(Armors).Append(Shield).Concat(Clothing).Concat(Jewelry);
-        static IEnumerable<Item> All => Equippable.Concat(TradeGoods).Concat(Legendaries);
+        static IEnumerable<Item> All => Equippable.Concat(TradeGoods).Concat(Potions).Concat(Legendaries);
+
+        /// <summary>A merchant's shelves: every mundane piece of gear, then the potions — fresh copies.</summary>
+        public static Item[] VendorStock() => Equippable.Concat(Potions).Select(item => item.Clone()).ToArray();
 
         /// <summary>A fresh copy of the named item.</summary>
         public static Item Create(string name, int count = 1)
@@ -356,6 +379,14 @@ namespace WowSandbox
         {
             name = name, baseName = name, kind = ItemKind.TradeGood, glyph = glyph, iconColor = TradeColor,
             valueCopper = value, maxStack = 20,
+        };
+
+        static readonly Color PotionColor = new(0.72f, 0.16f, 0.16f);
+
+        static Item Potion(string name, int dice, int sides, int bonus, int value) => new()
+        {
+            name = name, baseName = name, kind = ItemKind.Consumable, glyph = "HP", iconColor = PotionColor,
+            healDieCount = dice, healDieSides = sides, healBonus = bonus, valueCopper = value, maxStack = 5,
         };
 
         static Item Legendary(Item baseItem, string name, int magic, params (Ability ability, int bonus)[] abilities)
