@@ -40,6 +40,15 @@ Prototype: pulling World of Warcraft models (M2/WMO) into Unity via `wow.export`
 
 🎮 **Playable world:** a warrior you control on procedurally generated terrain, under a real WoW sky dome with fog; a gnome hut with collision you can walk inside; lakes you can swim in, with an underwater view; and wandering chickens, warriors and thieves routing around it all on a baked NavMesh. Every part is rebuildable from the `WoW Sandbox` menu, so the scene itself is disposable.
 
+Since then, as of 2026-10-12:
+- **HUD and D&D-style combat:** stats, inventory, loot and maps.
+- **Sea creatures and a deadly open sea:** sharks, and the Ancient Leviathan, which rises at every storm's peak.
+- **Storms:** recorded rain.
+- **The pirate ship:** climb aboard by rope ladders and sail it from the helm.
+- **Maps:** a zoomable world map of the whole sea.
+- **Edge-of-world fog** in any weather.
+- **A vendor** who sells gear and healing potions and buys your loot.
+
 ✅ **Doodad chain verified end-to-end** on `md_pirateship` exported as OBJ: wow.export writes `pirateship_ModelPlacementInformation.csv` plus each doodad's OBJ, and wow.unity rebuilds `pirateship.prefab` with all 36 doodads (cannons, lanterns, hammocks, anchor) in place. Drag the **`.prefab`**, not the `.obj`. The traps on the way are listed under "Export format" below.
 
 ## Playable sandbox
@@ -58,14 +67,44 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | **WoW Sandbox → Spawn Wandering NPCs** | Same, for any M2 glTF you drag in — sized from the model's own bounds. |
 | **WoW Sandbox → Setup Sky and Sun** | Procedural sky plus a matching directional light; ambient comes from the sky. Also forces the camera's Clear Flags to Skybox, without which the sky never draws at all. |
 | **WoW Sandbox → Setup Sky Dome** | Rebuilds an exported WoW sky model's cloud layers as transparent, depth-less materials pinned to the camera. |
-| **WoW Sandbox → Set View Distance** | Sets far clip, fog range, and sky dome scale together — they're coupled and can't be set independently. |
+| **WoW Sandbox → Set View Distance** | Sets far clip, fog range, and sky dome scale together — they're coupled and can't be set independently. Opens on the scene's current values. ~900 works well: `StormWeather`'s edge fog closes in only as you near the edge of the sea (*Edge Fog Reach*), so the water's edge and the seabed never show, and a clear-weather horizon haze blends the sea into the sky. |
 | **WoW Sandbox → Setup Water** | Floods the terrain to a sea level given as a fraction of its height. Builds the wave mesh, generates the ripple normal maps in code, adds the `WaterVolume` the swim code reads, puts `UnderwaterEffect` on the camera, adds `WaterWaves`, and marks the submerged terrain unwalkable. Re-bake the NavMesh afterwards. Opens on the existing water's sea level and overhang, and a rebuild keeps the old `WaterWaves` settings — so it can resize the sea (*Overhang*: area grows with its square) without moving the water out from under the ship or resetting tuned waves. Anything else parented under `WaterSurface` is moved out before the old water is deleted — a rebuild once took StormWeather down with it. |
 | **WoW Sandbox → Add Storm Weather** | Adds a `StormWeather` that drives the waves, darkening cloud, failing light, closing fog, rain, wind and lightning from one intensity. Finds the sun, sky, water and camera itself at Play time, so there's nothing to wire. |
 | **WoW Sandbox → Fix OBJ Textures in Selection** | Assigns the textures Unity's OBJ importer missed on WMO exports, by reading the `.mtl` itself. Run it once on any building or ship exported as OBJ that comes in untextured. **Not yet tried** — the pirate ship was fixed by writing the texture references into its `.mat` files directly, before anyone ran the tool. |
 | **WoW Sandbox → Add Water Dry Zone to Selection** | Slices the selected ship's hull at the waterline and cuts that shape out of the water, so it doesn't show inside the hull and you don't swim in the hold. Re-run it (on the ship) after moving the ship up or down. |
+| **WoW Sandbox → Add Music Player** | Fills a `MusicPlayer` playlist from `Assets/WowExports/sound/music/` (gitignored — WoW music is Blizzard content like the models) and sets each track to stream. It plays shuffled in Play mode, each track fading in and out over *Crossfade Seconds*. Re-run after adding tracks. |
+| **WoW Sandbox → Spawn Sea Creatures** | Places Reef, Hunter or Giant sharks (`SwimmingCreature`) in a ring offshore. They roam a depth band, keep clear of the seabed and shore, and hostile ones hunt swimmers. |
+| **WoW Sandbox → Generate Seabed** | Builds the sea floor beyond the terrain's edge (`Seabed.HeightAt` is the sea-floor query everything uses). |
+| **WoW Sandbox → Setup Deep Sea Danger** | Gives the player `DeepSeaDanger` and places the hidden Ancient Leviathan, with its cast and submerge animations. Re-run after pulling changes to the Leviathan's animator. |
+| **WoW Sandbox → Add Ship Ladders** | Hangs four rope ladders (`ShipLadder`) on the floating ship, midship and aft on both sides, finding the rail and deck by raycasting the ship's colliders. Placeholder ropes and rungs. Re-running replaces hand-moved ladders. |
+| **WoW Sandbox → Add Ship Helm** | Adds `ShipSailing` to the ship and an invisible click box (`ShipHelm`) to drag over the wheel, which is part of the hull mesh. The box's forward (yellow line) must point to the bow. Its `Stand` child is where you stand to steer. |
+| **WoW Sandbox → Add Vendor** | Places Quartermaster Briggs (the bearded-pirate export) on the beach nearest the ship and gives the player a `VendorPanel`. |
 
 **Floating ships:** add **Ship Buoyancy** to a ship (after its dry zone). In Play it rises, falls, pitches and rolls with `WaterWaves`, eased by *Response Time*, and the dry zone travels with it. The waterline is wherever you placed it in the editor. Standing on the deck carries you with it — `WowCharacterController` rides anything with a kinematic Rigidbody under its feet, which Ship Buoyancy adds.
-| **WoW Sandbox → Add Music Player** | Fills a `MusicPlayer` playlist from `Assets/WowExports/sound/music/` (gitignored — WoW music is Blizzard content like the models) and sets each track to stream. It plays shuffled in Play mode, each track fading in and out over *Crossfade Seconds*. Re-run after adding tracks. |
+
+**Boarding and sailing:**
+- **Ladders:** swim up facing a ladder and hold `W` to climb; `S` climbs down and `Space` lets go. At the top you clamber over the rail onto the deck. From the deck, face the sea at a ladder and press `W` to climb down. Climbing plays the walk animation, since no export has a climb clip.
+- **Taking the helm:** click the wheel from close by. You're held behind it, and the camera pulls back around the ship; right-drag orbits.
+- **Sailing:** `W`/`S` let out and take in sail, and `A`/`D` steer (`ShipSailing`). The ship reaches about 1.5× run speed, gathers way over ~10 s, coasts to a stop, and can't turn when stopped.
+- **Helm panel:** shows sails and speed, with anchor and leave buttons. The ship starts at anchor. Leaving the helm keeps the sails set.
+- **Limits:** the ship stops before the shallows (by `Seabed.HeightAt` against its keel) and the edge of the sea; `S` backs it off. Running aground hasn't been tested in-editor yet.
+
+**The open sea:**
+- **Dangerous Waters:** swim more than 60 units past the island and a "Dangerous Waters" bar fills over 15 s. When it's full, `DeepSeaDanger` sends a pack of sharks, or 5% of the time the Ancient Leviathan, which breaches, lunges and drags you under. Being aboard the ship is safe, because the danger only counts while you're swimming.
+- **Storm peaks:** at every storm's peak (`StormLeviathan`), the Leviathan rises out at sea seaward of you. It sways and roars or casts, dipping into the water each time, then submerges as the storm clears. Lightning favours its spot, and each flash briefly pushes the fog back to show it. It has a pulsing map marker.
+
+**Maps:**
+- **Snapshot:** `WorldMap` takes one top-down snapshot of the whole sea. It leaves out the moving ship, and the hull's dry-zone hole, which would otherwise show as land.
+- **World map (`M`):** opens on the island. The mouse wheel zooms out to the full sea, and the map centres on you once you're off the island.
+- **Ship marker:** the ship is drawn on both maps as a to-scale silhouette.
+
+**Vendor:**
+- **Opening the shop:** click Quartermaster Briggs from close by. The shop opens beside your bags.
+- **Buying:** the Merchant tab has every mundane piece of gear at its D&D price, plus healing potions. Click an item, or drag it into the bags.
+- **Selling:** right-click a bag item while the shop is open, or drag it onto the shop. You get half its value, and Rare+ items ask first.
+- **Buyback:** the Buyback tab has your last 12 sales. **Sell Junk** sells every trade good.
+- **Potions:** right-click one in the bags, or press `2`, to drink it.
+- **Friendly NPCs** can't be attacked.
 
 **Controls** (WoW-style, character-relative — never camera-relative):
 
@@ -80,10 +119,17 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | Scroll | Zoom |
 | `Space` | Jump (physics only — see below) — swims **up** while in water |
 | `X` | Swim **down** (in water only) |
+| Middle mouse / `Num Lock` | Auto-run (`W` or `S` cancels) |
+| Left-click | Target; on a corpse in reach, loot it; on a vendor, open the shop; on the ship's wheel, take the helm |
+| `1` | Attack your target |
+| `2` | Drink a healing potion |
+| `B` / `I` | Bags |
+| `C` | Character sheet |
+| `M` | World map (scroll over it to zoom) |
 
 **Waves and storms:** the `WaterWaves` component on `WaterSurface` owns the waves. Drag **Storm intensity** from 0 (calm) to 1 (storm); each end is a sea state you can tune: height, choppiness (rolling swell → sharp peaks), chaos (waves with the wind → from every direction), speed, whitecaps and ripples. Everything intensity blends changes smoothly, so it's safe to animate, and in Play mode the component's ⋮ menu has **Roll In Storm** and **Calm Down** (20-second transitions; `TransitionTo(intensity, seconds)` from code). Wind direction, wavelength range, wave count and seed rebuild the wave set, so those jump rather than blend. Swimming, breath and the underwater view all follow the moving surface, and once you reach the surface you ride the swell until `X` takes you under.
 
-**Storm weather:** with a `StormWeather` in the scene, its **Intensity** drives the waves too (it takes over `WaterWaves`' build-up) and Play runs one storm cycle: it builds from light to full over a minute, holds at full strength for two, then clears back to fine weather over one (`buildUpSeconds` / `fullStormSeconds` / `clearingSeconds`). Each effect has its own onset window on that dial: cloud and light go first, rain from 0.25, fog closes from 0.1 down to `stormFogEnd` (90 units), lightning above 0.6 — up to three return-stroke flashes, a jagged bolt, and a light pulse on the world. A fog-coloured band around the horizon hides the strip of clear sky below the cloud dome as the fog closes in. Its ⋮ menu has **Roll In Storm**, **Clear Up** and **Strike Lightning Now** in Play mode; the first two stop the automatic cycle. It's Play-mode only and puts the scene's own fog, sky, sun and ambient back on exit. Rain collides with the world and dies on roofs, decks and terrain (anything with colliders — run the collider tools on new buildings), and over water it's timed to vanish at the surface; drop to *Rain Collision Quality* Medium if High costs too much. **Storm Audio** (on the same object) synthesises the rain and thunder in code — no audio assets. Rain follows the rain's onset, muffles under a roof or below deck, and is levelled by RMS and soft-limited (an early version used sine-tone drops that pinged and stacked into loud bursts); *Rain Brightness* trades patter for hiss. Thunder arrives after each strike at *Sound Speed*, with a crack for close strikes and duller, quieter rumble for far ones.
+**Storm weather:** with a `StormWeather` in the scene, its **Intensity** drives the waves too (it takes over `WaterWaves`' build-up) and Play runs one storm cycle: it builds from light to full over a minute, holds at full strength for two, then clears back to fine weather over one (`buildUpSeconds` / `fullStormSeconds` / `clearingSeconds`). Each effect has its own onset window on that dial: cloud and light go first, rain from 0.25, fog closes from 0.1 down to `stormFogEnd` (90 units), lightning above 0.6 — up to three return-stroke flashes, a jagged bolt, and a light pulse on the world. A fog-coloured band around the horizon hides the strip of clear sky below the cloud dome as the fog closes in. Its ⋮ menu has **Roll In Storm**, **Clear Up** and **Strike Lightning Now** in Play mode; the first two stop the automatic cycle. It's Play-mode only and puts the scene's own fog, sky, sun and ambient back on exit. Rain collides with the world and dies on roofs, decks and terrain (anything with colliders — run the collider tools on new buildings), and over water it's timed to vanish at the surface; drop to *Rain Collision Quality* Medium if High costs too much. **Storm Audio** (on the same object) plays the recorded `rainlightloop`/`rainheavyloop` from `Assets/WowExports/sound/ambience/weather/` (picked up automatically in the editor; gitignored), crossfading light to heavy as the rain builds, with the `fx_weather_80_lightningstorm_loop` coming in near the peak. Without those files it falls back to rain synthesised in code, levelled by RMS and soft-limited (an early version used sine-tone drops that pinged and stacked into loud bursts); *Rain Brightness* trades patter for hiss. Rain muffles under a roof or below deck. Thunder arrives after each strike at *Sound Speed*, with a crack for close strikes and duller, quieter rumble for far ones.
 
 Wade in past roughly waist height and the character switches to swimming, playing the `Swim`/`SwimIdle` clips (WoW animation IDs 42 and 41). Gravity is off below the surface: `Space` is the only thing that raises you, `X` sinks you, and with neither held you hold the depth you stopped at rather than drifting back up. The exception is being above the waterline — after jumping in from a ledge — where you settle down onto the surface instead of hanging in the air. Duck the camera under for the underwater view.
 
@@ -115,11 +161,19 @@ The camera stores its yaw as an **offset from the character's facing** rather th
 - **Every M2 is skinned, even a boulder.** M2 geosets carry `JOINTS_0`/`WEIGHTS_0` and import as `SkinnedMeshRenderer` with **no MeshFilter**, so a MeshFilter-only collider sweep silently misses every tree and rock while the WMO hut — which has no skeleton — works fine. That exact split is the tell. Their single animation has zero channels, so the mesh never deforms and `BakeMesh` on the rest pose gives an exact collider. Don't filter scenery by "has an Animator" either: glTFast puts one on every M2, doodads included.
 - **Collide tree trunks, not tree leaves — but only on M2s.** M2 doodads split into one geoset per material, so a palm arrives as a `_wood_` mesh and a `_fronds_` mesh; a MeshCollider on the fronds puts invisible walls out in the air wherever the leaf cards hang. The collider tool matches material names against a foliage word list and skips those geosets. **WMOs are exempt**, because there the same words mean architecture: `12tr_amani_hut01`'s roof is built from `mat_12tr_amani_leafy_roof_01` and `mat_12tr_amani_leafs_01`, and skipping those drops you through the hut's roof.
 - **Code-generated normal maps must be unpacked as plain RGB.** A `Texture2D` created in code never passes through a `TextureImporter`, so it can't be tagged as a normal map — `UnpackNormal` would decode it as DXT5nm on desktop (x from alpha, y from green). The water shader calls `UnpackNormalRGB` explicitly.
+- **`WaterVolume.Contains` is false inside a hull's dry zone, on purpose.** So "is this point still sea?" can't use it: the ship's own bow probe sat inside its dry zone and the ship refused to move ("can't sail past the edge of the sea"). Use `WaterVolume.AnyCovers` for area-only checks. The same hole shows up in a top-down map snapshot as a ship-shaped patch of seabed unless the dry zones are suspended for the capture (`WaterDryZone.Suspend`).
+- **HD character exports carry an `EyeGlow` geoset textured with the eye-reflection map.** In WoW it's blended faintly over the eyes; imported as an ordinary opaque mesh it's a solid white sheet over them. `Vendor.HideEyeGlow` turns it off — the real eyes are a separate geoset underneath.
+- **The pirate ship's wheel is baked into the hull mesh** (`exterior1`/`exterior2`), not a doodad, so there's no object to click. `ShipHelm` is an invisible trigger box placed over it.
+- **The Ancient Leviathan's natural pose is root rotation (0, 0, 0)** — kraken-like, upright with tentacles down. Pointing its root forward at the sky (as the swim-too-far grab still does) makes its roars and casts look aimed at the sky.
+- **wow.export's sound exports are `.ogg`**, and the rain loops live under `sound/ambience/weather/`.
 
 **Known gaps:**
 - **Jump has no animation.** The export contains no jump clip (WoW's JumpStart/JumpEnd weren't included), so the character arcs through the air still playing idle. The `Jump` trigger and `Grounded` bool already exist in the controller, ready for a state once those clips are exported.
 - **Turning in place plays idle**, so the character pivots with their feet planted — there are no turn clips in the export.
-- **Left-click both attacks and orbits the camera.** Harmless in practice since orbiting needs a drag, but move attack to a number key if it grates.
+- **The ship's ladders are placeholders** — plain ropes and rungs, positioned by raycast. A better ladder model and placement are still to do.
+- **Running the ship aground hasn't been tested** in-editor yet.
+- **Rare and better loot drops are switched off** (drops are capped at Uncommon; one weight in `LootDrop.HumanoidDrops`). Inventory's ⋮ menu can still give them for testing.
+- **No player hit-reaction animation** when you take damage.
 
 ## Export format: glTF for M2, OBJ for WMO
 
