@@ -683,6 +683,11 @@ namespace WowSandbox
             var target = _targeting != null ? _targeting.Target : null;
             if (target == null || target.IsDead)
                 return;
+            if (target.reaction == Reaction.Friendly)
+            {
+                Hud.Error("You can't attack that.");
+                return;
+            }
 
             Vector3 toTarget = target.transform.position - transform.position;
             toTarget.y = 0f;

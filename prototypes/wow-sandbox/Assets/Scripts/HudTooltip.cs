@@ -133,6 +133,10 @@ namespace WowSandbox
                 case ItemKind.TradeGood:
                     lines.Add($"<color=#{dim}>Trade good — worth selling</color>");
                     break;
+
+                case ItemKind.Consumable when item.IsPotion:
+                    lines.Add($"<color=#{good}>Use: Restores {Dice.Format(item.healDieCount, item.healDieSides, item.healBonus)} health</color>");
+                    break;
             }
 
             if (item.protectionBonus > 0)
@@ -158,6 +162,7 @@ namespace WowSandbox
             ItemKind.Armor => $"{item.armorCategory} Armor",
             ItemKind.Shield => "Off Hand Shield",
             ItemKind.TradeGood => "Trade Good",
+            ItemKind.Consumable => "Potion",
             _ => item.slot.ToString(),
         };
     }

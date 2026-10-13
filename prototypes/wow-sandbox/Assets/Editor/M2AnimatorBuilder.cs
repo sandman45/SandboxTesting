@@ -264,6 +264,33 @@ namespace WowSandbox.EditorTools
             AssetDatabase.SaveAssets();
         }
 
+        /// <summary>
+        /// Adds a play-once state per (trigger, clip name) pair, for whichever of the clips the
+        /// model has — a vendor's wave and talk, say. Each plays through and returns to the
+        /// default (locomotion) state. Returns how many were added.
+        /// </summary>
+        public static int AddOneShots(AnimatorController controller, string modelPath, string outputDir,
+                                      params (string trigger, string clip)[] shots)
+        {
+            var clips = AssetDatabase.LoadAllAssetRepresentationsAtPath(modelPath)
+                                     .OfType<AnimationClip>()
+                                     .ToArray();
+            var locomotion = controller.layers[0].stateMachine.defaultState;
+            int added = 0;
+            foreach (var (trigger, clipName) in shots)
+            {
+                var clip = Find(clips, clipName);
+                if (clip == null)
+                    continue;
+                AddOneShot(controller, locomotion, trigger, CopyOnce(clip, trigger, outputDir));
+                added++;
+            }
+
+            EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+            return added;
+        }
+
         /// <summary>wow.export names clips "Stand (ID 0 variation 0)" — match the leading name.</summary>
         static AnimationClip Find(AnimationClip[] clips, string prefix) =>
             clips.FirstOrDefault(c => c.name.StartsWith(prefix + " ") || c.name == prefix);

@@ -74,17 +74,46 @@ namespace WowSandbox
 
         protected override void Refresh()
         {
-            foreach (var slot in _slots)
-                slot.Refresh();
+            for (int i = 0; i < _slots.Length; i++)
+            {
+                _slots[i].TooltipHint = HintFor(i);
+                _slots[i].Refresh();
+            }
             _money.text = Money.Format(_inventory.copper, rich: true);
         }
 
         void OnRightClick(ItemSlotView slot)
         {
-            if (!slot.Item.IsEquippable)
+            // With a merchant open, right-click sells, as in WoW.
+            var vendor = GetComponent<VendorPanel>();
+            if (vendor != null && vendor.IsOpen)
+            {
+                vendor.Sell(slot.Ref.Index);
                 return;
-            if (!_inventory.EquipFromBag(slot.Ref.Index, out var error) && error != null)
+            }
+
+            string error = null;
+            if (slot.Item.IsPotion)
+                _inventory.Use(slot.Ref.Index, out error);
+            else if (slot.Item.IsEquippable)
+                _inventory.EquipFromBag(slot.Ref.Index, out error);
+            if (error != null)
                 Hud.Error(error);
+        }
+
+        /// <summary>The hint under a bag item's tooltip — what right-click will do with it.</summary>
+        string HintFor(int index)
+        {
+            var item = _inventory.BagItem(index);
+            var vendor = GetComponent<VendorPanel>();
+            if (item != null && vendor != null && vendor.IsOpen)
+            {
+                int price = Money.SellPrice(item);
+                return price > 0 ? $"Right-click to sell for {Money.Format(price)}" : "No sell price";
+            }
+            if (item != null && item.IsPotion)
+                return "Right-click to drink (or press 2) · drag to move";
+            return "Right-click to equip · drag to move";
         }
 
         void OnDropped(ItemSlotView from, ItemSlotView to)
@@ -93,6 +122,13 @@ namespace WowSandbox
             {
                 if (_loot != null)
                     _loot.Take(from.Ref.Index);
+                return;
+            }
+
+            // Dragged in from the merchant: buy it (or buy it back).
+            if (from.Ref.Area == SlotArea.Vendor)
+            {
+                GetComponent<VendorPanel>()?.BuyFromSlot(from);
                 return;
             }
 
