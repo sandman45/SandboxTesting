@@ -11,7 +11,7 @@ namespace WowSandbox
     /// Merchant tab: their stock, a page at a time — click (or drag into your bags) to buy
     /// one. Buyback tab: what you've sold them lately, at the price you got. Selling is
     /// right-clicking a bag item while the shop's open, or dragging it onto the shop. Sell
-    /// Junk sells every trade good at once. Anything Rare or better asks first. Closes when
+    /// Junk sells every Common trade good at once. Anything Rare or better asks first. Closes when
     /// you walk away.
     /// </summary>
     [RequireComponent(typeof(Inventory), typeof(TargetingController))]
@@ -289,7 +289,8 @@ namespace WowSandbox
             for (int i = 0; i < _inventory.BagSize; i++)
             {
                 var item = _inventory.BagItem(i);
-                if (item == null || item.kind != ItemKind.TradeGood)
+                // A prize fish is a trade good too, but it isn't junk.
+                if (item == null || item.kind != ItemKind.TradeGood || item.rarity != ItemRarity.Common)
                     continue;
                 int price = Money.SellPrice(item);
                 _inventory.TakeFromBag(i);
