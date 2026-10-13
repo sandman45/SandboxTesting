@@ -33,6 +33,9 @@ namespace WowSandbox
         [Tooltip("Keep at least this much water between the body's centre and the surface or seabed.")]
         public float clearance = 1.5f;
         public Vector2 pauseSeconds = new(0f, 3f);
+        [Tooltip("Playback speed of its animations. 0 = by size: a creature scaled up beats its tail " +
+                 "slower (1 / square root of its scale), the way big animals do.")]
+        [Range(0f, 2f)] public float animationSpeed = 0f;
 
         [Header("Hunting")]
         [Tooltip("Hostile creatures notice a swimming player this close.")]
@@ -75,6 +78,7 @@ namespace WowSandbox
             _animator = GetComponentInChildren<Animator>();
             _hasSpeed = HasParameter(SpeedHash);
             _hasAttack = HasParameter(AttackHash);
+            ApplyAnimationSpeed();
             _home = transform.position;
             _health.Damaged += OnDamaged;
         }
@@ -309,6 +313,22 @@ namespace WowSandbox
         float BodyLength() => _collider != null ? _collider.bounds.size.magnitude * 0.6f : 2f;
 
         bool IsPart(Collider other) => other.transform.IsChildOf(transform);
+
+        void ApplyAnimationSpeed()
+        {
+            if (_animator == null)
+                return;
+            // The model's scale, not the root's: the spawner sizes the model under it.
+            float scale = Mathf.Max(_animator.transform.lossyScale.y, 0.01f);
+            _animator.speed = animationSpeed > 0f ? animationSpeed : 1f / Mathf.Sqrt(scale);
+        }
+
+        // So the slider can be tuned live in Play.
+        void OnValidate()
+        {
+            if (Application.isPlaying)
+                ApplyAnimationSpeed();
+        }
 
         void SetAnimatorSpeed(float value)
         {

@@ -50,6 +50,12 @@ namespace WowSandbox
                  "animation. Purely cosmetic.")]
         public float swimPitch = 0f;
 
+        [Header("Climbing")]
+        [Tooltip("Climbing speed up and down a ShipLadder, as a fraction of swim speed.")]
+        [Range(0.1f, 1.5f)] public float climbSpeedFactor = 0.6f;
+        [Tooltip("Seconds to clamber over the rail between the top of a ladder and the deck.")]
+        public float climbOverSeconds = 0.7f;
+
         [Header("Combat")]
         [Tooltip("Melee range. Scaled to the model's height by WarriorSetup, same as the " +
                  "movement speeds.")]
@@ -90,6 +96,13 @@ namespace WowSandbox
         // How long the deck can go undetected before we let go of it, so a heaving deck
         // that drops away from the feet for a moment doesn't drop the ride with it.
         const float PlatformGrace = 0.3f;
+        // Climbing a ShipLadder: which one, how far up it the feet are, and — while clambering
+        // over the rail at the top — how far through that (-1 when not).
+        ShipLadder _ladder;
+        float _ladderHeight;
+        float _climbOver = -1f;
+        bool _climbingOverUp;
+
         bool _hasSwimmingParameter;
         float _modelPitch;
         Quaternion _modelRestRotation;
@@ -111,6 +124,37 @@ namespace WowSandbox
 
         /// <summary>True while the character is in deep enough water to swim.</summary>
         public bool IsSwimming => _swimming;
+
+        /// <summary>True while on a ship's ladder, or clambering over its rail.</summary>
+        public bool IsClimbing => _ladder != null;
+
+        /// <summary>True while something else — the ship's helm — holds the character in place.</summary>
+        public bool IsLocked { get; private set; }
+
+        /// <summary>
+        /// Hands the character over to something else, which places them each frame (the helm
+        /// stands you behind the wheel), or takes them back. Locked, keys don't move or turn
+        /// them and they stand idle. Unlocked, they pick up whatever deck is under them afresh.
+        /// </summary>
+        public void SetLocked(bool locked)
+        {
+            IsLocked = locked;
+            IsSteering = false;
+            _autoRun = false;
+            _ladder = null;
+            _climbOver = -1f;
+            _platform = null;
+            _verticalVelocity = 0f;
+            _swimming = false;
+
+            if (_animator == null)
+                return;
+            _animSpeed = 0f;
+            _animator.SetFloat(SpeedHash, 0f);
+            _animator.SetBool(GroundedHash, true);
+            if (_hasSwimmingParameter)
+                _animator.SetBool(SwimmingHash, false);
+        }
 
         void Awake()
         {
@@ -198,7 +242,7 @@ namespace WowSandbox
         {
             var keyboard = Keyboard.current;
             var mouse = Mouse.current;
-            if (keyboard == null)
+            if (keyboard == null || IsLocked)
                 return;
 
             IsSteering = mouse != null && mouse.rightButton.isPressed;
@@ -240,6 +284,16 @@ namespace WowSandbox
             strafe = Mathf.Clamp(strafe, -1f, 1f);
 
             bool walking = keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed;
+
+            // --- Ladders ----------------------------------------------------
+            // Climbing takes over movement entirely: no turning, no gravity, no swimming.
+            if (_ladder != null || TryGrabLadder(forward))
+            {
+                Climb(keyboard, forward);
+                UpdateModelPitch();
+                UpdateClimbAnimator(forward);
+                return;
+            }
 
             // --- Turn -------------------------------------------------------
             if (Mathf.Abs(turn) > 0.01f)
@@ -368,6 +422,154 @@ namespace WowSandbox
 
             var body = hit.collider.attachedRigidbody;
             return body != null && body.isKinematic ? body.transform : null;
+        }
+
+        // --- Climbing ----------------------------------------------------------------------
+
+        float StandOff => _controller.radius + 0.1f;
+
+        /// <summary>
+        /// Takes hold of a ladder when pushing forward into one: from the water facing the
+        /// hull, or from the deck at its top facing the sea (which starts the climb down).
+        /// </summary>
+        bool TryGrabLadder(float forward)
+        {
+            if (forward < 0.1f)
+                return false;
+
+            foreach (var ladder in ShipLadder.All)
+            {
+                Vector3 facing = transform.forward;
+                if (Vector3.Dot(facing, -ladder.Outward) > 0.5f &&
+                    ladder.InReachFromWater(transform.position, _controller.radius, out float height))
+                {
+                    StartClimbing(ladder);
+                    _ladderHeight = Mathf.Min(height, ladder.length - 0.01f);
+                    return true;
+                }
+
+                if (!_swimming && Vector3.Dot(facing, ladder.Outward) > 0.5f &&
+                    ladder.InReachFromDeck(transform.position, _controller.radius))
+                {
+                    StartClimbing(ladder);
+                    _ladderHeight = ladder.length;
+                    _climbOver = 0f;
+                    _climbingOverUp = false;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        void StartClimbing(ShipLadder ladder)
+        {
+            _ladder = ladder;
+            _climbOver = -1f;
+            _swimming = false;
+            _atSurface = false;
+            _autoRun = false;
+            _platform = null;
+            _verticalVelocity = 0f;
+        }
+
+        /// <summary>W climbs, S climbs down (off the bottom into the sea), Space lets go.</summary>
+        void Climb(Keyboard keyboard, float input)
+        {
+            if (_climbOver >= 0f)
+            {
+                ClimbOver();
+                return;
+            }
+
+            if (keyboard.spaceKey.wasPressedThisFrame)
+            {
+                LetGo();
+                return;
+            }
+
+            _ladderHeight += input * swimSpeed * climbSpeedFactor * Time.deltaTime;
+            if (_ladderHeight >= _ladder.length && _ladder.stepOff != null)
+            {
+                _ladderHeight = _ladder.length;
+                _climbOver = 0f;
+                _climbingOverUp = true;
+            }
+            else if (_ladderHeight <= 0f && input < 0f)
+            {
+                LetGo();
+                return;
+            }
+
+            _ladderHeight = Mathf.Clamp(_ladderHeight, 0f, _ladder.length);
+            Place(_ladder.FeetAt(_ladderHeight, StandOff));
+        }
+
+        /// <summary>
+        /// Over the rail: a short arc between the top of the ladder and the deck, lifted clear of
+        /// the rail in the middle. Recomputed from the ladder every frame, so it rides the swell.
+        /// </summary>
+        void ClimbOver()
+        {
+            _climbOver += Time.deltaTime / Mathf.Max(climbOverSeconds, 0.05f);
+            float t = Mathf.Clamp01(_climbOver);
+            float k = t * t * (3f - 2f * t);
+            if (!_climbingOverUp)
+                k = 1f - k;
+
+            Vector3 top = _ladder.FeetAt(_ladder.length, StandOff);
+            Vector3 deck = _ladder.stepOff.position;
+            Vector3 overRail = _ladder.transform.position + Vector3.up * (_controller.height * 0.35f);
+            Vector3 position = (1f - k) * (1f - k) * top + 2f * (1f - k) * k * overRail + k * k * deck;
+            Place(position);
+
+            if (_climbOver < 1f)
+                return;
+
+            _climbOver = -1f;
+            if (_climbingOverUp)
+            {
+                // On deck: let go and start riding the ship like anyone standing on it.
+                _ladder = null;
+                RememberPlatform();
+            }
+            else
+            {
+                _ladderHeight = _ladder.length - 0.01f;
+            }
+        }
+
+        void Place(Vector3 feet)
+        {
+            transform.SetPositionAndRotation(feet, Quaternion.LookRotation(-_ladder.Outward, Vector3.up));
+            // Moved directly, not via Move — keep the controller's physics position in step.
+            Physics.SyncTransforms();
+        }
+
+        void LetGo()
+        {
+            transform.position += _ladder.Outward * 0.3f;
+            Physics.SyncTransforms();
+            _ladder = null;
+            _climbOver = -1f;
+            _verticalVelocity = 0f;
+        }
+
+        /// <summary>No climbing clip in the export, so the walk stands in for one: the legs step
+        /// as you go up or down, and it stands still when you stop.</summary>
+        void UpdateClimbAnimator(float input)
+        {
+            if (_animator == null)
+                return;
+
+            bool moving = _climbOver >= 0f || Mathf.Abs(input) > 0.01f;
+            // 0.5 is the walk on the locomotion blend tree.
+            _animSpeed = Mathf.MoveTowards(_animSpeed, moving ? 0.5f : 0f,
+                                           Time.deltaTime / Mathf.Max(animationDamping, 0.0001f));
+            _animator.SetFloat(SpeedHash, _animSpeed);
+            _animator.SetBool(GroundedHash, true);
+            if (_hasSwimmingParameter)
+                _animator.SetBool(SwimmingHash, false);
         }
 
         /// <summary>

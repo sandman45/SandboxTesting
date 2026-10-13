@@ -55,6 +55,66 @@ namespace WowSandbox
 
         WowCharacterController _character;
 
+        // What Follow replaced, for Restore to put back. _saved is false while following the player.
+        bool _saved;
+        Transform _savedTarget;
+        float _savedHeight, _savedDistance, _savedMin, _savedMax, _savedZoomSpeed, _savedPitch;
+        bool _savedAvoid;
+        bool _freeOrbit;    // right-drag orbits too, rather than turning the target
+
+        /// <summary>
+        /// Looks at something other than the player for a while — the ship, from the helm — at
+        /// its own distances. Right-drag orbits rather than turning what it follows, and it
+        /// doesn't pull in for geometry, or the masts and sails would yank it about.
+        /// </summary>
+        public void Follow(Transform newTarget, float height, float newDistance, float min, float max)
+        {
+            if (!_saved)
+            {
+                _saved = true;
+                _savedTarget = target;
+                _savedHeight = targetHeight;
+                _savedDistance = distance;
+                _savedMin = minDistance;
+                _savedMax = maxDistance;
+                _savedZoomSpeed = zoomSpeed;
+                _savedPitch = _pitch;
+                _savedAvoid = avoidGeometry;
+            }
+
+            target = newTarget;
+            targetHeight = height;
+            minDistance = min;
+            maxDistance = max;
+            distance = Mathf.Clamp(newDistance, min, max);
+            // Scroll steps that suit the bigger range.
+            zoomSpeed = Mathf.Max(_savedZoomSpeed, (max - min) / 12f);
+            avoidGeometry = false;
+            _freeOrbit = true;
+            _yawOffset = 0f;
+            _pitch = Mathf.Clamp(20f, minPitch, maxPitch);
+        }
+
+        /// <summary>Back to following the player as before Follow.</summary>
+        public void Restore()
+        {
+            if (!_saved)
+                return;
+
+            _saved = false;
+            target = _savedTarget;
+            targetHeight = _savedHeight;
+            distance = _savedDistance;
+            minDistance = _savedMin;
+            maxDistance = _savedMax;
+            zoomSpeed = _savedZoomSpeed;
+            avoidGeometry = _savedAvoid;
+            _freeOrbit = false;
+            _yawOffset = 0f;
+            _pitch = _savedPitch;
+            _currentDistance = distance;
+        }
+
         void Start()
         {
             _pitch = startPitch;
@@ -103,7 +163,7 @@ namespace WowSandbox
                 {
                     Vector2 delta = rawDelta * mouseSensitivity;
 
-                    if (steering)
+                    if (steering && !_freeOrbit)
                     {
                         // Right-drag turns the character; the offset stays put so the
                         // camera keeps its position behind them.
@@ -120,7 +180,8 @@ namespace WowSandbox
                 Cursor.lockState = (orbiting || steering) ? CursorLockMode.Locked : CursorLockMode.None;
                 Cursor.visible = !(orbiting || steering);
 
-                float scroll = mouse.scroll.ReadValue().y;
+                // Over a panel the wheel is the panel's — the world map zooms with it.
+                float scroll = Hud.PointerOverUi ? 0f : mouse.scroll.ReadValue().y;
                 if (Mathf.Abs(scroll) > 0.01f)
                     distance = Mathf.Clamp(distance - Mathf.Sign(scroll) * zoomSpeed, minDistance, maxDistance);
             }
