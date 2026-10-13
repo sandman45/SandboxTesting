@@ -232,6 +232,7 @@ namespace WowSandbox
 
             layer.filter.cutoffFrequency = cutoff;
             var source = layer.source;
+            volume *= GameSettings.EffectsVolume;
             source.volume = Mathf.MoveTowards(source.volume, volume, Time.deltaTime / fadeSeconds);
 
             if (source.volume > 0.001f && !source.isPlaying)
@@ -280,12 +281,13 @@ namespace WowSandbox
             if (roar)
             {
                 // The same rolling rumble, slowed right down: deeper and longer than any thunder.
-                source.volume = leviathanVolume * (submerged ? 0.6f : 1f);
+                source.volume = leviathanVolume * (submerged ? 0.6f : 1f) * GameSettings.EffectsVolume;
                 source.pitch = Random.Range(0.5f, 0.62f);
             }
             else
             {
-                source.volume = thunderVolume * Mathf.Lerp(1f, 0.45f, far) * (submerged ? 0.3f : 1f);
+                source.volume = thunderVolume * Mathf.Lerp(1f, 0.45f, far) * (submerged ? 0.3f : 1f) *
+                                GameSettings.EffectsVolume;
                 source.pitch = Random.Range(0.85f, 1.1f);
             }
 

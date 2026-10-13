@@ -128,7 +128,7 @@ namespace WowSandbox
         }
 
         [ContextMenu("Raise Leviathan Now (60s)")]
-        void RaiseNow()
+        public void RaiseNow()
         {
             if (!Application.isPlaying || !enabled || _up || _leviathan.InUse)
                 return;

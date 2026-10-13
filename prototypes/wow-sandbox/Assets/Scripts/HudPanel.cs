@@ -26,6 +26,14 @@ namespace WowSandbox
         /// <summary>True while any panel is open.</summary>
         public static bool AnyOpen => _open.Count > 0;
 
+        /// <summary>
+        /// Whether a panel has already used this frame's Esc (to close itself) — so the
+        /// settings menu, which Esc opens, doesn't open in the same keypress.
+        /// </summary>
+        protected static bool EscapeUsedThisFrame => _escapeHandledFrame == Time.frameCount;
+
+        protected static void UseEscape() => _escapeHandledFrame = Time.frameCount;
+
         public bool IsOpen { get; private set; }
 
         protected RectTransform Root { get; private set; }

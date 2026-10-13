@@ -114,13 +114,16 @@ namespace WowSandbox
                 _animator.SetTrigger(HitHash);
         }
 
+        /// <summary>Developer option: nothing hurts you — not bites, blows, drowning or the leviathan.</summary>
+        public static bool GodMode { get; set; }
+
         /// <summary>Reduces health by <paramref name="amount"/>, dying at zero.</summary>
         public void TakeDamage(float amount) => TakeDamage(amount, DeathCause.Unknown, null);
 
         /// <summary>Reduces health, remembering the cause in case it's the killing blow.</summary>
         public void TakeDamage(float amount, DeathCause cause, string killer)
         {
-            if (IsDead || amount <= 0f)
+            if (IsDead || amount <= 0f || GodMode)
                 return;
 
             _health = Mathf.Max(0f, _health - amount);

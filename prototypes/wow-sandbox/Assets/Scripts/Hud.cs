@@ -320,6 +320,33 @@ namespace WowSandbox
             return messages != null ? messages : _canvas.gameObject.AddComponent<HudMessages>();
         }
 
+        /// <summary>A rounded track with a gold fill and a round handle.</summary>
+        public static Slider Slider(Transform parent, Vector2 anchor, Vector2 position, Vector2 size, float min, float max)
+        {
+            var rect = Hud.Rect("Slider", parent, anchor, position, size);
+            var track = Hud.Rounded(rect.gameObject, HudTheme.BarBack, size.y * 0.5f);
+            track.raycastTarget = true;
+
+            var fillArea = Hud.Stretch("Fill Area", rect);
+            var fill = Hud.Stretch("Fill", fillArea);
+            Hud.Rounded(fill.gameObject, HudTheme.Heading, size.y * 0.5f);
+
+            var handleArea = Hud.Stretch("Handle Area", rect);
+            var handle = Hud.Rect("Handle", handleArea, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(size.y + 8f, size.y + 8f));
+            var knob = handle.gameObject.AddComponent<Image>();
+            knob.sprite = Hud.Circle;
+            knob.color = HudTheme.Text;
+
+            var slider = rect.gameObject.AddComponent<Slider>();
+            slider.fillRect = fill;
+            slider.handleRect = handle;
+            slider.targetGraphic = knob;
+            slider.direction = UnityEngine.UI.Slider.Direction.LeftToRight;
+            slider.minValue = min;
+            slider.maxValue = max;
+            return slider;
+        }
+
         /// <summary>A small square close button with an "X", top-right of <paramref name="parent"/>.</summary>
         public static Button CloseButton(RectTransform parent, UnityEngine.Events.UnityAction onClick)
         {

@@ -393,13 +393,13 @@ namespace WowSandbox
             Changed?.Invoke();
         }
 
-        // Ways to see the higher tiers while drops are capped at Uncommon.
-        [ContextMenu("Give Random Uncommon")] void GiveUncommon() => GiveOrWarn(ItemCatalog.RandomMagic(ItemRarity.Uncommon));
-        [ContextMenu("Give Random Rare")] void GiveRare() => GiveOrWarn(ItemCatalog.RandomMagic(ItemRarity.Rare));
-        [ContextMenu("Give Random Very Rare")] void GiveVeryRare() => GiveOrWarn(ItemCatalog.RandomMagic(ItemRarity.VeryRare));
+        // Ways to see the higher tiers without waiting for a drop (also on the developer panel).
+        [ContextMenu("Give Random Uncommon")] public void GiveUncommon() => GiveOrWarn(ItemCatalog.RandomMagic(ItemRarity.Uncommon));
+        [ContextMenu("Give Random Rare")] public void GiveRare() => GiveOrWarn(ItemCatalog.RandomMagic(ItemRarity.Rare));
+        [ContextMenu("Give Random Very Rare")] public void GiveVeryRare() => GiveOrWarn(ItemCatalog.RandomMagic(ItemRarity.VeryRare));
 
         [ContextMenu("Give Legendaries")]
-        void GiveLegendaries()
+        public void GiveLegendaries()
         {
             foreach (var item in ItemCatalog.Legendaries)
                 GiveOrWarn(item.Clone());

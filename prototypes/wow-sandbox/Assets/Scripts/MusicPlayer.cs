@@ -63,7 +63,7 @@ namespace WowSandbox
             foreach (var source in _sources)
             {
                 if (source.isPlaying && source.clip != null)
-                    source.volume = volume * Envelope(source.time, source.clip.length);
+                    source.volume = volume * GameSettings.MusicVolume * Envelope(source.time, source.clip.length);
             }
 
             if (_sources[_current].clip != null && Time.time >= _nextTrackAt)

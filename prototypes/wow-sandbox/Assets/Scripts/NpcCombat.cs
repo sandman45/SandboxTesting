@@ -112,7 +112,7 @@ namespace WowSandbox
 
         bool ShouldEngage()
         {
-            if (!PlayerFightable())
+            if (TitleScreen.Showing || !PlayerFightable())
                 return false;
             if (_provoked)
                 return true;
