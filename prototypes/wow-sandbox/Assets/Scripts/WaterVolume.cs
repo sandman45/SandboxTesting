@@ -73,6 +73,28 @@ namespace WowSandbox
         }
 
         /// <summary>
+        /// True if the point is over (or under) this volume's area, whatever its height — no
+        /// surface or dry-zone checks. For "is this still sea?" rather than "is this wet?".
+        /// </summary>
+        public bool Covers(Vector3 worldPoint)
+        {
+            Vector3 local = worldPoint - transform.position;
+            return Mathf.Abs(local.x) <= extents.x && Mathf.Abs(local.z) <= extents.y;
+        }
+
+        /// <summary>True if any water volume's area takes in this point.</summary>
+        public static bool AnyCovers(Vector3 worldPoint)
+        {
+            for (int i = 0; i < All.Count; i++)
+            {
+                if (All[i].Covers(worldPoint))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// The volume containing this point, or null. Returns the first match — the sandbox
         /// has one global sea level, so overlapping volumes aren't a case worth resolving.
         /// </summary>

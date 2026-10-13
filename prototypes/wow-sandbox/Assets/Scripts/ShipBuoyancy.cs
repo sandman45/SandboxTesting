@@ -40,10 +40,22 @@ namespace WowSandbox
         WaterVolume _water;
         WaterWaves _waves;
         float _draft;           // ship origin height above calm sea level, from the editor placement
-        Quaternion _yaw;        // the heading you placed it at; buoyancy only adds pitch and roll
+        Quaternion _yaw = Quaternion.identity;  // the heading; buoyancy only adds pitch and roll
         float _velocityY;
         Vector2 _reach;         // half-extents to sample along local X (x) and Z (y)
         Vector3 _hullCentre;    // the hull's middle, which needn't be the model's origin
+
+        /// <summary>Which way the ship points, in degrees about world Y. Starts as placed in the
+        /// editor; ShipSailing turns it.</summary>
+        public float Heading
+        {
+            get => _yaw.eulerAngles.y;
+            set => _yaw = Quaternion.Euler(0f, value, 0f);
+        }
+
+        /// <summary>An extra lean on top of the waves', in the ship's level frame — ShipSailing
+        /// heels it over in its turns.</summary>
+        public Quaternion Lean { get; set; } = Quaternion.identity;
 
         void Start()
         {
@@ -105,7 +117,7 @@ namespace WowSandbox
             Vector3 position = transform.position;
             position.y = Mathf.SmoothDamp(position.y, targetY, ref _velocityY, responseTime);
 
-            Quaternion targetRotation = _yaw * Quaternion.Euler(tiltX, 0f, tiltZ);
+            Quaternion targetRotation = _yaw * Lean * Quaternion.Euler(tiltX, 0f, tiltZ);
             float blend = 1f - Mathf.Exp(-Time.deltaTime / Mathf.Max(responseTime, 0.01f));
             Quaternion rotation = Quaternion.Slerp(transform.rotation, targetRotation, blend);
 

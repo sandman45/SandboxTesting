@@ -6,9 +6,11 @@ using UnityEngine.Rendering.Universal;
 namespace WowSandbox
 {
     /// <summary>
-    /// The map image both maps draw from: one top-down orthographic snapshot of the
-    /// island, taken the first time anything asks for it in a Play session. The area
-    /// covered is the active Terrain plus a margin of sea, squared up, north (+Z) at the top.
+    /// The map image both maps draw from: one top-down orthographic snapshot, taken the
+    /// first time anything asks for it in a Play session, north (+Z) at the top. It covers
+    /// the whole sea out to the water's edge, so wherever you sail you're on it; IslandBounds
+    /// is the island plus a margin of sea, which the world map opens on and the coordinates
+    /// are measured across.
     ///
     /// For that one frame the capture hides what would get in the way from above: the
     /// sky dome and the storm's overcast and horizon spheres (they follow the main camera,
@@ -17,11 +19,13 @@ namespace WowSandbox
     /// </summary>
     public static class WorldMap
     {
-        const int Resolution = 1024;
+        // The island is only part of the picture now, so more pixels to keep it sharp.
+        const int Resolution = 2048;
         const float Margin = 0.06f;
 
         static RenderTexture _texture;
         static Rect _bounds;
+        static Rect _island;
 
         public static Texture Texture
         {
@@ -32,7 +36,17 @@ namespace WowSandbox
             }
         }
 
-        /// <summary>World XZ area the map covers.</summary>
+        /// <summary>The island and a little sea around it, squared up — what the world map opens on.</summary>
+        public static Rect IslandBounds
+        {
+            get
+            {
+                Ensure();
+                return _island;
+            }
+        }
+
+        /// <summary>World XZ area the map covers: the whole sea.</summary>
         public static Rect Bounds
         {
             get
@@ -49,10 +63,12 @@ namespace WowSandbox
             return new Vector2((world.x - bounds.xMin) / bounds.width, (world.z - bounds.yMin) / bounds.height);
         }
 
-        /// <summary>WoW-style coordinates, 0-100 left to right and top to bottom.</summary>
+        /// <summary>WoW-style coordinates, 0-100 left to right and top to bottom across the
+        /// island's area (out at sea they run past 0 and 100).</summary>
         public static Vector2 ToCoordinates(Vector3 world)
         {
-            var uv = ToUv(world);
+            var island = IslandBounds;
+            var uv = new Vector2((world.x - island.xMin) / island.width, (world.z - island.yMin) / island.height);
             return new Vector2(uv.x * 100f, (1f - uv.y) * 100f);
         }
 
@@ -81,6 +97,18 @@ namespace WowSandbox
 
             // Square it up around the centre, with some sea showing past the shore.
             float side = Mathf.Max(_bounds.width, _bounds.height) * (1f + Margin * 2f);
+            _bounds = new Rect(_bounds.center - new Vector2(side, side) * 0.5f, new Vector2(side, side));
+            _island = _bounds;
+
+            // Then out to take in every bit of sea, still square.
+            foreach (var water in Object.FindObjectsByType<WaterVolume>())
+            {
+                var centre = new Vector2(water.transform.position.x, water.transform.position.z);
+                var min = Vector2.Min(_bounds.min, centre - water.extents);
+                var max = Vector2.Max(_bounds.max, centre + water.extents);
+                _bounds = Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+            }
+            side = Mathf.Max(_bounds.width, _bounds.height);
             _bounds = new Rect(_bounds.center - new Vector2(side, side) * 0.5f, new Vector2(side, side));
 
             // Clamped, so a zoomed-out minimap past the edge shows open sea rather than the
@@ -121,6 +149,7 @@ namespace WowSandbox
 
             bool fog = RenderSettings.fog;
             RenderSettings.fog = false;
+            WaterDryZone.Suspend(true);
             try
             {
                 var request = new UniversalRenderPipeline.SingleCameraRequest { destination = _texture };
@@ -132,6 +161,7 @@ namespace WowSandbox
             finally
             {
                 RenderSettings.fog = fog;
+                WaterDryZone.Suspend(false);
                 foreach (var renderer in hidden)
                     renderer.enabled = true;
                 camera.targetTexture = null;
@@ -143,6 +173,8 @@ namespace WowSandbox
         static bool InTheWay(Renderer renderer) =>
             renderer is ParticleSystemRenderer or SkinnedMeshRenderer or LineRenderer
             || renderer.GetComponentInParent<SkyDomeFollow>() != null
+            // It sails off; MapMarkers draws it where it is instead.
+            || renderer.GetComponentInParent<ShipSailing>() != null
             || renderer.name.Contains("Sky")
             || renderer.name.Contains("Horizon");
     }

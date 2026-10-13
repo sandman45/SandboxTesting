@@ -350,6 +350,62 @@ namespace WowSandbox
         /// <summary>A chevron pointing up — the player's arrow on the maps.</summary>
         public static Sprite Arrow => _arrow != null ? _arrow : _arrow = MakeMapSprite(32, ArrowCoverage);
 
+        static Sprite _anchor;
+        static Sprite _ship;
+
+        /// <summary>A ship seen from above, bow at the top: the ship's mark on the maps. The hull
+        /// runs the sprite's full height, so sizing it to the ship's length sizes it to scale.</summary>
+        public static Sprite ShipSilhouette => _ship != null ? _ship : _ship = MakeMapSprite(64, (x, y) =>
+        {
+            const float beam = 0.3f;
+            float half = y > 0.15f ? beam * Mathf.Sqrt(Mathf.Clamp01((0.97f - y) / 0.82f))   // tapering bow
+                       : y < -0.82f ? beam * Mathf.Sqrt(Mathf.Clamp01(1f - Mathf.Pow((y + 0.82f) / 0.15f, 2f)))
+                       : beam;                                                             // square-ish stern
+            float coverage = Mathf.Clamp01((half - Mathf.Abs(x)) * 32f + 0.5f);
+            return y < -0.97f || y > 0.97f ? 0f : coverage;
+        });
+        static Sprite _leave;
+
+        /// <summary>An anchor: ring, stock, shank and curved arms — the helm's anchor button.</summary>
+        public static Sprite Anchor => _anchor != null ? _anchor : _anchor = MakeMapSprite(64, (x, y) =>
+        {
+            float d = Mathf.Abs(Vector2.Distance(new Vector2(x, y), new Vector2(0f, 0.7f)) - 0.14f) - 0.055f;
+            d = Mathf.Min(d, Capsule(x, y, -0.34f, 0.46f, 0.34f, 0.46f, 0.06f));     // stock
+            d = Mathf.Min(d, Capsule(x, y, 0f, 0.56f, 0f, -0.78f, 0.065f));          // shank
+            // Arms: the lower half of a ring, with a barb turned up at each end.
+            var centre = new Vector2(0f, -0.12f);
+            float arm = y < centre.y
+                ? Mathf.Abs(Vector2.Distance(new Vector2(x, y), centre) - 0.62f) - 0.06f
+                : float.MaxValue;
+            d = Mathf.Min(d, arm);
+            d = Mathf.Min(d, Capsule(x, y, -0.62f, -0.12f, -0.74f, 0.08f, 0.06f));
+            d = Mathf.Min(d, Capsule(x, y, 0.62f, -0.12f, 0.74f, 0.08f, 0.06f));
+            return Mathf.Clamp01(0.5f - d * 32f);
+        });
+
+        /// <summary>An arrow stepping out of an open box — the helm's "leave the helm" button.</summary>
+        public static Sprite LeaveHelm => _leave != null ? _leave : _leave = MakeMapSprite(64, (x, y) =>
+        {
+            const float w = 0.06f;
+            float d = Capsule(x, y, -0.65f, -0.7f, -0.65f, 0.7f, w);
+            d = Mathf.Min(d, Capsule(x, y, -0.65f, 0.7f, 0.1f, 0.7f, w));
+            d = Mathf.Min(d, Capsule(x, y, -0.65f, -0.7f, 0.1f, -0.7f, w));
+            d = Mathf.Min(d, Capsule(x, y, -0.25f, 0f, 0.8f, 0f, w));
+            d = Mathf.Min(d, Capsule(x, y, 0.8f, 0f, 0.48f, 0.32f, w));
+            d = Mathf.Min(d, Capsule(x, y, 0.8f, 0f, 0.48f, -0.32f, w));
+            return Mathf.Clamp01(0.5f - d * 32f);
+        });
+
+        /// <summary>Distance from (x, y) to a line segment of the given half-thickness.</summary>
+        static float Capsule(float x, float y, float ax, float ay, float bx, float by, float radius)
+        {
+            var p = new Vector2(x, y);
+            var a = new Vector2(ax, ay);
+            var ab = new Vector2(bx, by) - a;
+            float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / Mathf.Max(ab.sqrMagnitude, 1e-6f));
+            return Vector2.Distance(p, a + ab * t) - radius;
+        }
+
         static System.Func<float, float, float> CircleDistance(float ringWidth) => (x, y) =>
         {
             // x, y in -1..1 across the sprite; returns coverage 0-1 with a 1-pixel soft edge.

@@ -18,6 +18,7 @@ namespace WowSandbox
         readonly Image _arrow;
         readonly List<Image> _dots = new();
         Image _leviathan;
+        Image _ship;
 
         /// <param name="parent">Rect the markers live in; positions are relative to its centre.</param>
         public MapMarkers(RectTransform parent, float arrowSize)
@@ -38,6 +39,7 @@ namespace WowSandbox
                            Func<Vector3, Vector2> pinToEdge)
         {
             UpdateLeviathan(toMap, pinToEdge, dotSize);
+            UpdateShip(toMap, dotSize);
 
             int used = 0;
             foreach (var health in Health.All)
@@ -67,6 +69,43 @@ namespace WowSandbox
             _arrow.rectTransform.anchoredPosition = playerPosition.Value;
             _arrow.rectTransform.localEulerAngles = new Vector3(0f, 0f, -player.eulerAngles.y);
             _arrow.rectTransform.SetAsLastSibling();
+        }
+
+        /// <summary>The ship as a wooden silhouette to scale, turned the way its bow points — the
+        /// map snapshot leaves the ship out, since it doesn't stay where the snapshot saw it.</summary>
+        void UpdateShip(Func<Vector3, Vector2?> toMap, float dotSize)
+        {
+            var ship = ShipSailing.Active;
+            var position = ship != null ? toMap(ship.Centre) : null;
+            if (position == null)
+            {
+                if (_ship != null)
+                    _ship.enabled = false;
+                return;
+            }
+
+            if (_ship == null)
+            {
+                var rect = Hud.Rect("Ship", _parent, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * 8f);
+                _ship = rect.gameObject.AddComponent<Image>();
+                _ship.sprite = Hud.ShipSilhouette;
+                _ship.color = new Color(0.72f, 0.52f, 0.28f);
+                _ship.raycastTarget = false;
+                var outline = rect.gameObject.AddComponent<Outline>();
+                outline.effectColor = new Color(0f, 0f, 0f, 0.9f);
+            }
+
+            Vector3 bow = ship.Bow;
+            _ship.enabled = true;
+            _ship.rectTransform.anchoredPosition = position.Value;
+            // Its real length on this map, from the map's scale right at the ship's middle — the
+            // bow and stern can be off the edge of a zoomed-in minimap. The minimap's round mask
+            // trims a ship bigger than its window. Never smaller than a big dot.
+            var nearby = toMap(ship.Centre + bow);
+            float length = nearby != null
+                ? Vector2.Distance(nearby.Value, position.Value) * ship.HalfLength * 2f : 0f;
+            _ship.rectTransform.sizeDelta = Vector2.one * Mathf.Max(length, dotSize * 2.6f);
+            _ship.rectTransform.localEulerAngles = new Vector3(0f, 0f, -Mathf.Atan2(bow.x, bow.z) * Mathf.Rad2Deg);
         }
 
         void UpdateLeviathan(Func<Vector3, Vector2?> toMap, Func<Vector3, Vector2> pinToEdge, float dotSize)

@@ -80,6 +80,19 @@ namespace WowSandbox
                  "fog band has faded out. It hides the strip of clear sky below the cloud dome.")]
         [Range(0.05f, 0.8f)] public float horizonBandHeight = 0.28f;
 
+        [Header("Edge of the world")]
+        [Tooltip("In any weather, the fog is fully in by this fraction of the distance to the nearest " +
+                 "edge of the sea, so neither the water's edge nor the seabed under it ever shows. " +
+                 "Away from the edge the scene's own fog applies.")]
+        [Range(0.3f, 1f)] public float edgeFogReach = 0.9f;
+        [Tooltip("The fog never closes in nearer than this, even right at the edge.")]
+        public float minEdgeFog = 60f;
+        [Tooltip("A light haze where the sea meets the sky in clear weather, so the fogged-out sea " +
+                 "blends into the horizon instead of ending in a line. 0 = none.")]
+        [Range(0f, 1f)] public float clearHorizonHaze = 0.7f;
+        [Tooltip("How far up the sky the clear-weather haze reaches (elevation, like Horizon Band Height).")]
+        [Range(0.02f, 0.5f)] public float clearHorizonHeight = 0.08f;
+
         [Header("Rain")]
         public Vector2 rainOnset = new Vector2(0.25f, 0.9f);
         [Tooltip("Drops per second at full storm.")]
@@ -147,6 +160,8 @@ namespace WowSandbox
         ParticleSystem _rain;
         Material _rainMaterial;
         WaterVolume _water;
+        Rect _sea;              // XZ area all the water covers — its edge is the edge of the world
+        bool _hasSea;
         Texture2D _rainTexture;
 
         Light _flashLight;
@@ -397,9 +412,24 @@ namespace WowSandbox
                 ? _sceneFog.start
                 : clearEnd * 0.35f;
 
+            // Near the edge of the sea, the fog comes in so the edge is always behind it.
+            bool edgeFog = false;
+            float edgeCap = float.MaxValue;
+            if (_camera != null && SeaEdgeDistance(_camera.transform.position, out float edge))
+            {
+                float edgeEnd = Mathf.Max(edge * edgeFogReach, minEdgeFog);
+                edgeCap = edgeEnd;
+                if (edgeEnd < clearEnd || !_sceneFog.enabled)
+                {
+                    clearEnd = Mathf.Min(clearEnd, edgeEnd);
+                    clearStart = Mathf.Min(clearStart, clearEnd * 0.3f);
+                    edgeFog = true;
+                }
+            }
+
             var fog = new FogState
             {
-                enabled = _sceneFog.enabled || closing > 0f,
+                enabled = _sceneFog.enabled || closing > 0f || edgeFog,
                 mode = FogMode.Linear,
                 color = Color.Lerp(_sceneFog.color, stormFogColor, closing) + Color.white * (flash * 0.25f),
                 density = _sceneFog.density,
@@ -409,7 +439,8 @@ namespace WowSandbox
 
             float reveal = _reveal * flashFogReveal;
             fog.start = Mathf.Lerp(fog.start, clearStart, reveal);
-            fog.end = Mathf.Lerp(fog.end, Mathf.Max(clearEnd, flashRevealDistance), reveal);
+            // Never so far that a flash shows the edge of the world.
+            fog.end = Mathf.Lerp(fog.end, Mathf.Min(Mathf.Max(clearEnd, flashRevealDistance), edgeCap), reveal);
 
             _aboveWaterFog = fog;
 
@@ -494,10 +525,12 @@ namespace WowSandbox
             _horizonBand.position = _camera.transform.position;
             _horizonBand.localScale = Vector3.one * (radius * 2f);
 
+            // The storm's tall grey band, or in fine weather a low haze along the horizon.
             float closing = Ramp(intensity, fogOnset);
-            _horizonMaterial.SetFloat("_Strength", closing);
-            _horizonMaterial.SetFloat("_FadeEnd", horizonBandHeight);
-            _horizonBand.gameObject.SetActive(closing > 0.001f);
+            float strength = Mathf.Max(closing, clearHorizonHaze);
+            _horizonMaterial.SetFloat("_Strength", strength);
+            _horizonMaterial.SetFloat("_FadeEnd", Mathf.Lerp(clearHorizonHeight, horizonBandHeight, closing));
+            _horizonBand.gameObject.SetActive(strength > 0.001f);
         }
 
         void UpdateOvercastSky()
@@ -825,6 +858,33 @@ namespace WowSandbox
                                          Random.Range(-jitter, jitter));
                 line.SetPosition(i, point);
             }
+        }
+
+        /// <summary>How far <paramref name="point"/> is from the nearest edge of the sea, flat;
+        /// 0 if it's already past it. False if there's no water to have an edge.</summary>
+        bool SeaEdgeDistance(Vector3 point, out float distance)
+        {
+            distance = 0f;
+            if (!_hasSea)
+            {
+                var volumes = FindObjectsByType<WaterVolume>();
+                if (volumes.Length == 0)
+                    return false;
+                _hasSea = true;
+                bool first = true;
+                foreach (var water in volumes)
+                {
+                    var centre = new Vector2(water.transform.position.x, water.transform.position.z);
+                    var area = new Rect(centre - water.extents, water.extents * 2f);
+                    _sea = first ? area : Rect.MinMaxRect(Mathf.Min(_sea.xMin, area.xMin), Mathf.Min(_sea.yMin, area.yMin),
+                                                          Mathf.Max(_sea.xMax, area.xMax), Mathf.Max(_sea.yMax, area.yMax));
+                    first = false;
+                }
+            }
+
+            distance = Mathf.Max(0f, Mathf.Min(Mathf.Min(point.x - _sea.xMin, _sea.xMax - point.x),
+                                               Mathf.Min(point.z - _sea.yMin, _sea.yMax - point.z)));
+            return true;
         }
 
         static float GroundHeight(Vector3 position)

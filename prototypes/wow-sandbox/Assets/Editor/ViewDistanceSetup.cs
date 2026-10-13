@@ -17,9 +17,10 @@ namespace WowSandbox.EditorTools
         /// <summary>Radius of the sky dome models at scale 1, from their glTF bounds.</summary>
         const float DomeRadiusAtUnitScale = 43f;
 
-        // Defaults close the world in WoW-style: the far side of the island and the edge of
-        // the sea both sit inside the fog.
-        float _viewDistance = 320f;
+        // Defaults for a scene with no camera or fog yet; otherwise the window opens on what
+        // the scene has now. The edge of the sea is hidden by StormWeather's edge fog, which
+        // closes in only as you near it, so the clear-day view can reach a long way.
+        float _viewDistance = 900f;
         bool _enableFog = true;
         Color _fogColor = new Color(0.63f, 0.72f, 0.84f);
         [Range(0f, 1f)] float _fogStart = 0.2f;
@@ -32,9 +33,24 @@ namespace WowSandbox.EditorTools
             window.minSize = new Vector2(360f, 260f);
         }
 
+        void OnEnable()
+        {
+            var camera = Camera.main;
+            if (camera != null)
+                _viewDistance = camera.farClipPlane;
+
+            _enableFog = RenderSettings.fog;
+            if (RenderSettings.fog && RenderSettings.fogMode == FogMode.Linear && _viewDistance > 0f)
+            {
+                _fogColor = RenderSettings.fogColor;
+                _fogStart = Mathf.Clamp01(RenderSettings.fogStartDistance / _viewDistance);
+                _fogEnd = Mathf.Clamp01(RenderSettings.fogEndDistance / _viewDistance);
+            }
+        }
+
         void OnGUI()
         {
-            _viewDistance = EditorGUILayout.Slider("View distance", _viewDistance, 50f, 1500f);
+            _viewDistance = EditorGUILayout.Slider("View distance", _viewDistance, 50f, 2000f);
 
             EditorGUILayout.Space();
             _enableFog = EditorGUILayout.Toggle("Fog", _enableFog);

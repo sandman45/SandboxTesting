@@ -146,6 +146,22 @@ namespace WowSandbox
             return false;
         }
 
+        /// <summary>
+        /// Lets the water fill every dry zone for a moment (true), or puts them back (false).
+        /// For the map snapshot: it leaves the ship out, and without this the hole its hull
+        /// cuts in the water would show the seabed in the ship's shape.
+        /// </summary>
+        public static void Suspend(bool suspended)
+        {
+            if (!suspended)
+            {
+                Upload();
+                return;
+            }
+            Shader.SetGlobalFloat(CountId, 0f);
+            Shader.SetGlobalFloat(HullCountId, 0f);
+        }
+
         static void Upload()
         {
             int count = 0;
