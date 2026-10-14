@@ -50,7 +50,7 @@ namespace WowSandbox
         public int bagSize = 20;
         [Tooltip("Coin purse, in copper pieces (100 cp = 1 gp).")]
         public int copper = 15 * Money.Gold;
-        [Tooltip("Start with a fighter's kit: chain mail, longsword and shield worn, a dagger and cap in the bags.")]
+        [Tooltip("Start in a linen shirt, shorts and sandals, with a fighter's kit in the bags: chain mail, longsword, shield, dagger and cap.")]
         public bool starterKit = true;
         [Tooltip("Seconds between potions.")]
         public float potionCooldown = 2f;
@@ -88,9 +88,12 @@ namespace WowSandbox
         {
             if (starterKit)
             {
-                _equipped[(int)EquipSlot.Chest] = ItemCatalog.Create("Chain Mail");
-                _equipped[(int)EquipSlot.MainHand] = ItemCatalog.Create("Longsword");
-                _equipped[(int)EquipSlot.OffHand] = ItemCatalog.Create("Shield");
+                _equipped[(int)EquipSlot.Chest] = ItemCatalog.Create("Linen Shirt");
+                _equipped[(int)EquipSlot.Legs] = ItemCatalog.Create("Cloth Shorts");
+                _equipped[(int)EquipSlot.Feet] = ItemCatalog.Create("Worn Sandals");
+                Add(ItemCatalog.Create("Chain Mail"));
+                Add(ItemCatalog.Create("Longsword"));
+                Add(ItemCatalog.Create("Shield"));
                 Add(ItemCatalog.Create("Dagger"));
                 Add(ItemCatalog.Create("Leather Cap"));
             }
@@ -397,6 +400,9 @@ namespace WowSandbox
         [ContextMenu("Give Random Uncommon")] public void GiveUncommon() => GiveOrWarn(ItemCatalog.RandomMagic(ItemRarity.Uncommon));
         [ContextMenu("Give Random Rare")] public void GiveRare() => GiveOrWarn(ItemCatalog.RandomMagic(ItemRarity.Rare));
         [ContextMenu("Give Random Very Rare")] public void GiveVeryRare() => GiveOrWarn(ItemCatalog.RandomMagic(ItemRarity.VeryRare));
+
+        /// <summary>A fresh copy of a catalog item by name, e.g. "Pirate Hat" (developer panel).</summary>
+        public void Give(string itemName) => GiveOrWarn(ItemCatalog.Create(itemName));
 
         [ContextMenu("Give Legendaries")]
         public void GiveLegendaries()

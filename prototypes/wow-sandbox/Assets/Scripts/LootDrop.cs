@@ -28,11 +28,13 @@ namespace WowSandbox
         [Range(0f, 1f)] public float itemChance = 0.85f;
 
         // Weights for what a humanoid's item is: about 1 drop in 20 is Rare and 1 in 100 Very
-        // Rare, like WoW's blues and purples. Legendaries never drop.
+        // Rare, like WoW's blues and purples, and about 1 in 25 is a Pirate Hat. Legendaries
+        // never drop.
         static readonly (Func<Item> make, int weight)[] HumanoidDrops =
         {
             (ItemCatalog.RandomTradeGood, 40),
             (ItemCatalog.RandomMundane, 35),
+            (() => ItemCatalog.Create("Pirate Hat"), 4),
             (() => ItemCatalog.RandomMagic(ItemRarity.Uncommon), 18),
             (() => ItemCatalog.RandomMagic(ItemRarity.Rare), 5),
             (() => ItemCatalog.RandomMagic(ItemRarity.VeryRare), 1),

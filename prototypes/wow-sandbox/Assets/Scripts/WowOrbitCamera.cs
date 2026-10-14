@@ -95,6 +95,36 @@ namespace WowSandbox
             _pitch = Mathf.Clamp(20f, minPitch, maxPitch);
         }
 
+        /// <summary>
+        /// The zoom-out limit and scroll step for following the player (Settings). At the helm
+        /// they're kept for when you leave it, so the ship's own range isn't disturbed.
+        /// </summary>
+        public void SetPlayerZoom(float max, float speed)
+        {
+            // A limit below the closest zoom pulls that in too (down to 0, the developer
+            // panel's floor), and raising it again gives the original closest zoom back.
+            if (_playerMinDistance < 0f)
+                _playerMinDistance = _saved ? _savedMin : minDistance;
+            max = Mathf.Max(max, 0f);
+            float min = Mathf.Min(_playerMinDistance, max);
+
+            if (_saved)
+            {
+                _savedMin = min;
+                _savedMax = max;
+                _savedDistance = Mathf.Clamp(_savedDistance, min, max);
+                _savedZoomSpeed = speed;
+                return;
+            }
+
+            minDistance = min;
+            maxDistance = max;
+            distance = Mathf.Clamp(distance, min, max);
+            zoomSpeed = speed;
+        }
+
+        float _playerMinDistance = -1f;
+
         /// <summary>Back to following the player as before Follow.</summary>
         public void Restore()
         {

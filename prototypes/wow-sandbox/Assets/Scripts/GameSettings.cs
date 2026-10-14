@@ -4,7 +4,7 @@ using UnityEngine;
 namespace WowSandbox
 {
     /// <summary>
-    /// The player's settings — view distance, fog, volumes, mouse sensitivity — saved in
+    /// The player's settings — view distance, fog, volumes, mouse sensitivity, camera — saved in
     /// PlayerPrefs so they carry over between sessions, and applied to the running game.
     /// SettingsPanel edits them; MusicPlayer and StormAudio read the volumes as they play.
     ///
@@ -20,9 +20,21 @@ namespace WowSandbox
         const string MusicKey = "settings.musicVolume";
         const string EffectsKey = "settings.effectsVolume";
         const string MouseKey = "settings.mouseSensitivity";
+        const string ZoomKey = "settings.maxZoom";
+        const string ZoomSpeedKey = "settings.zoomSpeed";
+        const string FovKey = "settings.fieldOfView";
 
         public const float MinView = 250f;
         public const float MaxView = 1500f;
+        // Settings offers 2–20; the developer panel the full 0–100.
+        public const float MinZoom = 0f;
+        public const float MaxZoom = 100f;
+        public const float SettingsMinZoom = 2f;
+        public const float SettingsMaxZoom = 20f;
+        public const float MinZoomSpeed = 0.5f;
+        public const float MaxZoomSpeed = 5f;
+        public const float MinFov = 50f;
+        public const float MaxFov = 100f;
 
         // Fog density 0..1 sets how far into the view the clear-day fog is total: from the
         // very edge of the view (0) to under a third of it (1). It starts a quarter of the
@@ -37,6 +49,9 @@ namespace WowSandbox
         static float _sceneView = 900f;
         static float _sceneFog = 0.3f;
         static float _sceneMouse = 0.18f;
+        static float _sceneZoom = 15f;
+        static float _sceneZoomSpeed = 1.5f;
+        static float _sceneFov = 60f;
         static bool _captured;
 
         public static float ViewDistance
@@ -76,6 +91,27 @@ namespace WowSandbox
             set => Set(MouseKey, Mathf.Clamp(value, 0.05f, 0.6f));
         }
 
+        /// <summary>How far out the camera can scroll from the player (WowOrbitCamera.maxDistance).</summary>
+        public static float MaxZoomDistance
+        {
+            get => PlayerPrefs.GetFloat(ZoomKey, _sceneZoom);
+            set => Set(ZoomKey, Mathf.Clamp(value, MinZoom, MaxZoom));
+        }
+
+        /// <summary>How far one scroll notch zooms (WowOrbitCamera.zoomSpeed).</summary>
+        public static float ZoomSpeed
+        {
+            get => PlayerPrefs.GetFloat(ZoomSpeedKey, _sceneZoomSpeed);
+            set => Set(ZoomSpeedKey, Mathf.Clamp(value, MinZoomSpeed, MaxZoomSpeed));
+        }
+
+        /// <summary>The camera's vertical field of view, in degrees.</summary>
+        public static float FieldOfView
+        {
+            get => PlayerPrefs.GetFloat(FovKey, _sceneFov);
+            set => Set(FovKey, Mathf.Clamp(value, MinFov, MaxFov));
+        }
+
         static void Set(string key, float value)
         {
             PlayerPrefs.SetFloat(key, value);
@@ -101,7 +137,13 @@ namespace WowSandbox
                 _sceneFog = Mathf.Clamp01(Mathf.InverseLerp(ThinFogEnd, ThickFogEnd, RenderSettings.fogEndDistance / _sceneView));
             var orbit = camera != null ? camera.GetComponent<WowOrbitCamera>() : null;
             if (orbit != null)
+            {
                 _sceneMouse = orbit.mouseSensitivity;
+                _sceneZoom = Mathf.Clamp(orbit.maxDistance, MinZoom, MaxZoom);
+                _sceneZoomSpeed = Mathf.Clamp(orbit.zoomSpeed, MinZoomSpeed, MaxZoomSpeed);
+            }
+            if (camera != null)
+                _sceneFov = Mathf.Clamp(camera.fieldOfView, MinFov, MaxFov);
 
             Apply();
             Changed?.Invoke();
@@ -110,7 +152,7 @@ namespace WowSandbox
         /// <summary>Forgets every saved setting, back to the scene's own values.</summary>
         public static void ResetToDefaults()
         {
-            foreach (string key in new[] { ViewKey, FogKey, MasterKey, MusicKey, EffectsKey, MouseKey })
+            foreach (string key in new[] { ViewKey, FogKey, MasterKey, MusicKey, EffectsKey, MouseKey, ZoomKey, ZoomSpeedKey, FovKey })
                 PlayerPrefs.DeleteKey(key);
             PlayerPrefs.Save();
             Apply();
@@ -128,7 +170,11 @@ namespace WowSandbox
 
             var orbit = camera.GetComponent<WowOrbitCamera>();
             if (orbit != null)
+            {
                 orbit.mouseSensitivity = MouseSensitivity;
+                orbit.SetPlayerZoom(MaxZoomDistance, ZoomSpeed);
+            }
+            camera.fieldOfView = FieldOfView;
 
             ApplyViewDistance(camera, ViewDistance);
 

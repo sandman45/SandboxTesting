@@ -79,6 +79,10 @@ namespace WowSandbox
         Animator _animator;
         float _verticalVelocity;
         float _animSpeed;
+        // The animator is told we're airborne for this long after take-off: the first frame or
+        // two after a jump can still read grounded, which would land the jump animation at once.
+        float _jumpAnimGraceUntil;
+        const float JumpAnimGrace = 0.15f;
         bool _swimming;
         bool _autoRun;
         bool _atSurface;
@@ -336,6 +340,7 @@ namespace WowSandbox
                     _verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
                     if (_animator != null)
                         _animator.SetTrigger(JumpHash);
+                    _jumpAnimGraceUntil = Time.time + JumpAnimGrace;
                 }
 
                 _verticalVelocity += gravity * Time.deltaTime;
@@ -745,7 +750,7 @@ namespace WowSandbox
 
             _animSpeed = Mathf.MoveTowards(_animSpeed, target, Time.deltaTime / Mathf.Max(animationDamping, 0.0001f));
             _animator.SetFloat(SpeedHash, _animSpeed);
-            _animator.SetBool(GroundedHash, grounded);
+            _animator.SetBool(GroundedHash, grounded && Time.time >= _jumpAnimGraceUntil);
             if (_hasSwimmingParameter)
                 _animator.SetBool(SwimmingHash, _swimming);
         }

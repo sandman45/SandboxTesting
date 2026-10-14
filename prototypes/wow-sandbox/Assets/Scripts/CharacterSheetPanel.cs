@@ -1,3 +1,4 @@
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -17,17 +18,30 @@ namespace WowSandbox
         const float Pad = 18f;
         const float ColumnWidth = (Width - Pad * 3f) / 2f;
 
-        static readonly (EquipSlot slot, string label)[] EquipmentSlots =
+        // Two rows: what you wear, head to toe, then what you hold and the jewellery.
+        static readonly (EquipSlot slot, string label)[][] EquipmentRows =
         {
-            (EquipSlot.MainHand, "Main"),
-            (EquipSlot.OffHand, "Off"),
-            (EquipSlot.Head, "Head"),
-            (EquipSlot.Chest, "Chest"),
-            (EquipSlot.Hands, "Hands"),
-            (EquipSlot.Feet, "Feet"),
-            (EquipSlot.Neck, "Neck"),
-            (EquipSlot.Ring, "Ring"),
+            new[]
+            {
+                (EquipSlot.Head, "Head"),
+                (EquipSlot.Shoulders, "Shldr"),
+                (EquipSlot.Back, "Back"),
+                (EquipSlot.Chest, "Chest"),
+                (EquipSlot.Hands, "Hands"),
+                (EquipSlot.Legs, "Legs"),
+                (EquipSlot.Feet, "Feet"),
+            },
+            new[]
+            {
+                (EquipSlot.MainHand, "Main"),
+                (EquipSlot.OffHand, "Off"),
+                (EquipSlot.Neck, "Neck"),
+                (EquipSlot.Ring, "Ring"),
+            },
         };
+
+        const float SlotSize = 46f;
+        const float SlotRowGap = 8f;
 
         static readonly (Ability ability, string label)[] Abilities =
         {
@@ -54,7 +68,7 @@ namespace WowSandbox
         Text _attack, _damage, _hitDice, _perception;
         Text _speed, _armor;
 
-        protected override Vector2 PanelSize => new(Width, _inventory != null ? 470f : 384f);
+        protected override Vector2 PanelSize => new(Width, _inventory != null ? 470f + SlotSize + SlotRowGap : 384f);
 
         protected override void Awake()
         {
@@ -119,15 +133,19 @@ namespace WowSandbox
             Heading("Equipment", -372f);
 
             float inner = Width - Pad * 2f;
-            const float size = 46f;
-            float gap = (inner - size * EquipmentSlots.Length) / (EquipmentSlots.Length - 1);
-            _equipment = new ItemSlotView[EquipmentSlots.Length];
+            // Spaced to fit the longest row; the shorter one lines up under its left end.
+            int columns = EquipmentRows.Max(row => row.Length);
+            float gap = (inner - SlotSize * columns) / (columns - 1);
+            var slots = EquipmentRows
+                .SelectMany((row, r) => row.Select((entry, c) => (entry.slot, entry.label, r, c)))
+                .ToArray();
+            _equipment = new ItemSlotView[slots.Length];
 
-            for (int i = 0; i < EquipmentSlots.Length; i++)
+            for (int i = 0; i < slots.Length; i++)
             {
-                var (slot, label) = EquipmentSlots[i];
+                var (slot, label, row, column) = slots[i];
                 var view = ItemSlotView.Create(label, Root, new Vector2(0f, 1f),
-                    new Vector2(Pad + i * (size + gap), -396f), size, label);
+                    new Vector2(Pad + column * (SlotSize + gap), -396f - row * (SlotSize + SlotRowGap)), SlotSize, label);
                 view.Source = () => _inventory.Equipped(slot);
                 view.Ref = SlotRef.Equip(slot);
                 view.Reader = _stats;
