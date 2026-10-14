@@ -34,7 +34,7 @@ namespace WowSandbox
         readonly List<GameObject> _enemies = new();
         readonly List<GameObject> _chickens = new();
 
-        protected override Vector2 PanelSize => new(Width, 600f);
+        protected override Vector2 PanelSize => new(Width, 662f);
         protected override Vector2 PanelAnchor => new(0.5f, 0.5f);
         protected override Vector2 PanelPosition => Vector2.zero;
 
@@ -165,8 +165,18 @@ namespace WowSandbox
                 ("Give Rare", () => Player<Inventory>(i => i.GiveRare())),
                 ("Very Rare", () => Player<Inventory>(i => i.GiveVeryRare())),
                 ("Legendaries", () => Player<Inventory>(i => i.GiveLegendaries())));
+            Buttons(ref y,
+                ("Pirate Hat", () => Player<Inventory>(i => i.Give("Pirate Hat"))),
+                ("Linen Outfit", () => Player<Inventory>(i =>
+                {
+                    i.Give("Linen Shirt");
+                    i.Give("Cloth Shorts");
+                    i.Give("Worn Sandals");
+                })));
 
             y -= 4f;
+            SliderRow("Max zoom out", ref y, GameSettings.MinZoom, GameSettings.MaxZoom,
+                () => GameSettings.MaxZoomDistance, v => GameSettings.MaxZoomDistance = v, v => $"{v:0}");
             SliderRow("Game speed", ref y, 0.25f, 4f, () => Time.timeScale, v => Time.timeScale = v, v => $"{v:0.00}×");
 
             var bottom = new Vector2(0.5f, 0f);

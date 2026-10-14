@@ -47,14 +47,44 @@ namespace WowSandbox.EditorTools
             if (head == null || pieces.Length == 0)
                 return false;
 
-            // Everything is measured in the model's own space, so the NPC's random facing
-            // and the importer's axis conventions both drop out.
-            var space = model.transform;
-            if (!TryHeadBounds(model, head, space, out var headBounds))
+            if (!TryFitPose(model, head, pieces, usedVerticesOnly: false,
+                    out var localPosition, out var localRotation, out var localScale))
             {
                 Debug.LogWarning($"[HelmFitter] {root.name}: found a helm but no head vertices to fit it to.", root);
                 return false;
             }
+
+            var attachment = Undo.AddComponent<HelmAttachment>(root);
+            attachment.headBone = head;
+            attachment.pieces = pieces;
+            attachment.localPosition = localPosition;
+            attachment.localRotation = localRotation;
+            attachment.localScale = localScale;
+            return true;
+        }
+
+        /// <summary>
+        /// The pose, relative to <paramref name="head"/>, that sits the helm <paramref name="pieces"/>
+        /// on the head. Call on the model in its rest pose.
+        ///
+        /// <paramref name="usedVerticesOnly"/> measures the head from the vertices the body's
+        /// triangles actually use. wow.export gives every body mesh the model's whole vertex
+        /// buffer — every hairstyle and beard, shown or not — so without it the "top of the head"
+        /// is the top of the tallest hairstyle in the model. GearHarvester uses it; Fit keeps the
+        /// old measure so helms already fitted on the NPCs don't move.
+        /// </summary>
+        public static bool TryFitPose(GameObject model, Transform head, Transform[] pieces, bool usedVerticesOnly,
+            out Vector3 localPosition, out Quaternion localRotation, out Vector3 localScale)
+        {
+            localPosition = default;
+            localRotation = Quaternion.identity;
+            localScale = Vector3.one;
+
+            // Everything is measured in the model's own space, so the NPC's random facing
+            // and the importer's axis conventions both drop out.
+            var space = model.transform;
+            if (!TryHeadBounds(model, head, space, usedVerticesOnly, out var headBounds))
+                return false;
 
             var helmBounds = MeshBounds(pieces.Select(p => (p.GetComponent<MeshFilter>().sharedMesh, (Transform)p)), space);
             var shift = new Vector3(
@@ -65,16 +95,13 @@ namespace WowSandbox.EditorTools
 
             // Every piece shares one pose (they're submeshes of the same item at the same origin).
             var first = pieces[0];
-            var attachment = Undo.AddComponent<HelmAttachment>(root);
-            attachment.headBone = head;
-            attachment.pieces = pieces;
-            attachment.localPosition = head.InverseTransformPoint(first.position + worldShift);
-            attachment.localRotation = Quaternion.Inverse(head.rotation) * first.rotation;
-            attachment.localScale = Divide(first.lossyScale, head.lossyScale);
+            localPosition = head.InverseTransformPoint(first.position + worldShift);
+            localRotation = Quaternion.Inverse(head.rotation) * first.rotation;
+            localScale = Divide(first.lossyScale, head.lossyScale);
             return true;
         }
 
-        static bool TryHeadBounds(GameObject model, Transform head, Transform space, out Bounds bounds)
+        static bool TryHeadBounds(GameObject model, Transform head, Transform space, bool usedVerticesOnly, out Bounds bounds)
         {
             var points = new List<Vector3>();
             foreach (var skinned in model.GetComponentsInChildren<SkinnedMeshRenderer>(true))
@@ -86,9 +113,10 @@ namespace WowSandbox.EditorTools
 
                 var vertices = mesh.vertices;
                 var weights = mesh.boneWeights;
+                var used = usedVerticesOnly ? new HashSet<int>(mesh.triangles) : null;
                 for (int i = 0; i < weights.Length; i++)
                 {
-                    if (HeadWeight(weights[i], headIndex) > 0.5f)
+                    if ((used == null || used.Contains(i)) && HeadWeight(weights[i], headIndex) > 0.5f)
                         points.Add(space.InverseTransformPoint(skinned.transform.TransformPoint(vertices[i])));
                 }
             }

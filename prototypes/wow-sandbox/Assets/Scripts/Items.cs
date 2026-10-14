@@ -27,6 +27,10 @@ namespace WowSandbox
         Feet,
         Neck,
         Ring,
+        // Added after the rest so the numbers above keep their meaning.
+        Shoulders,
+        Legs,
+        Back,
     }
 
     /// <summary>5e armour categories — they decide how much DEX counts toward AC.</summary>
@@ -195,6 +199,19 @@ namespace WowSandbox
             Wearable("Gauntlets", "Ga", EquipSlot.Hands, ItemKind.Clothing, 2 * Money.Gold),
             Wearable("Leather Boots", "Bt", EquipSlot.Feet, ItemKind.Clothing, 1 * Money.Gold),
             Wearable("Traveler's Boots", "TB", EquipSlot.Feet, ItemKind.Clothing, 2 * Money.Gold),
+            // The player's starting outfit. These three have a look (EquipmentVisuals).
+            Wearable("Linen Shirt", "Ln", EquipSlot.Chest, ItemKind.Clothing, 5 * Money.Silver),
+            Wearable("Cloth Shorts", "Sr", EquipSlot.Legs, ItemKind.Clothing, 5 * Money.Silver),
+            Wearable("Worn Sandals", "Sd", EquipSlot.Feet, ItemKind.Clothing, 3 * Money.Silver),
+        };
+
+        /// <summary>
+        /// Only ever looted from humanoids (LootDrop.HumanoidDrops) — never on a vendor's shelf
+        /// or rolled as a random magic item.
+        /// </summary>
+        public static readonly Item[] LootOnly =
+        {
+            Wearable("Pirate Hat", "PH", EquipSlot.Head, ItemKind.Clothing, 2 * Money.Gold),
         };
 
         public static readonly Item[] Jewelry =
@@ -249,7 +266,7 @@ namespace WowSandbox
         };
 
         static IEnumerable<Item> Equippable => Weapons.Concat(Armors).Append(Shield).Concat(Clothing).Concat(Jewelry);
-        static IEnumerable<Item> All => Equippable.Concat(TradeGoods).Concat(Fish.Skip(1)).Concat(Potions).Concat(Legendaries);
+        static IEnumerable<Item> All => Equippable.Concat(LootOnly).Concat(TradeGoods).Concat(Fish.Skip(1)).Concat(Potions).Concat(Legendaries);
 
         /// <summary>A merchant's shelves: every mundane piece of gear, then the potions — fresh copies.</summary>
         public static Item[] VendorStock() => Equippable.Concat(Potions).Select(item => item.Clone()).ToArray();

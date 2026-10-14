@@ -17,8 +17,12 @@ namespace WowSandbox.EditorTools
     /// </summary>
     public static class WarriorSetup
     {
+        // A player-race character export, unequipped: the body texture is bare so gear can be
+        // layered onto it. Unlike the old creature warrior it carries the real fishing and jump
+        // clips. wow.export always writes this model to thinhuman/male, so each export is renamed
+        // afterwards (base, shirt, shorts, ...) to stop the next one overwriting it.
         const string ModelPath =
-            "Assets/WowExports/creature/humanmalewarriorlight/humanmalewarriorlight_skin01.gltf";
+            "Assets/WowExports/character/thinhuman/base/thinhumanmale.gltf";
         const string GeneratedRoot = "Assets/WowExports/_Generated/Warrior";
 
         /// <summary>
@@ -123,11 +127,13 @@ namespace WowSandbox.EditorTools
             return true;
         }
 
-        // The export has no FishingCast/FishingLoop (those live on player-race models), so
-        // fishing borrows: an overhand throw for the cast, the thrown-weapon ready pose held
-        // while you wait, and a cheer for a prize fish.
-        const string FishCastClip = "AttackThrown";
-        const string FishWaitClip = "ReadyThrown";
+        // Player-race models carry FishingCast/FishingLoop. Creature models (the old warrior)
+        // don't, so those fall back to an overhand throw for the cast and the thrown-weapon ready
+        // pose held while you wait. A cheer for a prize fish either way.
+        const string FishCastClip = "FishingCast";
+        const string FishWaitClip = "FishingLoop";
+        const string FishCastFallback = "AttackThrown";
+        const string FishWaitFallback = "ReadyThrown";
         const string CheerClip = "EmoteCheer";
         static readonly string[] FishingStates = { "FishCast", "FishWait", "Cheer" };
         static readonly string[] FishingParameters = { "FishCast", "Fishing", "Cheer" };
@@ -139,12 +145,12 @@ namespace WowSandbox.EditorTools
         /// </summary>
         static bool AddFishingStates(AnimatorController controller, AnimationClip[] clips)
         {
-            var cast = CopyClip(clips, FishCastClip, loop: false);
-            var wait = CopyClip(clips, FishWaitClip, loop: true);
+            var cast = CopyClip(clips, HasClip(clips, FishCastClip) ? FishCastClip : FishCastFallback, loop: false);
+            var wait = CopyClip(clips, HasClip(clips, FishWaitClip) ? FishWaitClip : FishWaitFallback, loop: true);
             var cheer = CopyClip(clips, CheerClip, loop: false);
             if (cast == null || wait == null)
             {
-                Debug.LogWarning($"[WarriorSetup] No {FishCastClip}/{FishWaitClip} clips — the warrior will fish standing still.");
+                Debug.LogWarning($"[WarriorSetup] No {FishCastClip}/{FishWaitClip} (or {FishCastFallback}/{FishWaitFallback}) clips — the player will fish standing still.");
                 return false;
             }
 
@@ -224,7 +230,19 @@ namespace WowSandbox.EditorTools
                 return;
             }
 
+            // Re-running replaces the player already in the scene, on the same spot. Nothing holds
+            // a reference to it — everything finds the player by type at Play.
+            Vector3 spawnPosition = Vector3.zero;
+            Quaternion spawnRotation = Quaternion.identity;
+            foreach (var existing in Object.FindObjectsByType<WowCharacterController>())
+            {
+                spawnPosition = existing.transform.position;
+                spawnRotation = existing.transform.rotation;
+                Undo.DestroyObjectImmediate(existing.gameObject);
+            }
+
             var root = new GameObject("WarriorPlayer");
+            root.transform.SetPositionAndRotation(spawnPosition, spawnRotation);
             var instance = (GameObject)PrefabUtility.InstantiatePrefab(model, root.transform);
             instance.transform.localPosition = Vector3.zero;
             instance.transform.localRotation = Quaternion.Euler(0f, ModelYawOffset, 0f);
@@ -281,9 +299,14 @@ namespace WowSandbox.EditorTools
             var nameplates = root.AddComponent<NameplateHud>();
             root.AddComponent<CombatTextHud>();
             root.AddComponent<Inventory>();
+            // Shows what's worn, from WoW Sandbox → Harvest Gear's library (bare until that's run).
+            root.AddComponent<EquipmentVisuals>().library = GearHarvester.LoadLibrary();
             root.AddComponent<CharacterSheetPanel>();
             root.AddComponent<InventoryPanel>();
             root.AddComponent<LootPanel>();
+            // Add Vendor puts this on the player too, but a respawn replaces the player, so it
+            // goes on here as well; it's idle until there's a vendor to click.
+            root.AddComponent<VendorPanel>();
             root.AddComponent<MinimapHud>();
             root.AddComponent<WorldMapPanel>();
             root.AddComponent<DeepSeaDanger>();
@@ -433,6 +456,7 @@ namespace WowSandbox.EditorTools
                 toDeath.canTransitionToSelf = false;
             }
 
+            AddJumpStates(controller, clips);
             AddFishingStates(controller, clips);
             AddHitState(controller, clips);
 
@@ -441,6 +465,81 @@ namespace WowSandbox.EditorTools
             AssetDatabase.Refresh();
             return controller;
         }
+
+        /// <summary>
+        /// Jump (trigger) plays JumpStart, then the airborne Jump loop if still in the air, and
+        /// JumpEnd the moment Grounded comes back, from either. The clips run long next to a real
+        /// jump (take-off 0.83 s, landing 1.5 s, for a hop of about 0.75 s), so landing never
+        /// waits for the take-off to finish, and the landing hands back to locomotion early, at
+        /// once if you're moving. WowCharacterController holds Grounded false briefly after
+        /// take-off, so the first frames can't land it. Landing in water goes straight to
+        /// swimming. Only jumps are animated — walking off a ledge keeps the running clip (no Fall
+        /// state). Skipped if the model lacks the clips.
+        /// </summary>
+        static void AddJumpStates(AnimatorController controller, AnimationClip[] clips)
+        {
+            if (!HasClip(clips, "JumpStart") || !HasClip(clips, "Jump") || !HasClip(clips, "JumpEnd"))
+                return;
+
+            var start = CopyClip(clips, "JumpStart", loop: false);
+            var air = CopyClip(clips, "Jump", loop: true);
+            var land = CopyClip(clips, "JumpEnd", loop: false);
+
+            var stateMachine = controller.layers[0].stateMachine;
+            var locomotion = stateMachine.defaultState;
+            var swim = stateMachine.states.Select(s => s.state).FirstOrDefault(s => s.name == "Swim");
+
+            var startState = stateMachine.AddState("JumpStart");
+            startState.motion = start;
+            var airState = stateMachine.AddState("JumpAir");
+            airState.motion = air;
+            var landState = stateMachine.AddState("JumpEnd");
+            landState.motion = land;
+
+            var takeOff = locomotion.AddTransition(startState);
+            takeOff.AddCondition(AnimatorConditionMode.If, 0f, "Jump");
+            takeOff.hasExitTime = false;
+            takeOff.duration = 0.05f;
+
+            var rise = startState.AddTransition(airState);
+            rise.hasExitTime = true;
+            rise.exitTime = 0.9f;
+            rise.duration = 0.1f;
+
+            foreach (var state in new[] { startState, airState })
+            {
+                var touchDown = state.AddTransition(landState);
+                touchDown.AddCondition(AnimatorConditionMode.If, 0f, "Grounded");
+                touchDown.hasExitTime = false;
+                touchDown.duration = 0.05f;
+            }
+
+            // Standing still: just the impact and a little of the recovery.
+            var recover = landState.AddTransition(locomotion);
+            recover.hasExitTime = true;
+            recover.exitTime = 0.3f;
+            recover.duration = 0.15f;
+
+            // Moving: straight back into the run.
+            var runOn = landState.AddTransition(locomotion);
+            runOn.AddCondition(AnimatorConditionMode.Greater, 0.25f, "Speed");
+            runOn.hasExitTime = false;
+            runOn.duration = 0.1f;
+
+            if (swim != null)
+            {
+                foreach (var state in new[] { startState, airState, landState })
+                {
+                    var splash = state.AddTransition(swim);
+                    splash.AddCondition(AnimatorConditionMode.If, 0f, "Swimming");
+                    splash.hasExitTime = false;
+                    splash.duration = 0.25f;
+                }
+            }
+        }
+
+        static bool HasClip(AnimationClip[] clips, string namePrefix) =>
+            clips.Any(c => c.name.StartsWith(namePrefix + " ") || c.name == namePrefix);
 
         /// <summary>
         /// Imported clips are read-only and not marked as looping, so idle/walk/run would

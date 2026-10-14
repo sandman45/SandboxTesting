@@ -8,7 +8,8 @@ namespace WowSandbox
     /// <summary>
     /// The settings menu, on Esc like WoW's game menu: Esc closes whatever window is open
     /// first, and opens this once there's nothing left to close. Sliders for view distance,
-    /// fog, master/music/effects volume and mouse sensitivity, each applied the moment it
+    /// fog, master/music/effects volume, mouse sensitivity and the camera's zoom and field of
+    /// view, each applied the moment it
     /// moves and remembered between sessions (GameSettings), plus Defaults, Quit Game and —
     /// while DevOptions.Enabled — Developer (DevPanel).
     ///
@@ -34,7 +35,7 @@ namespace WowSandbox
                 go.AddComponent<DevPanel>();
         }
 
-        protected override Vector2 PanelSize => new(Width, 420f);
+        protected override Vector2 PanelSize => new(Width, 554f);
         protected override Vector2 PanelAnchor => new(0.5f, 0.5f);
         protected override Vector2 PanelPosition => Vector2.zero;
 
@@ -90,6 +91,14 @@ namespace WowSandbox
             Row("Mouse sensitivity", ref y, 0.05f, 0.6f,
                 () => GameSettings.MouseSensitivity, v => GameSettings.MouseSensitivity = v,
                 v => $"{v / 0.18f:0.0}×");
+
+            Heading("Camera", ref y);
+            Row("Max zoom out", ref y, GameSettings.SettingsMinZoom, GameSettings.SettingsMaxZoom,
+                () => GameSettings.MaxZoomDistance, v => GameSettings.MaxZoomDistance = v, v => $"{v:0}");
+            Row("Zoom speed", ref y, GameSettings.MinZoomSpeed, GameSettings.MaxZoomSpeed,
+                () => GameSettings.ZoomSpeed, v => GameSettings.ZoomSpeed = v, v => $"{v:0.0}");
+            Row("Field of view", ref y, GameSettings.MinFov, GameSettings.MaxFov,
+                () => GameSettings.FieldOfView, v => GameSettings.FieldOfView = v, v => $"{v:0}°");
 
             var bottom = new Vector2(0.5f, 0f);
             var size = new Vector2(88f, 30f);

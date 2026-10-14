@@ -64,7 +64,8 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 
 | Menu item | What it does |
 |---|---|
-| **WoW Sandbox → Spawn Warrior Player** | Builds an AnimatorController from the glTF's clips, then assembles the rig: capsule sized from the model's real bounds, Animator + Avatar wired, camera hooked up, movement speeds scaled to the model's height, and the model child rotated +90° (see the facing gotcha below). |
+| **WoW Sandbox → Spawn Warrior Player** | Builds an AnimatorController from the clips of the player's model (`character/thinhuman/base/thinhumanmale.gltf`, a human male character export with nothing equipped), then assembles the rig: capsule sized from the model's real bounds, Animator + Avatar wired, camera hooked up, movement speeds scaled to the model's height, and the model child rotated +90° (see the facing gotcha below). Re-running replaces the player already in the scene, on the same spot. |
+| **WoW Sandbox → Harvest Gear** | Builds the player's gear looks from the character exports under `character/thinhuman/` (see *Gear on the player*) into `_Generated/Gear/GearLibrary.asset`, and hands the library to the player in the scene. Re-run after adding a piece export. |
 | **WoW Sandbox → Generate Terrain** | Procedural Unity Terrain with layered Perlin noise. Flattens a pad at the origin and drops the player onto it. Self-contained — the ground texture is generated in code, so there are no external asset dependencies. |
 | **WoW Sandbox → Fix Terrain Gloss** | Zeroes the albedo alpha on terrain layers in place. Fixes glass-looking ground without regenerating (which would orphan the baked NavMesh). |
 | **WoW Sandbox → Add Mesh Colliders to Selection** | Adds MeshColliders across a whole hierarchy — a WMO is many group meshes, not one. Non-convex, so you can walk *into* buildings. Skips skinned meshes, and skips foliage geosets so trees collide on the trunk rather than on their leaf cards. |
@@ -135,13 +136,27 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | Very Rare | Moonfin Eel | 0.5% | 9% |
 | Legendary | Gilded Kingfish | 0% | 3% |
 
-- **The warrior's fishing animation:** he faces the water, casts with an overhand throw, holds a ready pose while waiting, and cheers for a Rare or better fish. Not while swimming. These are stand-in clips; see *Known gaps*.
+- **The fishing animation:** he faces the water, casts (`FishingCast`), holds the fishing pose while waiting (`FishingLoop`) and cheers for a Rare or better fish. Not while swimming. There's no rod in his hand yet (see *Known gaps*). A model without fishing clips falls back to an overhand throw and the thrown-weapon ready pose.
 
 **Fighting NPCs:** `NpcCombat`, on the wandering humanoids.
 - **Aggro:** a Hostile one that sees you within 12 units on land runs at you and swings every 2 s (d20 against your AC). Anything you hit fights back, whatever its reaction.
 - **Leashing:** it gives up and runs home, healing, once you die, take to the water, get 40 units from its home, or stand where it can't path (the ship's deck).
 - **Taking hits:** a blow that lands makes you flinch (`CombatWound`, not while swimming) and breaks a fishing cast.
-- **Loot:** humanoids drop Rare items about 1 time in 20 and Very Rare about 1 in 100 (`LootDrop.HumanoidDrops`).
+- **Loot:** humanoids drop Rare items about 1 time in 20 and Very Rare about 1 in 100, and a Pirate Hat about 1 in 25 (`LootDrop.HumanoidDrops`).
+
+**Gear on the player:** `EquipmentVisuals` dresses the player in whatever's equipped, from the looks *Harvest Gear* builds. Items without a look leave that part of the body bare. Chain mail, for one, shows a bare chest.
+- **Starting outfit:** a Linen Shirt, Cloth Shorts and Worn Sandals. The fighter's kit (chain mail, longsword, shield, dagger, cap) starts in the bags. The Pirate Hat is loot only; the Developer panel has **Pirate Hat** and **Linen Outfit** buttons.
+- **Slots:** Head, Shoulders, Back, Chest, Hands, Legs and Feet, then Main, Off, Neck and Ring, in two rows on the character sheet (C).
+- **Three kinds of gear,** and one item can use several:
+  - **Painted on:** cloth shirts, trousers and sandals are drawn into the body texture. Each item's pixels are pasted onto a copy of the bare body.
+  - **Body pieces:** WoW swaps parts of the body mesh to match gear. The shirt adds sleeve cuffs (`Wrists2`) and the hat hides the hair (`Hair2`).
+  - **Separate meshes:** rigid ones (helms, and later weapons, shields and shoulders) go on WoW's own attachment point for their slot. A helm's is `bone_168` (attachment 11), a child of `bone_Head`. Skinned armour is bound to the player's own bones by name.
+- **Attachment points come from a raw export.** wow.export's glTF leaves them out, so *Harvest Gear* reads them from `thinhuman/raw/thinhumanmale.m2` (`M2Attachments`). To make one: Models tab → `character/thinhuman/male/thinhumanmale.m2` → **Export M2 / WMO (Raw)**, tick **M2 .skel Files** in case a model keeps them there, then rename the folder to `raw`. Without it, helms fall back to `HelmFitter`'s guess, which puts a hat's brim at the chin.
+- **Adding a piece:**
+  1. In wow.export, export the player's model wearing **only** that item: same customisation as `base`, glTF with animations, Apply Pose off.
+  2. Rename the new `thinhuman/male` folder at once. wow.export always writes this model there, so the next export overwrites it.
+  3. Add the folder and its catalog item to `GearHarvester.Pieces`.
+  4. Re-run *Harvest Gear*.
 
 **Title screen, settings and developer options:** none of these need setup. Each is created when you press Play.
 - **Title screen (`TitleScreen`):**
@@ -150,7 +165,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
   - **Starting:** clicking, Enter or Space swoops the camera in behind the warrior.
 - **Settings (`SettingsPanel`, Esc):**
   - **Opening:** Esc closes any open window first, then opens the menu.
-  - **Settings:** view distance (the sky dome scales with it), fog density, master/music/sound-effects volume and mouse sensitivity.
+  - **Settings:** view distance (the sky dome scales with it), fog density, master/music/sound-effects volume, mouse sensitivity, and the camera's max zoom-out (2–20), zoom speed (per scroll notch) and field of view. The zoom settings apply to following the player; the helm keeps its own ship-sized range.
   - **Applying:** changes take effect as you drag and are remembered between sessions (`GameSettings`, PlayerPrefs). Anything never changed follows the scene's own values, and **Defaults** returns to them.
   - **Buttons:** Quit Game and Developer.
 - **Developer (`DevPanel`, from Settings):**
@@ -158,7 +173,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
   - **Toggles:** Storm on Play and Skip Title.
   - **Sea:** summon sharks or the Leviathan.
   - **Spawn:** an enemy or a chicken in front of you, copied from ones in the scene at Play start.
-  - **Player:** God Mode, Heal, +10 Gold, Rare, Very Rare and Legendary items, and game speed.
+  - **Player:** God Mode, Heal, +10 Gold, Rare, Very Rare and Legendary items, the Pirate Hat and linen outfit, max zoom-out over the full 0–100, and game speed.
   - **What's remembered:** the storm settings and Skip Title (`DevOptions`); the rest lasts until Play ends.
   - **Hiding it:** set `DevOptions.Enabled` to `false` to hide all of it for players.
 
@@ -220,6 +235,10 @@ The camera stores its yaw as an **offset from the character's facing** rather th
 - **Collide tree trunks, not tree leaves — but only on M2s.** M2 doodads split into one geoset per material, so a palm arrives as a `_wood_` mesh and a `_fronds_` mesh; a MeshCollider on the fronds puts invisible walls out in the air wherever the leaf cards hang. The collider tool matches material names against a foliage word list and skips those geosets. **WMOs are exempt**, because there the same words mean architecture: `12tr_amani_hut01`'s roof is built from `mat_12tr_amani_leafy_roof_01` and `mat_12tr_amani_leafs_01`, and skipping those drops you through the hut's roof.
 - **Code-generated normal maps must be unpacked as plain RGB.** A `Texture2D` created in code never passes through a `TextureImporter`, so it can't be tagged as a normal map — `UnpackNormal` would decode it as DXT5nm on desktop (x from alpha, y from green). The water shader calls `UnpackNormalRGB` explicitly.
 - **`WaterVolume.Contains` is false inside a hull's dry zone, on purpose.** So "is this point still sea?" can't use it: the ship's own bow probe sat inside its dry zone and the ship refused to move ("can't sail past the edge of the sea"). Use `WaterVolume.AnyCovers` for area-only checks. The same hole shows up in a top-down map snapshot as a ship-shaped patch of seabed unless the dry zones are suspended for the capture (`WaterDryZone.Suspend`).
+- **wow.export writes every export of the same model to the same folder** (`character/thinhuman/male`), named after the game's model file, so a second export silently replaces the first. Rename the folder after each export, at the same depth: a shared item texture like the hat's is linked by a relative path (`../../../item/...`).
+- **A helm's position can't be measured from the head.** Lining the top of the helm up with the top of the head suits a skull-hugging helmet, but it pulls a hat down over the face. WoW places it by the model's attachment point, which only the raw `.m2` has. In the rest pose, the item is just its mesh moved by that point's position (wow.export's `getAttachmentTransform`). The attachments sit at `0xF0` in the MD20 header, 40 bytes each, behind an ID lookup, and their bone indices follow the glTF skin's joint order.
+- **Every body mesh in a character export carries the model's whole vertex buffer,** every hairstyle and beard included, whether shown or not. Only the triangles differ. Measuring "the top of the head" from all the head-weighted vertices finds the tallest hairstyle in the model, so `HelmFitter.TryFitPose` can measure from the vertices the triangles actually use. That's *Harvest Gear*'s fallback when there's no raw export.
+- **Painted-on gear diffs exactly.** Comparing a piece export's body texture with the bare one, every changed pixel is that item's: the shirt, shorts and sandals never touch the same pixel, and layering all three onto the bare body reproduces an export wearing all three, pixel for pixel. Character materials are opaque, so the layer's alpha is free to carry the mask.
 - **HD character exports carry an `EyeGlow` geoset textured with the eye-reflection map.** In WoW it's blended faintly over the eyes; imported as an ordinary opaque mesh it's a solid white sheet over them. `Vendor.HideEyeGlow` turns it off on the vendor and, at Play, on every wandering NPC (the Kul Tiran thieves have it too). The real eyes are a separate geoset underneath.
 - **The pirate ship's wheel is baked into the hull mesh** (`exterior1`/`exterior2`), not a doodad, so there's no object to click. `ShipHelm` is an invisible trigger box placed over it.
 - **The Ancient Leviathan's natural pose is root rotation (0, 0, 0)** — kraken-like, upright with tentacles down. Pointing its root forward at the sky (as the swim-too-far grab still does) makes its roars and casts look aimed at the sky.
@@ -227,12 +246,12 @@ The camera stores its yaw as an **offset from the character's facing** rather th
 - **wow.export's sound exports are `.ogg`**, and the rain loops live under `sound/ambience/weather/`.
 
 **Known gaps:**
-- **Jump has no animation.** The export contains no jump clip (WoW's JumpStart/JumpEnd weren't included), so the character arcs through the air still playing idle. The `Jump` trigger and `Grounded` bool already exist in the controller, ready for a state once those clips are exported.
+- **Falling without jumping has no animation.** Jumps play JumpStart → Jump → JumpEnd, but walking off a ledge keeps the run clip. The export has a `Fall` clip (ID 40) for when it's wanted.
 - **Turning in place plays idle**, so the character pivots with their feet planted — there are no turn clips in the export.
 - **The ship's ladders are placeholders** — plain ropes and rungs, positioned by raycast. A better ladder model and placement are still to do.
 - **Running the ship aground hasn't been tested** in-editor yet.
-- **Fishing uses stand-in animations.** The warrior (`humanmalewarriorlight`, an old creature model) has no `FishingCast`/`FishingLoop` clips, so fishing borrows `AttackThrown` for the cast, `ReadyThrown` while waiting and `EmoteCheer` for a prize. The player-race character export (e.g. the bearded pirate, `character/human/bearded-pirate/humanmale_hd.gltf`) has the real `FishingCast` (ID 133) and `FishingLoop` (ID 134). Its skeleton is different, though, so those clips can't play on the warrior.
-- **Swapping the player to a character-export model is on the table.** It would bring real fishing animations, and it's also the likely path to **showing equipped gear**, such as a sword in hand or a shield on the arm, which the creature warrior can't do. Character exports carry their equipment, but as unskinned meshes at the feet: helms already go through `HelmFitter`/`HelmAttachment`, and weapons and shields would need the same fit onto the hand and arm bones. *Spawn Warrior Player* would need its clip names checked against the new model (`Stand`/`Walk`/`Run`/`Attack1H`/`SwimIdle`/`Swim`/`Death`). Fishing would then use `FishingCast`/`FishingLoop` instead of the stand-ins.
+- **Weapons, shields and shoulders haven't been tried.** *Harvest Gear* already puts them on their attachment points (right hand 1, shield 0, shoulders 5/6, back 12), but nothing has been exported to test it. The hand and shield points sit at the model's origin in the rest pose, on bones under `bone_WeaponR`/`bone_WeaponL`/`bone_EXP_L1_Shield1`, which the animations presumably move into the hands. A fishing rod in hand would come the same way.
+- **Only four items have a look so far:** the linen outfit and the Pirate Hat. Everything else needs a piece export of its own.
 
 ## Export format: glTF for M2, OBJ for WMO
 
