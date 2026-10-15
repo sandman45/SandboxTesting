@@ -78,18 +78,19 @@ namespace WowSandbox.EditorTools
             bool fishing = AddFishingStates(controller, clips);
             bool hit = AddHitState(controller, clips);
             bool combat = AddCombatStates(controller, clips);
+            bool loot = AddLootStates(controller, clips);
             // The abilities that play the new states, on the player already in the scene.
             foreach (var player in Object.FindObjectsByType<WowCharacterController>())
             {
                 if (player.GetComponent<WarriorAbilities>() == null)
                     Undo.AddComponent<WarriorAbilities>(player.gameObject);
             }
-            if (fishing || hit || combat)
+            if (fishing || hit || combat || loot)
             {
                 EditorUtility.SetDirty(controller);
                 AssetDatabase.SaveAssets();
                 Debug.Log("[WarriorSetup] Warrior controller updated:" + (fishing ? " fishing" : "") +
-                          (hit ? " hit reaction" : "") + (combat ? " combat" : "") + ".", controller);
+                          (hit ? " hit reaction" : "") + (combat ? " combat" : "") + (loot ? " looting" : "") + ".", controller);
             }
         }
 
@@ -220,6 +221,86 @@ namespace WowSandbox.EditorTools
                 back.duration = 0.2f;
             }
 
+            return true;
+        }
+
+        static readonly string[] LootStates = { "LootKneel", "LootHold", "LootRise", "LootReach" };
+        static readonly string[] LootParameters = { "Looting", "LootDown", "LootGrab" };
+
+        /// <summary>
+        /// Looting, as in WoW: LootDown (trigger) kneels (KneelStart) and you stay down
+        /// (KneelLoop) while Looting (bool) is true — the loot window open, you standing still —
+        /// then get up when it ends (KneelEnd). A trigger starts it, not the bool, so the hold
+        /// doesn't restart the kneel. LootGrab (trigger) is the quick reach for a corpse with only coin
+        /// on it (Loot). Replaces any looting states already there. False without the clips.
+        /// </summary>
+        static bool AddLootStates(AnimatorController controller, AnimationClip[] clips)
+        {
+            var kneel = CopyVariation(clips, "KneelStart", 0);
+            var hold = CopyVariation(clips, "KneelLoop", 0, loop: true);
+            var rise = CopyVariation(clips, "KneelEnd", 0);
+            var reach = CopyVariation(clips, "Loot", 0);
+            if (kneel == null || hold == null)
+            {
+                Debug.LogWarning("[WarriorSetup] No KneelStart/KneelLoop clips — looting won't kneel.");
+                return false;
+            }
+
+            var stateMachine = controller.layers[0].stateMachine;
+            var locomotion = stateMachine.defaultState;
+            foreach (var child in stateMachine.states)
+                if (LootStates.Contains(child.state.name))
+                    stateMachine.RemoveState(child.state);
+            foreach (var parameter in controller.parameters)
+                if (LootParameters.Contains(parameter.name))
+                    controller.RemoveParameter(parameter);
+            controller.AddParameter("Looting", AnimatorControllerParameterType.Bool);
+            controller.AddParameter("LootDown", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("LootGrab", AnimatorControllerParameterType.Trigger);
+
+            var kneelState = stateMachine.AddState("LootKneel");
+            kneelState.motion = kneel;
+            var holdState = stateMachine.AddState("LootHold");
+            holdState.motion = hold;
+
+            var down = stateMachine.AddAnyStateTransition(kneelState);
+            down.AddCondition(AnimatorConditionMode.If, 0f, "LootDown");
+            down.duration = 0.15f;
+            down.hasExitTime = false;
+            down.canTransitionToSelf = false;
+
+            var stay = kneelState.AddTransition(holdState);
+            stay.hasExitTime = true;
+            stay.exitTime = 0.95f;
+            stay.duration = 0.1f;
+
+            // Getting up: the rise if there is one, then back to locomotion.
+            AnimatorState up = locomotion;
+            if (rise != null)
+            {
+                up = stateMachine.AddState("LootRise");
+                up.motion = rise;
+                PlayThrough(up, locomotion, 0.85f);
+            }
+            foreach (var state in new[] { kneelState, holdState })
+            {
+                var stop = state.AddTransition(up);
+                stop.AddCondition(AnimatorConditionMode.IfNot, 0f, "Looting");
+                stop.hasExitTime = false;
+                stop.duration = 0.15f;
+            }
+
+            if (reach != null)
+            {
+                var reachState = stateMachine.AddState("LootReach");
+                reachState.motion = reach;
+                var grab = stateMachine.AddAnyStateTransition(reachState);
+                grab.AddCondition(AnimatorConditionMode.If, 0f, "LootGrab");
+                grab.duration = 0.1f;
+                grab.hasExitTime = false;
+                grab.canTransitionToSelf = false;
+                PlayThrough(reachState, locomotion, 0.9f);
+            }
             return true;
         }
 

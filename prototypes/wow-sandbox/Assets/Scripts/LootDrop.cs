@@ -18,9 +18,9 @@ namespace WowSandbox
 
     /// <summary>
     /// Rolls an NPC's loot the moment it dies and holds it on the corpse until it's taken
-    /// or the corpse despawns. LootPanel shows it when the player clicks the body.
+    /// or the corpse despawns. LootPanel shows it when the player clicks the body. Without a
+    /// Health it's a container instead — a TreasureChest fills it with <see cref="Fill"/>.
     /// </summary>
-    [RequireComponent(typeof(Health))]
     public class LootDrop : MonoBehaviour
     {
         public LootTable table = LootTable.Humanoid;
@@ -52,13 +52,23 @@ namespace WowSandbox
         void Awake()
         {
             _health = GetComponent<Health>();
-            _health.Died += Roll;
+            if (_health != null)
+                _health.Died += Roll;
         }
 
         void OnDestroy()
         {
             if (_health != null)
                 _health.Died -= Roll;
+        }
+
+        /// <summary>Sets what's in it, for a container: these items and this much coin.</summary>
+        public void Fill(IEnumerable<Item> items, int copper)
+        {
+            _items.Clear();
+            _items.AddRange(items);
+            Copper = Mathf.Max(0, copper);
+            Changed?.Invoke();
         }
 
         void Roll()

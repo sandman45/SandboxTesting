@@ -74,6 +74,8 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | **WoW Sandbox → Harvest Gear** | Builds the player's gear looks from the character exports under `character/thinhuman/` (see *Gear on the player*) into `_Generated/Gear/GearLibrary.asset`, and hands the library to the player in the scene. Re-run after adding a piece export. |
 | **WoW Sandbox → Generate Terrain** | Procedural Unity Terrain with layered Perlin noise. Flattens a pad at the origin and drops the player onto it. Self-contained — the ground texture is generated in code, so there are no external asset dependencies. |
 | **WoW Sandbox → Fix Terrain Gloss** | Zeroes the albedo alpha on terrain layers in place. Fixes glass-looking ground without regenerating (which would orphan the baked NavMesh). |
+| **WoW Sandbox → Paint Beach Sand** | Paints sand onto the terrain in place: everything under the water and a band above it (*Beach height*, 1.2), fading into the ground above over *Blend* with a ragged edge (*Raggedness*). Higher ground keeps its own paint. Generated sand to match the seabed, or an exported WoW ground texture (copied with its alpha cleared, so it isn't glossy). Re-run to change the band; Ctrl+Z undoes it. |
+| **WoW Sandbox → Scatter Vegetation** | Scatters every exported plant and rock it recognises by name (see *Vegetation*), and paints a grass carpet. Re-running replaces only what it placed. Re-bake the NavMesh after. |
 | **WoW Sandbox → Add Mesh Colliders to Selection** | Adds MeshColliders across a whole hierarchy — a WMO is many group meshes, not one. Non-convex, so you can walk *into* buildings. Skips skinned meshes, and skips foliage geosets so trees collide on the trunk rather than on their leaf cards. |
 | **WoW Sandbox → Add Colliders to All Scenery** | Same, swept across the whole scene instead of the selection — the step that actually gets missed after placing a batch of doodads. Idempotent. Skips the water surface, the sky dome and anything belonging to a character. |
 | **WoW Sandbox → Bake NavMesh** | Creates/updates a NavMeshSurface and bakes. Re-run after moving buildings or regenerating terrain. **This does not stop the player** — see below. |
@@ -94,11 +96,14 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | **WoW Sandbox → Add Ship Ladders** | Hangs four rope ladders (`ShipLadder`) on the floating ship, just forward of midship (clear of the open gun port) and aft, on both sides. Raycasts find the rail, the deck and the hull's shape, and each ladder is draped over that shape (see *Rope ladders*). Needs the `ropeladder01` export for the real look; without it, it falls back to plain primitive ropes and rungs. **Re-running replaces every ladder, including hand-moved ones.** |
 | **WoW Sandbox → Add Ship Helm** | Adds `ShipSailing` to the ship and an invisible click box (`ShipHelm`) to drag over the wheel, which is part of the hull mesh. The box's forward (yellow line) must point to the bow. Its `Stand` child is where you stand to steer. |
 | **WoW Sandbox → Add Sea Life** | Fills the shallows with fish schools (`fishbasic01`, `AmbientSwimmer`) and fishing spots (`fishfrenzy`, `FishingSpot`), from the beach out to *Max distance offshore* (45, inside the Dangerous Waters line). Re-running replaces the batch; tick **Keep existing** to add that many more, spaced away from the ones already there. |
-| **WoW Sandbox → Update Warrior Animations** | Adds the fishing states (cast, wait, cheer), the hit flinch (`CombatWound`), the combat states (per-weapon swings, crits, stances, parry/block/dodge) and the ability states to the warrior controller already in use, in place, and gives the player in the scene `WarriorAbilities`. Use this rather than *Build Warrior Animator*, which recreates the controller and leaves the player in the scene without one. Safe to re-run; save the scene after. |
+| **WoW Sandbox → Update Warrior Animations** | Adds the fishing states (cast, wait, cheer), the hit flinch (`CombatWound`), the combat states (per-weapon swings, crits, stances, parry/block/dodge), the ability states and the looting kneel to the warrior controller already in use, in place, and gives the player in the scene `WarriorAbilities`. Use this rather than *Build Warrior Animator*, which recreates the controller and leaves the player in the scene without one. Safe to re-run; save the scene after. |
 | **WoW Sandbox → Make NPCs Fight** | Gives the wandering humanoids already in the scene `NpcCombat`, and adds Run and Attack to their animator controllers in place, so nothing needs respawning. New spawns from *Spawn Wandering NPCs* get it automatically. Skips chickens and friendlies. |
 | **WoW Sandbox → Add Shipwreck** | Lays the `md_shipwreck` hull and stern half-buried at the waterline, opposite the pirate ship by default (*Bearing*), scaled down (the hull is ~97 units at full size). It adds colliders and re-bakes the NavMesh. Re-running replaces the wreck. |
 | **WoW Sandbox → Place Player at Shipwreck** | Stands the player on the island side of the shipwreck, clear of it and facing it. That's where the game begins: the title screen circles them there, and it's the respawn point. Save the scene after. |
 | **WoW Sandbox → Add Vendor** | Places Quartermaster Briggs (the bearded-pirate export) on the beach nearest the ship and gives the player a `VendorPanel`. |
+| **WoW Sandbox → Place Treasure Chest** | A window: pick a chest model (everything in `world/skillactivated/containers`, plus `creatures/TreasureTracker`) and its height (0.9), and place it where the Scene view is looking (see *Treasure chests and ground items*). |
+| **WoW Sandbox → Place Ground Item** | A window: an item (or coin) to lie on the ground where the Scene view is looking, with a model per kind of item. |
+| **WoW Sandbox → Rebuild Dev Chests** | Rebuilds the chests the Developer panel spawns. They're built by themselves on Play when missing; this is for after changing how chests are set up. |
 
 **Floating ships:** add **Ship Buoyancy** to a ship (after its dry zone). In Play it rises, falls, pitches and rolls with `WaterWaves`, eased by *Response Time*, and the dry zone travels with it. The waterline is wherever you placed it in the editor. Standing on the deck carries you with it — `WowCharacterController` rides anything with a kinematic Rigidbody under its feet, which Ship Buoyancy adds.
 
@@ -155,6 +160,16 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 - **Leashing:** it gives up and runs home, healing, once you die, take to the water, get 40 units from its home, or stand where it can't path (the ship's deck).
 - **Taking hits:** a blow that lands makes you flinch (`CombatWound`, not while swimming) and breaks a fishing cast.
 - **Loot:** humanoids drop Rare items about 1 time in 20 and Very Rare about 1 in 100, and a Pirate Hat about 1 in 25 (`LootDrop.HumanoidDrops`).
+- **Looting:** clicking a corpse turns you to face it. With items, you kneel (`KneelStart`, then `KneelLoop`) while the loot window is open and you stand still, and get up (`KneelEnd`) when it closes or you move. A corpse with only coin gets a quick reach (`Loot`). *Update Warrior Animations* adds these states.
+
+**Treasure chests and ground items:** anything with an `Interactable` can be used by clicking it within reach (2.5 units from its nearest edge). Hovering shows its name and "Click to open" or "Click to pick up"; from further away it says "You are too far away." The player's `Interactor` (added at Play) does the hovering and clicking.
+- **Treasure chests (`TreasureChest`):**
+  - **Opening:** clicking swings the lid open on the model's own `Open` clip, then holds `Opened`. The loot window opens on its contents, as for a corpse (`LootPanel.OpenFor`), and you kneel. What you leave stays inside; an empty chest stops offering itself.
+  - **Contents:** hand-picked in the Inspector by catalog name, with counts and coin. Unknown names are listed in the Console at Play. **Bonus Treasure** adds that many random rolls on top, re-rolled each Play.
+  - **Treasure odds (`ItemCatalog.RandomTreasure`):** never mundane. Uncommon 40%, Rare 35%, Very Rare (epic) 18%, Legendary 7%.
+  - **Models:** WoW's chests (`treasurechest01`–`05`) carry Open, Opened, Close and Closed clips. Chests 02, 03 and 05 draw a pile of gold coins as a second layer whose texture is mostly see-through; it gets a cut-out material, or it would cover the chest as a solid sheet. Light shafts, smoke and similar effects get a glowing, see-through material.
+  - **Placing:** *Place Treasure Chest* scales the model to the height you give, adds a solid collider, an empty `LootDrop` and a `TreasureChest` holding a potion, 5 gold and one bonus roll.
+- **Ground items (`GroundItem`):** an item, a count and/or coin, lying in the world. Clicking reaches down (`Loot`), puts it in the bags and removes it; a full bag leaves it there. *Place Ground Item* picks the model by the item's kind (Weapon, Armor, Shield, Clothing, Jewelry, Potion, Trade Good, Tool, Coin): set an exported WoW model for each in its window (remembered per machine). A kind without one gets a placeholder lump.
 
 **Your own combat:** the warrior's swings follow what's in hand. *Update Warrior Animations* builds these states.
 - **Swing timer:** one swing a second (`swingInterval` on `WowCharacterController`); pressing `1` sooner does nothing. Abilities share that timer, like WoW's global cooldown.
@@ -212,6 +227,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
   - **Toggles:** Storm on Play and Skip Title.
   - **Sea:** summon sharks or the Leviathan.
   - **Spawn:** an enemy or a chicken in front of you, copied from ones in the scene at Play start.
+  - **Chests:** one button per exported chest model, dropping it 3 units in front of you with random test loot: a treasure roll, a 1 in 4 chance of a second, a potion 30% of the time, and 2–12 gold. They're prefabs the editor builds on Play into `_Generated/Resources/DevChests/` (`DevChestBuilder`), since models can't be loaded by path at Play.
   - **Player:** God Mode, Heal, +10 Gold, Rare, Very Rare and Legendary items, the Pirate Hat and linen outfit, max zoom-out over the full 0–100, and game speed.
   - **What's remembered:** the storm settings and Skip Title (`DevOptions`); the rest lasts until Play ends.
   - **Hiding it:** set `DevOptions.Enabled` to `false` to hide all of it for players.
@@ -230,7 +246,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | `Space` | Jump (physics only — see below) — swims **up** while in water |
 | `X` | Swim **down** (in water only) |
 | Middle mouse / `Num Lock` | Auto-run (`W` or `S` cancels) |
-| Left-click | Target; on a corpse in reach, loot it; on a vendor, open the shop; on the ship's wheel, take the helm; on a fishing spot, cast |
+| Left-click | Target; on a corpse in reach, loot it; on a chest, open it; on an item on the ground, pick it up; on a vendor, open the shop; on the ship's wheel, take the helm; on a fishing spot, cast |
 | `1` | Attack your target (one swing a second) |
 | `2`–`5` | Heroic Strike, Shield Bash, Whirlwind, Charge (or click them on the action bar) |
 | `6` | Drink a healing potion |
@@ -239,6 +255,16 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | `C` | Character sheet |
 | `M` | World map (scroll over it to zoom) |
 | `Esc` | Close the top window; with none open, Settings |
+
+**Beach and vegetation:**
+- **Beach sand:** *Paint Beach Sand* adds a sand terrain layer (`Assets/Terrain/BeachSandLayer.terrainlayer`) and repaints by height, keeping every other layer's proportions in what's left.
+- **Vegetation (*Scatter Vegetation*):**
+  - **What it finds:** every glTF under `WowExports` whose file name says what it is: `palm`, `bush`/`fern`/`plant`/`shrub`/`jungle`/`frond`, `flower`, `boulder`/`rock`, `fallen`/`log`/`driftwood`. The window lists them with tick boxes.
+  - **Rules per kind** (`VegetationScatter.Rules`): density per 1,000 square units at *Lushness* 1, clustering, size range, steepest slope, and how far onto the beach sand. Undergrowth grows in thickets with clearings between, on grass only; palms also on the sand; boulders and driftwood here and there. Nothing under water, on steep slopes, inside anything with a collider, or within *Clear around start* (8) of the player and the vendor.
+  - **How it's drawn:** palms are full prefab copies with `TreeSway`, at the size of palms already placed by hand. Everything else is static meshes in its rest pose, since a thousand skinned bushes would be slow. Leafy textures with see-through edges get a cut-out, two-sided material.
+  - **Colliders:** trunks and boulders are solid (`MeshColliderTool`); bushes, ferns and flowers you walk through.
+  - **Re-running** replaces everything under the `Vegetation` object; **Clear Scattered** removes it.
+- **Grass carpet (*Paint Grass*):** terrain detail grass on the green ground only (not sand, water or steep slopes), waving in the wind. Generated tufts, or an exported WoW grass texture. *Density* (0–10, 3 by default) is tufts per patch, counted individually (instance-count scatter mode); *Patchiness* (0.25) leaves bare patches between clumps; *Draw distance* (120) is the costliest setting. Unity's Quality setting *Terrain Detail Density Scale* multiplies it all, so keep that at 1.
 
 **Waves and storms:** the `WaterWaves` component on `WaterSurface` owns the waves. Drag **Storm intensity** from 0 (calm) to 1 (storm); each end is a sea state you can tune: height, choppiness (rolling swell → sharp peaks), chaos (waves with the wind → from every direction), speed, whitecaps and ripples. Everything intensity blends changes smoothly, so it's safe to animate, and in Play mode the component's ⋮ menu has **Roll In Storm** and **Calm Down** (20-second transitions; `TransitionTo(intensity, seconds)` from code). Wind direction, wavelength range, wave count and seed rebuild the wave set, so those jump rather than blend. Swimming, breath and the underwater view all follow the moving surface, and once you reach the surface you ride the swell until `X` takes you under.
 
