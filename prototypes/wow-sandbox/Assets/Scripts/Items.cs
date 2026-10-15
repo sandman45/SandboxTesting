@@ -312,6 +312,23 @@ namespace WowSandbox
         public static Item RandomMundane() => Pick(Equippable.ToArray()).Clone();
 
         /// <summary>
+        /// Treasure-chest odds, far kinder than a thief's pockets: never mundane, and a real
+        /// chance at the good stuff — Rare (blue) 35%, Very Rare (epic, purple) 18% and
+        /// Legendary (orange) 7%, the rest Uncommon.
+        /// </summary>
+        public static Item RandomTreasure()
+        {
+            float roll = Random.value;
+            if (roll < 0.07f)
+                return Pick(Legendaries).Clone();
+            if (roll < 0.25f)
+                return RandomMagic(ItemRarity.VeryRare);
+            if (roll < 0.60f)
+                return RandomMagic(ItemRarity.Rare);
+            return RandomMagic(ItemRarity.Uncommon);
+        }
+
+        /// <summary>
         /// A random equippable item made magic at <paramref name="rarity"/>, D&D-style.
         /// Weapons, armour and shields get +N (+1 uncommon, +2 rare, +3 very rare) or a
         /// smaller +N with ability bonuses; clothing and jewellery get ability bonuses and,

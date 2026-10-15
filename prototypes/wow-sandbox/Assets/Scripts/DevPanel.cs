@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.InputSystem;
@@ -34,7 +35,12 @@ namespace WowSandbox
         readonly List<GameObject> _enemies = new();
         readonly List<GameObject> _chickens = new();
 
-        protected override Vector2 PanelSize => new(Width, 662f);
+        protected override Vector2 PanelSize => new(Width, 662f + (ChestRows > 0 ? 28f + 32f * ChestRows : 0f));
+
+        // The Spawn section's chest buttons: one per exported chest model, four to a row.
+        static GameObject[] _chests;
+        static GameObject[] Chests => _chests ??= DevChests.Load();
+        static int ChestRows => (Chests.Length + 3) / 4;
         protected override Vector2 PanelAnchor => new(0.5f, 0.5f);
         protected override Vector2 PanelPosition => Vector2.zero;
 
@@ -154,6 +160,13 @@ namespace WowSandbox
             Buttons(ref y,
                 ("Enemy", () => Spawn(_enemies, "enemies", 10f)),
                 ("Chicken", () => Spawn(_chickens, "chickens", 4f)));
+            if (Chests.Length > 0)
+            {
+                Heading("Chests (random test loot)", ref y);
+                for (int start = 0; start < Chests.Length; start += 4)
+                    Buttons(ref y, Chests.Skip(start).Take(4)
+                        .Select(chest => (DevChests.Label(chest), (Action)(() => DevChests.Spawn(chest)))).ToArray());
+            }
 
             Heading("Player", ref y);
             row = Buttons(ref y,

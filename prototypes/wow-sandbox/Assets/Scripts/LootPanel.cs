@@ -21,8 +21,15 @@ namespace WowSandbox
         const float Width = 300f;
         const float Pad = 14f;
 
+        static readonly int LootingHash = Animator.StringToHash("Looting");
+        static readonly int LootGrabHash = Animator.StringToHash("LootGrab");
+        static readonly int LootDownHash = Animator.StringToHash("LootDown");
+        bool _kneeling;
+
         Inventory _inventory;
         CharacterStats _stats;
+        WowCharacterController _movement;
+        CharacterController _body;
         TargetingController _targeting;
         LootDrop _loot;
 
@@ -53,7 +60,48 @@ namespace WowSandbox
             _inventory = GetComponent<Inventory>();
             _stats = GetComponent<CharacterStats>();
             _targeting = GetComponent<TargetingController>();
+            _movement = GetComponent<WowCharacterController>();
+            _body = GetComponent<CharacterController>();
             base.Awake();
+        }
+
+        /// <summary>
+        /// Kneels over the corpse while the window is open and you stand still (Update Warrior
+        /// Animations' looting states); walking off, or closing it, gets you up.
+        /// </summary>
+        protected override void Update()
+        {
+            base.Update();
+            var animator = _movement != null ? _movement.Animator : null;
+            if (animator == null || !HasParameter(animator, LootingHash))
+                return;
+            var velocity = _body != null ? _body.velocity : Vector3.zero;
+            velocity.y = 0f;
+            bool still = velocity.sqrMagnitude < 0.25f && (_movement == null || !_movement.IsSwimming);
+            bool kneel = IsOpen && still;
+            if (kneel && !_kneeling && HasParameter(animator, LootDownHash))
+                animator.SetTrigger(LootDownHash);
+            _kneeling = kneel;
+            animator.SetBool(LootingHash, kneel);
+        }
+
+        static bool HasParameter(Animator animator, int hash)
+        {
+            if (animator.runtimeAnimatorController == null)
+                return false;
+            foreach (var parameter in animator.parameters)
+                if (parameter.nameHash == hash)
+                    return true;
+            return false;
+        }
+
+        /// <summary>Turns you to face the corpse, as WoW does when you loot.</summary>
+        void Face(Transform corpse)
+        {
+            var toward = corpse.position - transform.position;
+            toward.y = 0f;
+            if (toward.sqrMagnitude > 0.01f)
+                transform.rotation = Quaternion.LookRotation(toward, Vector3.up);
         }
 
         void OnEnable() => _targeting.Clicked += OnClicked;
@@ -79,6 +127,19 @@ namespace WowSandbox
                 return;
             }
 
+            OpenFor(loot, _targeting.TargetName);
+        }
+
+        /// <summary>
+        /// Loots <paramref name="loot"/> — a corpse or a chest — titled <paramref name="title"/>:
+        /// turns you to it, takes the coin straight away, and opens the window on the items, or
+        /// just reaches down if there's only coin.
+        /// </summary>
+        public void OpenFor(LootDrop loot, string title)
+        {
+            if (loot == null || !loot.HasLoot)
+                return;
+            Face(loot.transform);
             if (loot.Copper > 0)
             {
                 int copper = loot.TakeCopper();
@@ -87,10 +148,16 @@ namespace WowSandbox
             }
 
             if (!loot.HasLoot)
+            {
+                // Coin only: a quick reach rather than kneeling down for nothing.
+                var animator = _movement != null ? _movement.Animator : null;
+                if (animator != null && HasParameter(animator, LootGrabHash))
+                    animator.SetTrigger(LootGrabHash);
                 return;
+            }
 
             _loot = loot;
-            _title.text = _targeting.TargetName;
+            _title.text = title;
             Open();
         }
 
