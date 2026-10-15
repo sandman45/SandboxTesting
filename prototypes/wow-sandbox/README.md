@@ -91,7 +91,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | **WoW Sandbox → Spawn Sea Creatures** | Places Reef, Hunter or Giant sharks (`SwimmingCreature`) in a ring offshore. They roam a depth band, keep clear of the seabed and shore, and hostile ones hunt swimmers. |
 | **WoW Sandbox → Generate Seabed** | Builds the sea floor beyond the terrain's edge (`Seabed.HeightAt` is the sea-floor query everything uses). |
 | **WoW Sandbox → Setup Deep Sea Danger** | Gives the player `DeepSeaDanger` and places the hidden Ancient Leviathan, with its cast and submerge animations. Re-run after pulling changes to the Leviathan's animator. |
-| **WoW Sandbox → Add Ship Ladders** | Hangs four rope ladders (`ShipLadder`) on the floating ship, midship and aft on both sides, finding the rail and deck by raycasting the ship's colliders. Placeholder ropes and rungs. Re-running replaces hand-moved ladders. |
+| **WoW Sandbox → Add Ship Ladders** | Hangs four rope ladders (`ShipLadder`) on the floating ship, just forward of midship (clear of the open gun port) and aft, on both sides. Raycasts find the rail, the deck and the hull's shape, and each ladder is draped over that shape (see *Rope ladders*). Needs the `ropeladder01` export for the real look; without it, it falls back to plain primitive ropes and rungs. **Re-running replaces every ladder, including hand-moved ones.** |
 | **WoW Sandbox → Add Ship Helm** | Adds `ShipSailing` to the ship and an invisible click box (`ShipHelm`) to drag over the wheel, which is part of the hull mesh. The box's forward (yellow line) must point to the bow. Its `Stand` child is where you stand to steer. |
 | **WoW Sandbox → Add Sea Life** | Fills the shallows with fish schools (`fishbasic01`, `AmbientSwimmer`) and fishing spots (`fishfrenzy`, `FishingSpot`), from the beach out to *Max distance offshore* (45, inside the Dangerous Waters line). Re-running replaces the batch; tick **Keep existing** to add that many more, spaced away from the ones already there. |
 | **WoW Sandbox → Update Warrior Animations** | Adds the fishing states (cast, wait, cheer), the hit flinch (`CombatWound`), the combat states (per-weapon swings, crits, stances, parry/block/dodge) and the ability states to the warrior controller already in use, in place, and gives the player in the scene `WarriorAbilities`. Use this rather than *Build Warrior Animator*, which recreates the controller and leaves the player in the scene without one. Safe to re-run; save the scene after. |
@@ -104,10 +104,16 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 
 **Boarding and sailing:**
 - **Ladders:** swim up facing a ladder and hold `W` to climb; `S` climbs down and `Space` lets go. At the top you clamber over the rail onto the deck. From the deck, face the sea at a ladder and press `W` to climb down. Climbing plays the walk animation, since no export has a climb clip.
+- **Rope ladders:** each ladder is a strip of WoW's rope-ladder art draped down the hull.
+  - **The art:** `ropeladder01` (Models tab: `world/generic/human/passivedoodads/ropeladders/`) is a few flat panels with the ropes and rungs painted on a see-through texture. *Add Ship Ladders* builds its own strip with that texture (`_Generated/ShipLadder/RopeLadder.mat`, cut-out and two-sided) at the model's rung spacing, rather than placing the rigid model, which couldn't follow the hull's curve.
+  - **The drape:** the raycasts that find the side give the hull's surface every 0.2 units from the waterline up. The ladder follows it 0.08 units off the planks, bridging dips shorter than about 0.8 units (gun ports, seams) as a rope would, hooks over the rail, and hangs straight down below the water. `ShipLadder.profile` holds that line, so climbing follows it too.
+  - **Sway:** `LadderSway` swings the lower 70% gently along the hull and a little away from it (never into it), growing toward the foot, each ladder out of step with the others.
+  - **Landing:** the spot on deck is checked for room to stand, moving further inboard past crates, masts or the cabin.
+  - **Placement:** `ShipLadderSetup.Stations` sets where along the ship each pair hangs, as a fraction of half the ship's length from the middle (negative is toward the bow): the forward pair at −0.02, just off an open gun port at dead centre, and the aft pair at 0.45. In the current scene some ladders were then nudged outward by hand where they clipped the hull's woodwork, and saved there; re-running *Add Ship Ladders* would undo that.
 - **Taking the helm:** click the wheel from close by. You're held behind it, and the camera pulls back around the ship; right-drag orbits.
 - **Sailing:** `W`/`S` let out and take in sail, and `A`/`D` steer (`ShipSailing`). The ship reaches about 1.5× run speed, gathers way over ~10 s, coasts to a stop, and can't turn when stopped.
 - **Helm panel:** shows sails and speed, with anchor and leave buttons. The ship starts at anchor. Leaving the helm keeps the sails set.
-- **Limits:** the ship stops before the shallows (by `Seabed.HeightAt` against its keel) and the edge of the sea; `S` backs it off. Running aground hasn't been tested in-editor yet.
+- **Limits:** the ship stops before the shallows (by `Seabed.HeightAt` against its keel) and the edge of the sea; `S` backs it off.
 
 **The open sea:**
 - **Dangerous Waters:** swim more than 60 units past the island and a "Dangerous Waters" bar fills over 15 s. When it's full, `DeepSeaDanger` sends a pack of sharks, or 5% of the time the Ancient Leviathan, which breaches, lunges and drags you under. Being aboard the ship is safe, because the danger only counts while you're swimming.
@@ -278,13 +284,13 @@ The camera stores its yaw as an **offset from the character's facing** rather th
 - **The pirate ship's wheel is baked into the hull mesh** (`exterior1`/`exterior2`), not a doodad, so there's no object to click. `ShipHelm` is an invisible trigger box placed over it.
 - **The Ancient Leviathan's natural pose is root rotation (0, 0, 0)** — kraken-like, upright with tentacles down. Pointing its root forward at the sky (as the swim-too-far grab still does) makes its roars and casts look aimed at the sky.
 - **Build Warrior Animator (and Spawn Warrior Player) delete and recreate `Warrior.controller`**, which gives it a new GUID. A player already in the scene is left pointing at nothing. To change the existing controller, edit it in place, as *Update Warrior Animations* does.
+- **wow.export's glTF doesn't mark see-through textures.** No material in any export here has an `alphaMode`, so a texture whose gaps are alpha, like the rope ladder's, imports opaque and the gaps show solid. Give it a cut-out material yourself (URP Lit: Alpha Clipping on, Cull Off for two-sided), as `ShipLadderSetup.RopeLadderMaterial` does.
 - **wow.export's sound exports are `.ogg`**, and the rain loops live under `sound/ambience/weather/`.
 
 **Known gaps:**
 - **Falling without jumping has no animation.** Jumps play JumpStart → Jump → JumpEnd, but walking off a ledge keeps the run clip. The export has a `Fall` clip (ID 40) for when it's wanted.
 - **Turning in place plays idle**, so the character pivots with their feet planted — there are no turn clips in the export.
-- **The ship's ladders are placeholders** — plain ropes and rungs, positioned by raycast. A better ladder model and placement are still to do.
-- **Running the ship aground hasn't been tested** in-editor yet.
+- **Ladders can clip protruding woodwork.** The drape follows the hull along one line down the ladder's middle, so a rib or moulding under one of its ropes can poke through; the scene's ladders were nudged out by hand where that happened.
 - **Cloaks haven't been tried.** *Harvest Gear* puts them on attachment point 12, but nothing has been exported to test it. Weapons and shields work: their points sit at the model's origin in the rest pose (hand `bone_177` under `bone_WeaponR`, shield `bone_174`) and the animations move them into the hands.
 - **The combat animations and abilities are new and lightly tested:** the two-handed grip, Charge's run and arrival, and how much Whirlwind turns are the ones to watch. A stunned thief just stops; there's no dazed animation.
 - **Not every item has a look yet:** nothing goes in the Back slot (a cloak needs a character model that can wear one), and each new item needs its export (the exports themselves are gitignored, so every clone needs its own). Rings and amulets never show, as in WoW.

@@ -11,19 +11,30 @@ namespace WowSandbox.EditorTools
     /// colliders: horizontal rays from outside find the hull's side up to the top of the rail,
     /// then downward rays inboard of the rail find the deck. Re-running replaces the pair.
     ///
-    /// The ropes and rungs are plain primitives with their colliders removed — only the
-    /// ShipLadder on each matters to climbing — so you can move or rotate a ladder (and its
-    /// StepOff child) by hand if the guess is off.
+    /// Each ladder is draped over the hull: the rays that find the side also give the hull's
+    /// shape from the waterline to the rail, and the ladder is a strip that follows it a hand's
+    /// width off the planks (bridging dips like gun ports, as a rope would), hooks over the
+    /// rail, and hangs straight down below the water. It wears WoW's own rope-ladder art
+    /// (ropeladder01's texture, at its rung spacing) and sways at its foot (LadderSway).
+    /// Without that export it falls back to plain primitive ropes and rungs, hanging straight.
+    /// Only the ShipLadder on each matters to climbing; it follows the same drape.
     /// </summary>
     public static class ShipLadderSetup
     {
         const string MaterialDir = "Assets/WowExports/_Generated/ShipLadder";
+        /// <summary>WoW's rope ladder art (Models tab: world/generic/human/passivedoodads/ropeladders/ropeladder01).</summary>
+        const string RopeLadderTexture = "Assets/WowExports/world/generic/human/passivedoodads/ropeladders/ropeladder.png";
+        // ropeladder01 is 1.87 wide and repeats its texture every 3.4 units: one tile's length per width.
+        const float TileLengthPerWidth = 3.4f / 1.87f;
+        // How far the ladder stands off the hull's planks.
+        const float Clearance = 0.08f;
 
         /// <summary>Where along the ship to hang a pair, as a fraction of half its length from
         /// the middle toward the stern (negative is toward the bow).</summary>
         static readonly (float fraction, string name)[] Stations =
         {
-            (0f, "Midship"),
+            // A touch toward the bow of the middle: dead centre lands on an open gun port.
+            (-0.02f, "Midship"),
             (0.45f, "Aft"),
         };
 
@@ -72,6 +83,10 @@ namespace WowSandbox.EditorTools
             Physics.SyncTransforms();
             var rope = LoadOrCreateMaterial("Rope", new Color(0.55f, 0.43f, 0.27f));
             var wood = LoadOrCreateMaterial("Wood", new Color(0.36f, 0.24f, 0.14f));
+            var ropeLadder = RopeLadderMaterial();
+            if (ropeLadder == null)
+                Debug.LogWarning($"[ShipLadderSetup] No rope-ladder texture at {RopeLadderTexture} — export " +
+                                 "ropeladder01 from the Models tab for the real look. Using plain ropes and rungs.");
 
             if (!ShipFrame(ship.transform, out Vector3 midship, out Vector3 across, out float halfBeam,
                            out Vector3 along, out float halfLength))
@@ -92,14 +107,18 @@ namespace WowSandbox.EditorTools
                     Vector3 outward = across * side;
                     string name = $"ShipLadder ({(side > 0 ? "Starboard" : "Port")}, {station})";
                     if (!FindSide(ship.transform, point, outward, halfBeam, water.SurfaceY, playerHeight,
-                                  out Vector3 railTop, out Vector3 deck))
+                                  out Vector3 railTop, out Vector3 deck, out var hull, out float railDepth))
                     {
                         Debug.LogWarning($"[ShipLadderSetup] Couldn't find the hull and deck for {name} — does " +
                                          "the ship have colliders (WoW Sandbox → Add Mesh Colliders)?", ship);
                         continue;
                     }
 
-                    BuildLadder(ship.transform, railTop, outward, deck, water.SurfaceY, playerHeight, rope, wood, name);
+                    if (ropeLadder != null)
+                        BuildDraped(ship.transform, railTop, outward, deck, hull, railDepth, water.SurfaceY,
+                                    playerHeight, ropeLadder, name);
+                    else
+                        BuildLadder(ship.transform, railTop, outward, deck, water.SurfaceY, playerHeight, rope, wood, name);
                     placed++;
                 }
             }
@@ -157,23 +176,33 @@ namespace WowSandbox.EditorTools
             return true;
         }
 
+        internal static bool FindSide(Transform ship, Vector3 midship, Vector3 outward, float halfBeam, float waterY,
+                             float playerHeight, out Vector3 railTop, out Vector3 deck) =>
+            FindSide(ship, midship, outward, halfBeam, waterY, playerHeight, out railTop, out deck, out _, out _);
+
         /// <summary>
         /// Walks up the hull's side from the waterline with rays aimed in from outside. The
         /// hull answers each one at about the same distance; the first height where nothing
         /// answers (or only something far inboard, like rigging) is above the rail. Then a ray
         /// down just inboard of the rail finds its top, and rays further in find the deck.
+        /// <paramref name="railTop"/> is the top of the rail's outer face, a hand's width out;
+        /// <paramref name="hull"/> the side's surface from the waterline up to it, and
+        /// <paramref name="railDepth"/> how far the rail's top runs inboard before the drop.
         /// </summary>
         internal static bool FindSide(Transform ship, Vector3 midship, Vector3 outward, float halfBeam, float waterY,
-                             float playerHeight, out Vector3 railTop, out Vector3 deck)
+                             float playerHeight, out Vector3 railTop, out Vector3 deck, out List<Vector3> hull,
+                             out float railDepth)
         {
             railTop = deck = Vector3.zero;
+            hull = new List<Vector3>();
+            railDepth = 0.2f;
             float start = halfBeam + 10f;
             float step = playerHeight * 0.2f;
             float outermost = float.MaxValue;
             Vector3 lastHit = Vector3.zero;
             bool anyHit = false;
 
-            for (float y = waterY; y < waterY + playerHeight * 15f; y += step)
+            for (float y = waterY; y < waterY + playerHeight * 15f; y += step * 0.5f)
             {
                 var origin = new Vector3(midship.x, y, midship.z) + outward * start;
                 if (!RaycastShip(ship, origin, -outward, start + halfBeam, out var hit))
@@ -188,6 +217,7 @@ namespace WowSandbox.EditorTools
                 anyHit = true;
                 outermost = Mathf.Min(outermost, hit.distance);
                 lastHit = hit.point;
+                hull.Add(hit.point);
             }
 
             if (!anyHit)
@@ -195,32 +225,49 @@ namespace WowSandbox.EditorTools
 
             // The rail's top, just inboard of its outer face.
             var above = lastHit - outward * 0.1f + Vector3.up * step * 1.5f;
-            railTop = RaycastShip(ship, above, Vector3.down, step * 4f, out var railHit) ? railHit.point : lastHit;
+            float railY = RaycastShip(ship, above, Vector3.down, step * 4f, out var railHit) ? railHit.point.y : lastHit.y;
+            var railFace = new Vector3(lastHit.x, railY, lastHit.z);
+            railTop = railFace + outward * Clearance;
 
-            // The deck: the first flat surface inboard of the rail that's clearly below its top.
-            // Searched from the rail itself, before the ladder is moved out to the hull's bulge,
-            // so a hull that swells out below the rail isn't mistaken for the deck.
-            var railFace = new Vector3(lastHit.x, railTop.y, lastHit.z);
-            float railY = railTop.y;
-
-            // Hang at the outermost bulge of the hull below, so the ladder clears it all the way down.
-            var hullFace = new Vector3(midship.x, 0f, midship.z) + outward * (start - outermost);
-            railTop = new Vector3(hullFace.x, railY, hullFace.z) + outward * 0.15f;
-
+            // The deck: the first flat surface inboard of the rail that's clearly below its top,
+            // with room for the climber to stand. Where the drop is, is the rail's depth.
+            float radius = playerHeight * 0.15f;
+            bool pastRail = false;
             for (float inboard = 0.1f; inboard < halfBeam; inboard += 0.2f)
             {
                 var origin = railFace - outward * inboard + Vector3.up * 0.5f;
                 if (!RaycastShip(ship, origin, Vector3.down, playerHeight * 3f, out var deckHit))
                     continue;
                 if (deckHit.point.y > railY - 0.25f || deckHit.normal.y < 0.7f)
+                {
+                    if (!pastRail)
+                        railDepth = inboard;
                     continue;   // still on the rail, or something sloping
-                deck = deckHit.point - outward * (playerHeight * 0.4f);
-                if (RaycastShip(ship, deck + Vector3.up * playerHeight, Vector3.down, playerHeight * 2f, out var landing))
-                    deck = landing.point;
-                deck += Vector3.up * 0.05f;
+                }
+                pastRail = true;
+
+                var landing = deckHit.point - outward * (playerHeight * 0.4f);
+                if (RaycastShip(ship, landing + Vector3.up * playerHeight, Vector3.down, playerHeight * 2f, out var floor))
+                    landing = floor.point;
+                if (Blocked(ship, landing, radius, playerHeight))
+                    continue;   // a crate, a mast, the cabin — try further in
+                deck = landing + Vector3.up * 0.05f;
                 return true;
             }
 
+            return false;
+        }
+
+        /// <summary>Whether a climber standing at <paramref name="feet"/> would be inside part of the ship.</summary>
+        static bool Blocked(Transform ship, Vector3 feet, float radius, float height)
+        {
+            var bottom = feet + Vector3.up * (radius + 0.1f);
+            var top = feet + Vector3.up * Mathf.Max(height - radius, radius + 0.2f);
+            foreach (var hit in Physics.OverlapCapsule(bottom, top, radius, ~0, QueryTriggerInteraction.Ignore))
+            {
+                if (hit.transform.IsChildOf(ship))
+                    return true;
+            }
             return false;
         }
 
@@ -275,6 +322,147 @@ namespace WowSandbox.EditorTools
                 rung.localPosition = new Vector3(0f, -y, 0f);
                 rung.localScale = new Vector3(ladder.width, playerHeight * 0.035f, playerHeight * 0.06f);
             }
+        }
+
+        /// <summary>
+        /// A ladder draped over the hull: its ShipLadder follows <paramref name="hull"/> (bridging
+        /// dips), and its mesh is a strip of WoW's rope-ladder art along that line, hooked over
+        /// the rail and hanging straight down below the waterline.
+        /// </summary>
+        static void BuildDraped(Transform ship, Vector3 railTop, Vector3 outward, Vector3 deck, List<Vector3> hull,
+                                float railDepth, float waterY, float playerHeight, Material material, string name)
+        {
+            var root = new GameObject(name);
+            Undo.RegisterCreatedObjectUndo(root, "Add Ship Ladders");
+            root.transform.SetPositionAndRotation(railTop, Quaternion.LookRotation(outward, Vector3.up));
+            root.transform.SetParent(ship, true);
+            var lossy = ship.lossyScale;
+            root.transform.localScale = new Vector3(1f / lossy.x, 1f / lossy.y, 1f / lossy.z);
+
+            var ladder = root.AddComponent<ShipLadder>();
+            ladder.length = railTop.y - (waterY - playerHeight * 0.6f);
+            ladder.width = playerHeight * 0.45f;
+
+            var stepOff = new GameObject("StepOff").transform;
+            stepOff.SetParent(root.transform, false);
+            stepOff.position = deck;
+            ladder.stepOff = stepOff;
+
+            // The hull as (height above the foot, distance out from the top), from the foot up.
+            float footY = railTop.y - ladder.length;
+            var points = new List<Vector2>();
+            foreach (var p in hull)
+            {
+                float o = Vector3.Dot(p - railTop, outward) + Clearance;
+                if (p.y < railTop.y)
+                    points.Add(new Vector2(p.y - footY, o));
+            }
+            points.Add(new Vector2(ladder.length, 0f));
+            // Hangs straight down from the waterline into the sea.
+            if (points.Count > 0)
+                points.Insert(0, new Vector2(0f, points[0].y));
+            ladder.profile = Bridge(points, playerHeight * 0.4f);
+
+            // --- The strip ---------------------------------------------------------------
+            var path = new List<Vector3>();   // local, top first: y down from the top, z out
+            path.Add(new Vector3(0f, 0.03f, -railDepth));   // hooked over the rail
+            path.Add(new Vector3(0f, 0.03f, 0f));
+            for (int i = ladder.profile.Length - 1; i >= 0; i--)
+                path.Add(new Vector3(0f, ladder.profile[i].x - ladder.length, ladder.profile[i].y));
+
+            float half = ladder.width * 0.5f;
+            float tile = ladder.width * TileLengthPerWidth;
+            var vertices = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var triangles = new List<int>();
+            float along = 0f;
+            for (int i = 0; i < path.Count; i++)
+            {
+                if (i > 0)
+                    along += Vector3.Distance(path[i - 1], path[i]);
+                float v = along / tile;
+                vertices.Add(path[i] + Vector3.left * half);
+                vertices.Add(path[i] + Vector3.right * half);
+                uvs.Add(new Vector2(0f, -v));
+                uvs.Add(new Vector2(1f, -v));
+                if (i > 0)
+                {
+                    int a = (i - 1) * 2;
+                    triangles.AddRange(new[] { a, a + 2, a + 1, a + 1, a + 2, a + 3 });
+                }
+            }
+
+            var mesh = new Mesh { name = name };
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            System.IO.Directory.CreateDirectory(MaterialDir);
+            string meshPath = $"{MaterialDir}/{name.Replace(" ", "").Replace("(", "_").Replace(")", "").Replace(",", "_")}.asset";
+            AssetDatabase.DeleteAsset(meshPath);
+            AssetDatabase.CreateAsset(mesh, meshPath);
+
+            var strip = new GameObject("Rope Ladder");
+            strip.transform.SetParent(root.transform, false);
+            strip.AddComponent<MeshFilter>().sharedMesh = mesh;
+            strip.AddComponent<MeshRenderer>().sharedMaterial = material;
+            var sway = strip.AddComponent<LadderSway>();
+            sway.bottom = -ladder.length;
+            sway.freeBelow = -ladder.length * 0.3f;
+        }
+
+        /// <summary>
+        /// A rope's line over the hull: where the hull dips in for less than
+        /// <paramref name="span"/> (a gun port, a seam), the rope stays at the higher points around it.
+        /// </summary>
+        static Vector2[] Bridge(List<Vector2> points, float span)
+        {
+            var bridged = new Vector2[points.Count];
+            for (int i = 0; i < points.Count; i++)
+            {
+                float above = float.MinValue, below = float.MinValue;
+                for (int j = 0; j < points.Count; j++)
+                {
+                    float gap = points[j].x - points[i].x;
+                    if (gap > 0f && gap <= span) above = Mathf.Max(above, points[j].y);
+                    if (gap < 0f && -gap <= span) below = Mathf.Max(below, points[j].y);
+                }
+                // Out to the lower of the highest points on either side: fills a dip, not a slope.
+                float fill = Mathf.Min(above, below);
+                bridged[i] = new Vector2(points[i].x, Mathf.Max(points[i].y, fill));
+            }
+            return bridged;
+        }
+
+        /// <summary>The rope-ladder art as a see-through, two-sided material, or null without the export.</summary>
+        static Material RopeLadderMaterial()
+        {
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(RopeLadderTexture);
+            if (texture == null)
+                return null;
+
+            string path = $"{MaterialDir}/RopeLadder.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                System.IO.Directory.CreateDirectory(MaterialDir);
+                var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+                material = new Material(shader) { name = "RopeLadder" };
+                AssetDatabase.CreateAsset(material, path);
+            }
+            material.SetTexture("_BaseMap", texture);
+            material.mainTexture = texture;
+            material.SetColor("_BaseColor", Color.white);
+            // The gaps between the rungs are the texture's alpha: cut out, seen from both sides.
+            material.SetFloat("_AlphaClip", 1f);
+            material.SetFloat("_Cutoff", 0.5f);
+            material.EnableKeyword("_ALPHATEST_ON");
+            material.SetFloat("_Cull", 0f);
+            material.SetFloat("_Smoothness", 0.05f);
+            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
+            EditorUtility.SetDirty(material);
+            return material;
         }
 
         static Transform Primitive(PrimitiveType type, string name, Transform parent, Material material)
