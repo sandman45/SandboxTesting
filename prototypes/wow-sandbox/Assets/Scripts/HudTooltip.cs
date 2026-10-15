@@ -38,6 +38,23 @@ namespace WowSandbox
             tooltip.Follow();
         }
 
+        /// <summary>The same tooltip with ready-made rich text — the action bar's abilities.</summary>
+        public static void Show(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                Hide();
+                return;
+            }
+
+            var tooltip = Instance();
+            tooltip._text.text = text;
+            tooltip._rect.sizeDelta = new Vector2(Width, tooltip._text.preferredHeight + Pad * 2f);
+            tooltip.gameObject.SetActive(true);
+            tooltip._rect.SetAsLastSibling();
+            tooltip.Follow();
+        }
+
         public static void Hide()
         {
             if (_instance != null)
@@ -134,6 +151,10 @@ namespace WowSandbox
                     lines.Add($"<color=#{dim}>Trade good — worth selling</color>");
                     break;
 
+                case ItemKind.Tool:
+                    lines.Add($"<color=#{good}>Carry it to fish at a fishing spot</color>");
+                    break;
+
                 case ItemKind.Consumable when item.IsPotion:
                     lines.Add($"<color=#{good}>Use: Restores {Dice.Format(item.healDieCount, item.healDieSides, item.healBonus)} health</color>");
                     break;
@@ -163,6 +184,7 @@ namespace WowSandbox
             ItemKind.Shield => "Off Hand Shield",
             ItemKind.TradeGood => "Trade Good",
             ItemKind.Consumable => "Potion",
+            ItemKind.Tool => "Tool",
             _ => item.slot.ToString(),
         };
     }

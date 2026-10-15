@@ -32,6 +32,9 @@ namespace WowSandbox
 
         static readonly int DeathHash = Animator.StringToHash("Death");
         static readonly int HitHash = Animator.StringToHash("Hit");
+        static readonly int ParryHash = Animator.StringToHash("Parry");
+        static readonly int BlockHash = Animator.StringToHash("Block");
+        static readonly int DodgeHash = Animator.StringToHash("Dodge");
 
         CharacterController _controller;
         BreathController _breath;
@@ -103,15 +106,30 @@ namespace WowSandbox
 
         /// <summary>
         /// A melee blow that lands makes you flinch (the warrior's Hit state, from Update
-        /// Warrior Animations) — not misses, not drowning, and not in the water, where the
-        /// clip would stand you upright mid-stroke.
+        /// Warrior Animations); one that misses is parried, blocked or dodged — a shield
+        /// mostly blocks, a weapon mostly parries, fists mostly dodge. Not drowning, and not in
+        /// the water, where the clips would stand you upright mid-stroke.
         /// </summary>
         void OnAttacked(HealthController target, AttackResult result)
         {
-            if (target != this || !result.Hit || IsDead || (_movement != null && _movement.IsSwimming))
+            if (target != this || IsDead || (_movement != null && _movement.IsSwimming))
                 return;
-            if (HasParameter(HitHash))
-                _animator.SetTrigger(HitHash);
+            if (result.Hit)
+            {
+                if (HasParameter(HitHash))
+                    _animator.SetTrigger(HitHash);
+                return;
+            }
+
+            var inventory = GetComponent<Inventory>();
+            bool shield = inventory != null && inventory.Equipped(EquipSlot.OffHand) is { kind: ItemKind.Shield };
+            bool weapon = inventory != null && inventory.Equipped(EquipSlot.MainHand) != null;
+            float roll = UnityEngine.Random.value;
+            int reaction = shield ? (roll < 0.6f ? BlockHash : roll < 0.8f ? ParryHash : DodgeHash)
+                         : weapon ? (roll < 0.65f ? ParryHash : DodgeHash)
+                         : (roll < 0.4f ? ParryHash : DodgeHash);
+            if (HasParameter(reaction))
+                _animator.SetTrigger(reaction);
         }
 
         /// <summary>Developer option: nothing hurts you — not bites, blows, drowning or the leviathan.</summary>

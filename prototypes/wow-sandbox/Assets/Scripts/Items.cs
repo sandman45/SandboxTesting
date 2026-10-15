@@ -52,6 +52,8 @@ namespace WowSandbox
         Jewelry,
         /// <summary>Used up when used — potions.</summary>
         Consumable,
+        /// <summary>Carried rather than worn, for a job — the Fishing Pole. Never sold as junk.</summary>
+        Tool,
     }
 
     /// <summary>
@@ -104,6 +106,7 @@ namespace WowSandbox
 
         public bool IsEquippable => slot != EquipSlot.None;
         public bool IsPotion => kind == ItemKind.Consumable && healDieCount > 0;
+        public bool IsFishingPole => kind == ItemKind.Tool && baseName != null && baseName.EndsWith("Fishing Pole");
         public bool Stackable => maxStack > 1;
         public int AbilityBonus(Ability ability) => abilityBonuses[(int)ability];
         public bool HasAbilityBonuses => abilityBonuses.Any(bonus => bonus != 0);
@@ -169,7 +172,10 @@ namespace WowSandbox
             Weapon("Longsword", "LS", 1, 8, 15 * Money.Gold),
             Weapon("Warhammer", "WH", 1, 8, 15 * Money.Gold),
             Weapon("Greataxe", "GA", 1, 12, 30 * Money.Gold, twoHanded: true),
+            Weapon("Maul", "Ml", 2, 6, 10 * Money.Gold, twoHanded: true),
             Weapon("Greatsword", "GS", 2, 6, 50 * Money.Gold, twoHanded: true),
+            // Not in the SRD: a greatsword by another name, for the second two-handed sword model.
+            Weapon("Claymore", "Cl", 2, 6, 50 * Money.Gold, twoHanded: true),
         };
 
         public static readonly Item[] Armors =
@@ -250,6 +256,13 @@ namespace WowSandbox
             Catch("Gilded Kingfish", "Kf", ItemRarity.Legendary, 100 * Money.Gold),
         };
 
+        /// <summary>Carried in the bags to do something: FishingSpot wants a fishing pole.</summary>
+        public static readonly Item[] Tools =
+        {
+            Tool("Twig Fishing Pole", "TP", 2 * Money.Silver),
+            Tool("Fishing Pole", "FP", 1 * Money.Gold),
+        };
+
         public static readonly Item[] Potions =
         {
             Potion("Potion of Healing", 2, 4, 2, 50 * Money.Gold),
@@ -266,10 +279,20 @@ namespace WowSandbox
         };
 
         static IEnumerable<Item> Equippable => Weapons.Concat(Armors).Append(Shield).Concat(Clothing).Concat(Jewelry);
-        static IEnumerable<Item> All => Equippable.Concat(LootOnly).Concat(TradeGoods).Concat(Fish.Skip(1)).Concat(Potions).Concat(Legendaries);
+        static IEnumerable<Item> All => Equippable.Concat(LootOnly).Concat(Tools).Concat(TradeGoods).Concat(Fish.Skip(1)).Concat(Potions).Concat(Legendaries);
 
-        /// <summary>A merchant's shelves: every mundane piece of gear, then the potions — fresh copies.</summary>
-        public static Item[] VendorStock() => Equippable.Concat(Potions).Select(item => item.Clone()).ToArray();
+        /// <summary>A merchant's shelves: every mundane piece of gear, the tools, then the potions — fresh copies.</summary>
+        public static Item[] VendorStock() => Equippable.Concat(Tools).Concat(Potions).Select(item => item.Clone()).ToArray();
+
+        /// <summary>Every item name in the catalog (Harvest Gear checks its rows against these).</summary>
+        public static IEnumerable<string> Names => All.Select(item => item.name);
+
+        /// <summary>The catalog's own copy of the named item — read it, don't change it.</summary>
+        public static bool TryFind(string name, out Item item)
+        {
+            item = All.FirstOrDefault(entry => entry.name == name);
+            return item != null;
+        }
 
         /// <summary>A fresh copy of the named item.</summary>
         public static Item Create(string name, int count = 1)
@@ -417,6 +440,12 @@ namespace WowSandbox
             item.rarity = rarity;
             return item;
         }
+
+        static Item Tool(string name, string glyph, int value) => new()
+        {
+            name = name, baseName = name, kind = ItemKind.Tool, glyph = glyph,
+            iconColor = new Color(0.45f, 0.36f, 0.22f), valueCopper = value,
+        };
 
         static readonly Color PotionColor = new(0.72f, 0.16f, 0.16f);
 

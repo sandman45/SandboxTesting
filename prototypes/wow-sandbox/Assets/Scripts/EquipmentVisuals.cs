@@ -9,10 +9,12 @@ namespace WowSandbox
     /// Dresses the player in whatever they have equipped, from the harvested GearLooks. On every
     /// equipment change it:
     /// - repaints the body texture: a copy of the bare body with each painted-on item's pixels
-    ///   pasted over it (pieces never share pixels, so order doesn't matter);
+    ///   pasted over it, in WoW's layer order (legs, feet, chest, hands), so gloves cover a
+    ///   shirt's sleeves — the one overlap among the pieces so far;
     /// - shows or hides body pieces (a hat hides the hair, a shirt adds sleeve cuffs);
     /// - spawns separate meshes: helms on their bone, skinned armour bound to the skeleton.
-    /// Items without a look leave that part of the body bare.
+    /// Items without a look leave that part of the body bare. Hold shows a carried tool's look
+    /// (the Fishing Pole while fishing) in place of the main-hand weapon until Release.
     /// </summary>
     [RequireComponent(typeof(Inventory))]
     public class EquipmentVisuals : MonoBehaviour
@@ -30,6 +32,9 @@ namespace WowSandbox
         readonly Dictionary<string, Renderer> _pieces = new();
         readonly Dictionary<string, bool> _shownAtStart = new();
         readonly List<GameObject> _spawned = new();
+        // The main-hand weapon's meshes, hidden while a tool is held, and the tool's own.
+        readonly List<GameObject> _mainHand = new();
+        readonly List<GameObject> _held = new();
         Transform _pieceParent;
 
         Material _bodyMaterial;
@@ -37,8 +42,11 @@ namespace WowSandbox
         Texture2D _painted;
         Color32[] _basePixels;
 
-        static readonly EquipSlot[] Slots = ((EquipSlot[])Enum.GetValues(typeof(EquipSlot)))
-            .Where(slot => slot != EquipSlot.None).ToArray();
+        // Painting order, bottom layer first: wow.export's SLOT_LAYER (legs 10, feet 11, chest 13,
+        // hands 20). Slots that paint nothing follow in any order.
+        static readonly EquipSlot[] Slots = new[] { EquipSlot.Legs, EquipSlot.Feet, EquipSlot.Chest, EquipSlot.Hands }
+            .Concat(((EquipSlot[])Enum.GetValues(typeof(EquipSlot))).Where(slot => slot != EquipSlot.None))
+            .Distinct().ToArray();
 
         void Awake()
         {
@@ -63,7 +71,7 @@ namespace WowSandbox
             if (library == null || !Prepare())
                 return;
 
-            var looks = Slots.Select(slot => library.Find(_inventory.Equipped(slot)?.baseName))
+            var looks = Slots.Select(slot => library.For(_inventory.Equipped(slot)))
                              .Where(look => look != null)
                              .Distinct()
                              .ToList();
@@ -77,6 +85,45 @@ namespace WowSandbox
             Paint(looks);
             ShowPieces(looks);
             SpawnMeshes(looks);
+        }
+
+        /// <summary>
+        /// Shows <paramref name="itemName"/>'s look in hand — a tool carried in the bags, like the
+        /// Fishing Pole — with the main-hand weapon put away until Release. Nothing happens if
+        /// that item has no look yet.
+        /// </summary>
+        public void Hold(string itemName)
+        {
+            Release();
+            var look = library != null && Prepare() ? library.Find(itemName) : null;
+            if (look == null)
+                return;
+
+            foreach (var piece in look.attachedPieces)
+            {
+                var go = piece.mesh != null ? SpawnAttached(piece) : null;
+                if (go != null)
+                    _held.Add(go);
+            }
+            if (_held.Count > 0)
+                SetActive(_mainHand, false);
+        }
+
+        /// <summary>Puts a held tool away and brings the main-hand weapon back.</summary>
+        public void Release()
+        {
+            foreach (var go in _held)
+                if (go != null)
+                    Destroy(go);
+            _held.Clear();
+            SetActive(_mainHand, true);
+        }
+
+        static void SetActive(List<GameObject> objects, bool active)
+        {
+            foreach (var go in objects)
+                if (go != null)
+                    go.SetActive(active);
         }
 
         /// <summary>Finds the body, its material and bones the first time. False if it can't dress this model.</summary>
@@ -200,25 +247,36 @@ namespace WowSandbox
                 if (spawned != null)
                     Destroy(spawned);
             _spawned.Clear();
+            _mainHand.Clear();
 
+            var mainHand = library.For(_inventory.Equipped(EquipSlot.MainHand));
             foreach (var look in looks)
             {
+                var made = new List<GameObject>();
                 foreach (var piece in look.skinnedPieces)
                 {
                     // A body piece the model already has (just switched off) is shown by ShowPieces.
                     if (piece.mesh == null || _pieces.ContainsKey(piece.name))
                         continue;
-                    SpawnSkinned(piece);
+                    made.Add(SpawnSkinned(piece));
                 }
                 foreach (var piece in look.attachedPieces)
                 {
                     if (piece.mesh != null)
-                        SpawnAttached(piece);
+                        made.Add(SpawnAttached(piece));
                 }
+                made.RemoveAll(go => go == null);
+                _spawned.AddRange(made);
+                if (look == mainHand)
+                    _mainHand.AddRange(made);
             }
+
+            // Changing weapons mid-cast keeps the new one put away until the tool is.
+            if (_held.Count > 0)
+                SetActive(_mainHand, false);
         }
 
-        void SpawnSkinned(SkinnedPiece piece)
+        GameObject SpawnSkinned(SkinnedPiece piece)
         {
             var bones = new Transform[piece.boneNames.Length];
             for (int i = 0; i < bones.Length; i++)
@@ -226,7 +284,7 @@ namespace WowSandbox
                 if (!_bones.TryGetValue(piece.boneNames[i], out bones[i]))
                 {
                     Debug.LogWarning($"[EquipmentVisuals] {piece.name}: the model has no bone \"{piece.boneNames[i]}\" — skipped.", this);
-                    return;
+                    return null;
                 }
             }
 
@@ -238,15 +296,15 @@ namespace WowSandbox
             renderer.rootBone = _bones.TryGetValue(piece.rootBone ?? "", out var root) ? root : null;
             renderer.updateWhenOffscreen = true;
             renderer.sharedMaterials = piece.materials.Select(m => IsBodyMaterial(m) ? _bodyMaterial : m).ToArray();
-            _spawned.Add(go);
+            return go;
         }
 
-        void SpawnAttached(AttachedPiece piece)
+        GameObject SpawnAttached(AttachedPiece piece)
         {
             if (!_bones.TryGetValue(piece.bone, out var bone))
             {
                 Debug.LogWarning($"[EquipmentVisuals] {piece.name}: the model has no bone \"{piece.bone}\" — skipped.", this);
-                return;
+                return null;
             }
 
             var go = new GameObject(piece.name);
@@ -255,7 +313,7 @@ namespace WowSandbox
             go.transform.localScale = piece.localScale;
             go.AddComponent<MeshFilter>().sharedMesh = piece.mesh;
             go.AddComponent<MeshRenderer>().sharedMaterials = piece.materials;
-            _spawned.Add(go);
+            return go;
         }
     }
 }

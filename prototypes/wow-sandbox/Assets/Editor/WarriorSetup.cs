@@ -77,12 +77,19 @@ namespace WowSandbox.EditorTools
             var clips = LoadSubAssets<AnimationClip>();
             bool fishing = AddFishingStates(controller, clips);
             bool hit = AddHitState(controller, clips);
-            if (fishing || hit)
+            bool combat = AddCombatStates(controller, clips);
+            // The abilities that play the new states, on the player already in the scene.
+            foreach (var player in Object.FindObjectsByType<WowCharacterController>())
+            {
+                if (player.GetComponent<WarriorAbilities>() == null)
+                    Undo.AddComponent<WarriorAbilities>(player.gameObject);
+            }
+            if (fishing || hit || combat)
             {
                 EditorUtility.SetDirty(controller);
                 AssetDatabase.SaveAssets();
                 Debug.Log("[WarriorSetup] Warrior controller updated:" + (fishing ? " fishing" : "") +
-                          (hit ? " hit reaction" : "") + ".", controller);
+                          (hit ? " hit reaction" : "") + (combat ? " combat" : "") + ".", controller);
             }
         }
 
@@ -294,6 +301,7 @@ namespace WowSandbox.EditorTools
             root.AddComponent<HealthController>();
             root.AddComponent<BreathController>();
             root.AddComponent<TargetingController>();
+            root.AddComponent<WarriorAbilities>();
             root.AddComponent<PlayerFrameHud>();
             root.AddComponent<TargetFrameHud>();
             var nameplates = root.AddComponent<NameplateHud>();
@@ -459,6 +467,7 @@ namespace WowSandbox.EditorTools
             AddJumpStates(controller, clips);
             AddFishingStates(controller, clips);
             AddHitState(controller, clips);
+            AddCombatStates(controller, clips);
 
             EditorUtility.SetDirty(controller);
             AssetDatabase.SaveAssets();
@@ -536,6 +545,274 @@ namespace WowSandbox.EditorTools
                     splash.duration = 0.25f;
                 }
             }
+        }
+
+        // Weapon styles, as WowCharacterController sets the WeaponStyle parameter.
+        const int StyleUnarmed = 0, StyleOneHand = 1, StyleTwoHand = 2, StylePierce = 3;
+
+        static readonly string[] CombatStates =
+        {
+            "Attack", "AttackUnarmed0", "AttackUnarmed1", "Attack1H0", "Attack1H1", "Attack2H0", "Attack2H1",
+            "AttackPierce", "AttackCrit", "CombatUnarmed", "Combat1H", "Combat2H",
+            "ParryUnarmed", "Parry1H", "Parry2H", "ShieldBlock", "Dodge",
+            "HeroicStrike1H", "HeroicStrike2H", "ShieldBash", "Whirlwind", "ChargeLoop", "ChargeEnd",
+        };
+        static readonly string[] CombatParameters =
+        {
+            "WeaponStyle", "AttackVariant", "AttackCrit", "InCombat", "Parry", "Block", "Dodge",
+            "HeroicStrike", "ShieldBash", "Whirlwind", "Charging",
+        };
+
+        /// <summary>
+        /// The fight, per weapon. WowCharacterController sets WeaponStyle from the main hand
+        /// (0 fists, 1 one-hander, 2 two-hander, 3 dagger) and flips AttackVariant each swing:
+        /// - Attack (trigger) swings with that weapon's clip, alternating the two variations
+        ///   where the model has them; AttackCrit (trigger) plays CombatCritical instead.
+        /// - InCombat (bool) swaps the idle for that weapon's fighting stance (Ready1H, Ready2H,
+        ///   ReadyUnarmed), walking and running as usual.
+        /// - Parry, Block and Dodge (triggers) are the reactions to a blow that misses.
+        /// - WarriorAbilities' moves: HeroicStrike, ShieldBash and Whirlwind (triggers), and
+        ///   Charging (bool) — the charge's run, then its strike when it ends.
+        /// Replaces the plain Attack state and anything this added before; returns false, leaving
+        /// the controller alone, if the model lacks the clips (the old creature warrior).
+        /// </summary>
+        static bool AddCombatStates(AnimatorController controller, AnimationClip[] clips)
+        {
+            if (!HasClip(clips, "Attack1H") || !HasClip(clips, "Ready1H"))
+                return false;
+
+            var stateMachine = controller.layers[0].stateMachine;
+            var locomotion = stateMachine.defaultState;
+            if (locomotion == null || locomotion.motion is not BlendTree baseTree || baseTree.children.Length < 3)
+                return false;
+
+            foreach (var child in stateMachine.states)
+            {
+                if (CombatStates.Contains(child.state.name))
+                    stateMachine.RemoveState(child.state);
+            }
+            foreach (var parameter in controller.parameters)
+            {
+                if (CombatParameters.Contains(parameter.name))
+                    controller.RemoveParameter(parameter);
+            }
+            controller.AddParameter("WeaponStyle", AnimatorControllerParameterType.Int);
+            controller.AddParameter("AttackVariant", AnimatorControllerParameterType.Int);
+            controller.AddParameter("AttackCrit", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("InCombat", AnimatorControllerParameterType.Bool);
+            controller.AddParameter("Parry", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("Block", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("Dodge", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("HeroicStrike", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("ShieldBash", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("Whirlwind", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("Charging", AnimatorControllerParameterType.Bool);
+
+            // --- Swings --------------------------------------------------------------------
+            void Swing(string stateName, string clip, int variation, int style, int? variant)
+            {
+                var motion = CopyVariation(clips, clip, variation) ?? CopyVariation(clips, clip, 0);
+                if (motion == null)
+                    return;
+                var state = stateMachine.AddState(stateName);
+                state.motion = motion;
+                var into = stateMachine.AddAnyStateTransition(state);
+                into.AddCondition(AnimatorConditionMode.If, 0f, "Attack");
+                into.AddCondition(AnimatorConditionMode.Equals, style, "WeaponStyle");
+                if (variant.HasValue)
+                    into.AddCondition(AnimatorConditionMode.Equals, variant.Value, "AttackVariant");
+                into.duration = 0.05f;
+                into.hasExitTime = false;
+                into.canTransitionToSelf = false;
+                PlayThrough(state, locomotion, 0.85f);
+            }
+            Swing("AttackUnarmed0", "AttackUnarmed", 0, StyleUnarmed, 0);
+            Swing("AttackUnarmed1", "AttackUnarmed", 1, StyleUnarmed, 1);
+            Swing("Attack1H0", "Attack1H", 0, StyleOneHand, 0);
+            Swing("Attack1H1", "Attack1H", 1, StyleOneHand, 1);
+            Swing("Attack2H0", "Attack2H", 0, StyleTwoHand, 0);
+            Swing("Attack2H1", "Attack2H", 1, StyleTwoHand, 1);
+            Swing("AttackPierce", "Attack1HPierce", 0, StylePierce, null);
+
+            var critClip = CopyVariation(clips, "CombatCritical", 0);
+            if (critClip != null)
+            {
+                var crit = stateMachine.AddState("AttackCrit");
+                crit.motion = critClip;
+                var into = stateMachine.AddAnyStateTransition(crit);
+                into.AddCondition(AnimatorConditionMode.If, 0f, "AttackCrit");
+                into.duration = 0.05f;
+                into.hasExitTime = false;
+                into.canTransitionToSelf = false;
+                PlayThrough(crit, locomotion, 0.85f);
+            }
+
+            // --- Fighting stance -----------------------------------------------------------
+            // A copy of the locomotion tree with the weapon's ready pose as its idle.
+            var walk = baseTree.children[1].motion;
+            var run = baseTree.children[2].motion;
+            var swim = stateMachine.states.Select(c => c.state).FirstOrDefault(st => st.name == "Swim");
+            var jump = stateMachine.states.Select(c => c.state).FirstOrDefault(st => st.name == "JumpStart");
+            void Stance(string stateName, string readyClip, params int[] styles)
+            {
+                var ready = CopyVariation(clips, readyClip, 0, loop: true);
+                if (ready == null)
+                    return;
+                var state = controller.CreateBlendTreeInController(stateName, out BlendTree tree);
+                tree.blendType = BlendTreeType.Simple1D;
+                tree.blendParameter = "Speed";
+                tree.useAutomaticThresholds = false;
+                tree.AddChild(ready, 0f);
+                tree.AddChild(walk, 0.5f);
+                tree.AddChild(run, 1f);
+
+                foreach (int style in styles)
+                {
+                    var into = locomotion.AddTransition(state);
+                    into.AddCondition(AnimatorConditionMode.If, 0f, "InCombat");
+                    into.AddCondition(AnimatorConditionMode.Equals, style, "WeaponStyle");
+                    into.hasExitTime = false;
+                    into.duration = 0.25f;
+                }
+
+                // Out of the fight, or a weapon this stance isn't for: back to locomotion,
+                // which picks the right stance again on the next frame.
+                var calm = state.AddTransition(locomotion);
+                calm.AddCondition(AnimatorConditionMode.IfNot, 0f, "InCombat");
+                calm.hasExitTime = false;
+                calm.duration = 0.4f;
+                foreach (int other in new[] { StyleUnarmed, StyleOneHand, StyleTwoHand, StylePierce }.Except(styles))
+                {
+                    var swap = state.AddTransition(locomotion);
+                    swap.AddCondition(AnimatorConditionMode.Equals, other, "WeaponStyle");
+                    swap.hasExitTime = false;
+                    swap.duration = 0.2f;
+                }
+
+                if (swim != null)
+                {
+                    var splash = state.AddTransition(swim);
+                    splash.AddCondition(AnimatorConditionMode.If, 0f, "Swimming");
+                    splash.hasExitTime = false;
+                    splash.duration = 0.25f;
+                }
+                if (jump != null)
+                {
+                    var takeOff = state.AddTransition(jump);
+                    takeOff.AddCondition(AnimatorConditionMode.If, 0f, "Jump");
+                    takeOff.hasExitTime = false;
+                    takeOff.duration = 0.05f;
+                }
+            }
+            Stance("CombatUnarmed", "ReadyUnarmed", StyleUnarmed);
+            Stance("Combat1H", "Ready1H", StyleOneHand, StylePierce);
+            Stance("Combat2H", "Ready2H", StyleTwoHand);
+
+            // --- Reactions to a miss -------------------------------------------------------
+            void Reaction(string stateName, string clip, string trigger, params int[] styles)
+            {
+                var motion = CopyVariation(clips, clip, 0);
+                if (motion == null)
+                    return;
+                var state = stateMachine.AddState(stateName);
+                state.motion = motion;
+                // Any weapon when no styles are given; otherwise one transition per style.
+                foreach (int? style in styles.Length == 0 ? new int?[] { null } : styles.Select(x => (int?)x))
+                {
+                    var into = stateMachine.AddAnyStateTransition(state);
+                    into.AddCondition(AnimatorConditionMode.If, 0f, trigger);
+                    if (style.HasValue)
+                        into.AddCondition(AnimatorConditionMode.Equals, style.Value, "WeaponStyle");
+                    into.duration = 0.05f;
+                    into.hasExitTime = false;
+                    into.canTransitionToSelf = false;
+                }
+                PlayThrough(state, locomotion, 0.8f);
+            }
+            Reaction("ParryUnarmed", "ParryUnarmed", "Parry", StyleUnarmed);
+            Reaction("Parry1H", "Parry1H", "Parry", StyleOneHand, StylePierce);
+            Reaction("Parry2H", "Parry2H", "Parry", StyleTwoHand);
+            Reaction("ShieldBlock", "ShieldBlock", "Block");
+            Reaction("Dodge", "Dodge", "Dodge");
+
+            // --- Abilities -----------------------------------------------------------------
+            // One-shots like the reactions: a trigger from anywhere, then back to locomotion.
+            Reaction("HeroicStrike1H", "Special1H", "HeroicStrike", StyleUnarmed, StyleOneHand, StylePierce);
+            Reaction("HeroicStrike2H", "Special2H", "HeroicStrike", StyleTwoHand);
+            Reaction("ShieldBash", "ShieldBash", "ShieldBash");
+            Reaction("Whirlwind", "CombatWhirlwind", "Whirlwind");
+
+            var chargeRun = CopyVariation(clips, "CombatChargeLoop", 0, loop: true);
+            var chargeHit = CopyVariation(clips, "CombatChargeEnd", 0);
+            if (chargeRun != null)
+            {
+                var loop = stateMachine.AddState("ChargeLoop");
+                loop.motion = chargeRun;
+                var into = stateMachine.AddAnyStateTransition(loop);
+                into.AddCondition(AnimatorConditionMode.If, 0f, "Charging");
+                into.duration = 0.1f;
+                into.hasExitTime = false;
+                into.canTransitionToSelf = false;
+
+                // Arriving (or giving up) ends the run with the charge's strike.
+                AnimatorState end = locomotion;
+                if (chargeHit != null)
+                {
+                    end = stateMachine.AddState("ChargeEnd");
+                    end.motion = chargeHit;
+                    PlayThrough(end, locomotion, 0.85f);
+                }
+                var stop = loop.AddTransition(end);
+                stop.AddCondition(AnimatorConditionMode.IfNot, 0f, "Charging");
+                stop.hasExitTime = false;
+                stop.duration = 0.05f;
+            }
+            return true;
+        }
+
+        /// <summary>A one-shot state that plays (most of) its clip and hands back to <paramref name="to"/>.</summary>
+        static void PlayThrough(AnimatorState state, AnimatorState to, float exitTime)
+        {
+            var back = state.AddTransition(to);
+            back.hasExitTime = true;
+            back.exitTime = exitTime;
+            back.duration = 0.1f;
+        }
+
+        /// <summary>
+        /// A looping-or-not copy of one variation of a clip ("Attack1H (ID 17 variation 1)"),
+        /// saved as Attack1H_v1. Null if the model hasn't that variation.
+        /// </summary>
+        static AnimationClip CopyVariation(AnimationClip[] source, string namePrefix, int variation, bool loop = false)
+        {
+            var original = source.FirstOrDefault(c => c.name.StartsWith(namePrefix + " (") &&
+                                                      c.name.EndsWith($"variation {variation})"));
+            if (original == null)
+                return null;
+
+            string path = $"{GeneratedRoot}/{namePrefix}_v{variation}.anim";
+            var existing = AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
+            if (existing != null)
+            {
+                // Reused rather than recreated, so states elsewhere that point at it stay pointed.
+                EditorUtility.CopySerialized(original, existing);
+                existing.name = $"{namePrefix}_v{variation}";
+                SetLoop(existing, loop);
+                return existing;
+            }
+
+            var copy = Object.Instantiate(original);
+            copy.name = $"{namePrefix}_v{variation}";
+            SetLoop(copy, loop);
+            AssetDatabase.CreateAsset(copy, path);
+            return copy;
+        }
+
+        static void SetLoop(AnimationClip clip, bool loop)
+        {
+            var settings = AnimationUtility.GetAnimationClipSettings(clip);
+            settings.loopTime = loop;
+            AnimationUtility.SetAnimationClipSettings(clip, settings);
         }
 
         static bool HasClip(AnimationClip[] clips, string namePrefix) =>

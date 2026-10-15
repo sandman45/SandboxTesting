@@ -17,6 +17,17 @@ namespace WowSandbox
     }
 
     /// <summary>
+    /// How an ability changes a melee attack: extra damage dice on top of the weapon's
+    /// (Heroic Strike), or other dice in place of it (Shield Bash hits with the shield).
+    /// Doubled on a critical hit, like any damage dice.
+    /// </summary>
+    public struct AttackOptions
+    {
+        public int BonusDice, BonusSides;
+        public int ReplaceDice, ReplaceSides;
+    }
+
+    /// <summary>
     /// D&D attack resolution. Roll a d20, add the attacker's attack bonus, and meet or beat
     /// the target's armour class to hit. A natural 20 always hits and crits (damage dice are
     /// rolled twice); a natural 1 always misses. Damage is CharacterStats.RollDamage —
@@ -36,13 +47,22 @@ namespace WowSandbox
         /// <summary>Raised after every attack on the player, hit or miss.</summary>
         public static event Action<HealthController, AttackResult> PlayerAttacked;
 
-        public static AttackResult MeleeAttack(CharacterStats attacker, Health target)
+        public static AttackResult MeleeAttack(CharacterStats attacker, Health target, AttackOptions options = default)
         {
             if (attacker == null || target == null || target.IsDead)
                 return new AttackResult();
 
             var defender = target.GetComponent<CharacterStats>();
             var result = Roll(attacker, defender != null ? defender.ArmorClass : DefaultArmorClass);
+            if (result.Hit)
+            {
+                int times = result.Critical ? 2 : 1;
+                if (options.ReplaceDice > 0)
+                    result.Damage = Mathf.Max(1, Dice.Roll(options.ReplaceDice * times, options.ReplaceSides) +
+                                                 attacker.Modifier(Ability.Strength));
+                if (options.BonusDice > 0)
+                    result.Damage += Dice.Roll(options.BonusDice * times, options.BonusSides);
+            }
 
             if (result.Hit)
             {
