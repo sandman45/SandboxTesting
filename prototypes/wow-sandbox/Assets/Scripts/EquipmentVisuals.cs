@@ -101,7 +101,7 @@ namespace WowSandbox
 
             foreach (var piece in look.attachedPieces)
             {
-                var go = piece.mesh != null ? SpawnAttached(piece) : null;
+                var go = piece.mesh != null ? SpawnAttached(piece, look) : null;
                 if (go != null)
                     _held.Add(go);
             }
@@ -263,7 +263,7 @@ namespace WowSandbox
                 foreach (var piece in look.attachedPieces)
                 {
                     if (piece.mesh != null)
-                        made.Add(SpawnAttached(piece));
+                        made.Add(SpawnAttached(piece, look));
                 }
                 made.RemoveAll(go => go == null);
                 _spawned.AddRange(made);
@@ -299,7 +299,7 @@ namespace WowSandbox
             return go;
         }
 
-        GameObject SpawnAttached(AttachedPiece piece)
+        GameObject SpawnAttached(AttachedPiece piece, GearLook look)
         {
             if (!_bones.TryGetValue(piece.bone, out var bone))
             {
@@ -310,7 +310,7 @@ namespace WowSandbox
             var go = new GameObject(piece.name);
             go.transform.SetParent(bone, false);
             go.transform.SetLocalPositionAndRotation(piece.localPosition, piece.localRotation);
-            go.transform.localScale = piece.localScale;
+            go.transform.localScale = piece.localScale * (look.attachedScale > 0f ? look.attachedScale : 1f);
             go.AddComponent<MeshFilter>().sharedMesh = piece.mesh;
             go.AddComponent<MeshRenderer>().sharedMaterials = piece.materials;
             return go;

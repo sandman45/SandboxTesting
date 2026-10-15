@@ -31,6 +31,9 @@ namespace WowSandbox
         [Header("Separate meshes")]
         public SkinnedPiece[] skinnedPieces = Array.Empty<SkinnedPiece>();
         public AttachedPiece[] attachedPieces = Array.Empty<AttachedPiece>();
+        [Tooltip("Scales the attached meshes about their attachment points (GearSources' scale) — " +
+                 "1 is WoW's own size.")]
+        public float attachedScale = 1f;
 
         public bool HasTexture => textureLayer != null && textureRegion.width > 0 && textureRegion.height > 0;
     }

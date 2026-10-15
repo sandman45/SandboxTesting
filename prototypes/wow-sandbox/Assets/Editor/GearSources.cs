@@ -23,6 +23,9 @@ namespace WowSandbox.EditorTools
             public string item;
             [Tooltip("Item models only: Main-hand, Off-hand, Head, Back, Shoulder (L) or Shoulder (R). Empty follows the item.")]
             public string slot;
+            [Tooltip("Size of the item's separate meshes (helms, shoulders, weapons), each about its own " +
+                     "attachment point: 0.85 is a little smaller. 0 or empty is full size.")]
+            public float scale = 1f;
         }
 
         public List<Source> sources = new();
