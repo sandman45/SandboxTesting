@@ -24,8 +24,12 @@ namespace WowSandbox.EditorTools
             [Tooltip("Item models only: Main-hand, Off-hand, Head, Back, Shoulder (L) or Shoulder (R). Empty follows the item.")]
             public string slot;
             [Tooltip("Size of the item's separate meshes (helms, shoulders, weapons), each about its own " +
-                     "attachment point: 0.85 is a little smaller. 0 or empty is full size.")]
+                     "attachment point: 0.85 is a little smaller. 1 (or 0) uses Harvest Gear's built-in fit " +
+                     "for the item, if it has one, else full size.")]
             public float scale = 1f;
+            [Tooltip("Moves the item's separate meshes, in the character's own axes (x right, y up, z forward; " +
+                     "he's about 1.9 tall): (0, -0.03, 0) lowers a helm a little. Zero uses the built-in fit.")]
+            public Vector3 offset;
         }
 
         public List<Source> sources = new();

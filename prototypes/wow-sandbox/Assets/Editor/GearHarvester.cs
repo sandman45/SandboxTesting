@@ -85,6 +85,12 @@ namespace WowSandbox.EditorTools
             (new[] { "hammer_2h" }, "Maul"),
             (new[] { "hammer" }, "Warhammer"),
             (new[] { "mace" }, "Mace"),
+            (new[] { "legging" }, "Leather Leggings"),
+            (new[] { "leather", "leg" }, "Leather Leggings"),
+            (new[] { "legguard" }, "Iron Legguards"),
+            (new[] { "greaves" }, "Iron Legguards"),
+            (new[] { "iron", "leg" }, "Iron Legguards"),
+            (new[] { "plate", "leg" }, "Iron Legguards"),
             (new[] { "spaulder" }, "Leather Spaulders"),
             (new[] { "leather", "shoulder" }, "Leather Spaulders"),
             (new[] { "pauldron" }, "Iron Pauldrons"),
@@ -110,6 +116,19 @@ namespace WowSandbox.EditorTools
             ("Back", new[] { M2Attachments.Back }),
             ("Main-hand", new[] { M2Attachments.HandRight }),
             ("Off-hand", new[] { M2Attachments.Shield, M2Attachments.HandLeft }),
+        };
+
+        /// <summary>
+        /// Built-in fits for items whose WoW size or placement looks off on this character, so
+        /// they don't depend on the (gitignored, per-machine) GearSources asset. A row's own
+        /// Scale or Offset overrides these. Offset is in the character's axes (y up).
+        /// </summary>
+        static readonly Dictionary<string, (float scale, Vector3 offset)> Fits = new()
+        {
+            // WoW's plate shoulders are huge on a human.
+            ["Iron Pauldrons"] = (0.65f, Vector3.zero),
+            // Sits a little high on the head.
+            ["Iron Helm"] = (1f, new Vector3(0f, -0.03f, 0f)),
         };
 
         public static GearLibrary LoadLibrary() => AssetDatabase.LoadAssetAtPath<GearLibrary>(LibraryPath);
@@ -172,7 +191,7 @@ namespace WowSandbox.EditorTools
                         continue;
                     }
                     var look = Harvest(baseExport, basePixels, width, height, piece, source.export, source.item, attachments, out string summary);
-                    SetScale(look, source, ref summary);
+                    ApplyFit(look, look.attachedPieces, source, baseExport, ref summary);
                     looks.Add(look);
                     byItem[source.item] = (look, new HashSet<string> { "*" }, source.export);
                     report.Add($"{label}: {summary}");
@@ -199,6 +218,7 @@ namespace WowSandbox.EditorTools
                 }
                 if (existing.look != null)
                 {
+                    OffsetPieces(pieces, Fit(source).offset, baseExport);
                     existing.look.attachedPieces = existing.look.attachedPieces.Concat(pieces).ToArray();
                     existing.slots.Add(slot);
                     EditorUtility.SetDirty(existing.look);
@@ -206,7 +226,7 @@ namespace WowSandbox.EditorTools
                 else
                 {
                     var look = StandaloneLook(source.export, source.item, pieces);
-                    SetScale(look, source, ref how);
+                    ApplyFit(look, look.attachedPieces, source, baseExport, ref how);
                     looks.Add(look);
                     byItem[source.item] = (look, new HashSet<string> { slot }, Path.GetFileName(source.export));
                 }
@@ -483,13 +503,45 @@ namespace WowSandbox.EditorTools
         /// attachment's offset. Null bone if the slot has no attachment point the model has.
         /// </summary>
         /// <summary>The row's scale onto the look's attached meshes (the first row for an item sets it).</summary>
-        static void SetScale(GearLook look, GearSources.Source source, ref string summary)
+        /// <summary>The row's Scale and Offset where set, else the item's built-in fit, else none.</summary>
+        static (float scale, Vector3 offset) Fit(GearSources.Source source)
         {
-            float scale = source.scale > 0f ? source.scale : 1f;
+            Fits.TryGetValue(source.item ?? "", out var fit);
+            float scale = source.scale > 0f && !Mathf.Approximately(source.scale, 1f) ? source.scale
+                        : fit.scale > 0f ? fit.scale : 1f;
+            var offset = source.offset != Vector3.zero ? source.offset : fit.offset;
+            return (scale, offset);
+        }
+
+        /// <summary>The item's fit onto its look: the scale for its attached meshes, and their offset.</summary>
+        static void ApplyFit(GearLook look, AttachedPiece[] pieces, GearSources.Source source, Export baseExport, ref string summary)
+        {
+            var (scale, offset) = Fit(source);
             look.attachedScale = scale;
+            OffsetPieces(pieces, offset, baseExport);
             EditorUtility.SetDirty(look);
             if (!Mathf.Approximately(scale, 1f))
                 summary += $"; attached meshes at {scale:0.##}× size";
+            if (offset != Vector3.zero && pieces.Length > 0)
+                summary += $"; moved by {offset}";
+        }
+
+        /// <summary>
+        /// Moves each piece by <paramref name="offset"/> in the character's axes, turned into its
+        /// bone's own space at rest, so the move rides along with the bone as it animates.
+        /// </summary>
+        static void OffsetPieces(IEnumerable<AttachedPiece> pieces, Vector3 offset, Export baseExport)
+        {
+            if (offset == Vector3.zero)
+                return;
+            var root = baseExport.Root.transform;
+            var bones = root.GetComponentsInChildren<Transform>(true);
+            foreach (var piece in pieces)
+            {
+                var bone = bones.FirstOrDefault(t => t.name == piece.bone);
+                if (bone != null)
+                    piece.localPosition += bone.InverseTransformVector(root.TransformVector(offset));
+            }
         }
 
         static void TryAttach(string slot, Transform space, Transform[] skeleton, Dictionary<int, M2Attachments.Attachment> attachments,
