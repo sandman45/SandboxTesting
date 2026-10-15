@@ -53,6 +53,19 @@ namespace WowSandbox
 
         public bool InCombat => _mode == Mode.Chase;
 
+        float _stunnedUntil;
+
+        /// <summary>Stunned — Shield Bash, Charge: it stands still and doesn't swing.</summary>
+        public bool Stunned => Time.time < _stunnedUntil;
+
+        /// <summary>Stops it in its tracks for <paramref name="seconds"/> (no moving, no swinging), and provokes it.</summary>
+        public void Stun(float seconds)
+        {
+            _stunnedUntil = Mathf.Max(_stunnedUntil, Time.time + seconds);
+            if (_mode != Mode.Return)
+                _provoked = true;
+        }
+
         void Awake()
         {
             _health = GetComponent<Health>();
@@ -95,6 +108,14 @@ namespace WowSandbox
                 return;
 
             FindPlayer();
+            if (Stunned)
+            {
+                _agent.ResetPath();
+                SetSpeed(0f);
+                // Its next swing waits until it's had a moment to recover.
+                _nextAttack = Mathf.Max(_nextAttack, _stunnedUntil + 0.5f);
+                return;
+            }
             switch (_mode)
             {
                 case Mode.Idle:

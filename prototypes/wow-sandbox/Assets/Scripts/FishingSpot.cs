@@ -52,6 +52,8 @@ namespace WowSandbox
         HealthController _playerHealth;
         WowCharacterController _playerMovement;
         Animator _playerAnimator;
+        EquipmentVisuals _playerVisuals;
+
         float _nextCast;
         float _castStart;
         Vector3 _castFrom;
@@ -127,6 +129,7 @@ namespace WowSandbox
                 _playerHealth = _player != null ? _player.GetComponent<HealthController>() : null;
                 _playerMovement = _player != null ? _player.GetComponent<WowCharacterController>() : null;
                 _playerAnimator = _player != null ? _player.GetComponentInChildren<Animator>() : null;
+                _playerVisuals = _player != null ? _player.GetComponent<EquipmentVisuals>() : null;
             }
             if (_player == null || _playerHealth != null && _playerHealth.IsDead)
                 return;
@@ -134,6 +137,13 @@ namespace WowSandbox
             if (!InReach())
             {
                 Hud.Error("You are too far away.");
+                return;
+            }
+            // A fishing pole has to be in the bags — the best one comes out for the cast.
+            var pole = _player.BestInBags(item => item.IsFishingPole);
+            if (pole == null)
+            {
+                Hud.Error("You need a fishing pole.");
                 return;
             }
 
@@ -148,6 +158,9 @@ namespace WowSandbox
             _bobber = transform.position + new Vector3(drop.x, 0f, drop.y);
             WaterSplash.Play(Surface(_bobber), 0.3f);
             CastBarHud.Show("Fishing", 0f, castSeconds);
+            // The pole comes out of the bags into his hand for the cast, in place of his weapon.
+            if (_playerVisuals != null)
+                _playerVisuals.Hold(pole.baseName);
 
             // Face the water — you'd cast over your shoulder otherwise. Not while swimming,
             // where the camera steers you.
@@ -192,6 +205,8 @@ namespace WowSandbox
             _casting = null;
             _nextCast = Time.time + recastDelay;
             SetAnimator("Fishing", false);
+            if (_playerVisuals != null)
+                _playerVisuals.Release();
             if (interrupted)
                 CastBarHud.Interrupt();
             else

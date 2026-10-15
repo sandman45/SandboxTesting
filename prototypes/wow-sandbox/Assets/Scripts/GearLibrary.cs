@@ -25,5 +25,11 @@ namespace WowSandbox
 
         public GearLook Find(string itemName) =>
             string.IsNullOrEmpty(itemName) ? null : looks.FirstOrDefault(look => look != null && look.itemName == itemName);
+
+        /// <summary>
+        /// What <paramref name="item"/> looks like: its own look if it has one (a legendary —
+        /// Ashbringer), else its base item's, so "+1 Longsword of Strength" looks like a Longsword.
+        /// </summary>
+        public GearLook For(Item item) => item == null ? null : Find(item.name) ?? Find(item.baseName);
     }
 }

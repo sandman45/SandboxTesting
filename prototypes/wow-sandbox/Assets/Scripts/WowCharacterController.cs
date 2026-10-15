@@ -65,6 +65,10 @@ namespace WowSandbox
         [Range(10f, 180f)] public float attackAngle = 100f;
         [Tooltip("Flat damage per hit, used only when there's no CharacterStats to roll with.")]
         public float attackDamage = 10f;
+        [Tooltip("Seconds between swings: pressing 1 sooner does nothing.")]
+        public float swingInterval = 1f;
+        [Tooltip("Seconds you stay in your fighting stance after your last swing or the last blow aimed at you.")]
+        public float combatLinger = 6f;
 
         [Header("Animation")]
         [Tooltip("Blend tree thresholds are 0 = idle, 0.5 = walk, 1 = run.")]
@@ -116,6 +120,36 @@ namespace WowSandbox
         static readonly int GroundedHash = Animator.StringToHash("Grounded");
         static readonly int JumpHash = Animator.StringToHash("Jump");
         static readonly int AttackHash = Animator.StringToHash("Attack");
+        static readonly int AttackCritHash = Animator.StringToHash("AttackCrit");
+        static readonly int AttackVariantHash = Animator.StringToHash("AttackVariant");
+        static readonly int WeaponStyleHash = Animator.StringToHash("WeaponStyle");
+        static readonly int InCombatHash = Animator.StringToHash("InCombat");
+
+        // WarriorSetup's combat states (per-weapon swings, fighting stance) — only on controllers
+        // built since they were added.
+        bool _hasCombatParameters;
+        Inventory _inventory;
+        float _nextSwing;
+        float _combatUntil;
+        int _attackVariant;
+
+        /// <summary>In a fight: you swung, or something swung at you, within combatLinger seconds.</summary>
+        public bool InCombat => !_swimming && Time.time < _combatUntil;
+
+        /// <summary>Seconds until the next swing or ability is allowed (the shared, global cooldown).</summary>
+        public float SwingCooldownLeft => Mathf.Max(0f, _nextSwing - Time.time);
+
+        /// <summary>The model's Animator (WarriorAbilities plays its ability states on it).</summary>
+        public Animator Animator => _animator;
+
+        // Charge: rushing at a target until in reach, then the arrival callback.
+        Health _chargeTarget;
+        float _chargeSpeed;
+        float _chargeGiveUpAt;
+        System.Action _chargeArrived;
+        static readonly int ChargingHash = Animator.StringToHash("Charging");
+
+        public bool IsCharging => _chargeTarget != null;
         static readonly int SwimmingHash = Animator.StringToHash("Swimming");
 
         /// <summary>True while the right mouse button is steering the character.</summary>
@@ -169,6 +203,8 @@ namespace WowSandbox
             // Optional too: with stats, swings roll d20 against armour class (see Combat);
             // without, every swing in range lands for attackDamage as before.
             _stats = GetComponent<CharacterStats>();
+            // What's in hand picks the swing and the stance.
+            _inventory = GetComponent<Inventory>();
             // The Animator usually lives on the imported glTF child, not the root.
             _animator = GetComponentInChildren<Animator>();
 
@@ -182,6 +218,7 @@ namespace WowSandbox
             // asset can't reach it, because WarriorSetup deletes and recreates it, which mints
             // a new GUID. Without this check that mismatch is one console error per frame.
             _hasSwimmingParameter = HasParameter(_animator, SwimmingHash);
+            _hasCombatParameters = HasParameter(_animator, InCombatHash);
 
             if (_animator != null && _animator.runtimeAnimatorController != null && !_hasSwimmingParameter)
             {
@@ -323,6 +360,11 @@ namespace WowSandbox
             if (move.sqrMagnitude > maxSpeed * maxSpeed && move.sqrMagnitude > 0.0001f)
                 move = move.normalized * maxSpeed;
 
+            // --- Charge -------------------------------------------------------
+            // Takes over the legs: straight at the target, fast, until it's in reach.
+            if (IsCharging)
+                move = ChargeMove(move);
+
             bool grounded = !_swimming && _controller.isGrounded;
 
             if (_swimming)
@@ -354,11 +396,7 @@ namespace WowSandbox
             // Was left click, but that's now spoken for by TargetingController — left click
             // selects a target, 1 swings at it.
             if (keyboard.digit1Key.wasPressedThisFrame)
-            {
-                if (_animator != null)
-                    _animator.SetTrigger(AttackHash);
-                TryAttackTarget();
-            }
+                Attack();
 
             UpdateModelPitch();
             UpdateAnimator(grounded, walking, forward, strafe);
@@ -683,17 +721,145 @@ namespace WowSandbox
         /// above — this only decides whether it also gets to roll for damage, which is
         /// Combat's job when there's a CharacterStats to roll with.
         /// </summary>
-        void TryAttackTarget()
+        /// <summary>A swing at the target (key 1, or its action-bar button), if the shared cooldown allows.</summary>
+        public void Attack()
+        {
+            if (IsCharging || !TryBeginAction())
+                return;
+            // Rolled first, so a critical hit gets the critical swing.
+            var result = TryAttackTarget();
+            if (_animator != null)
+            {
+                if (_hasCombatParameters)
+                {
+                    _attackVariant = 1 - _attackVariant;
+                    _animator.SetInteger(AttackVariantHash, _attackVariant);
+                    _animator.SetInteger(WeaponStyleHash, WeaponStyle());
+                }
+                _animator.SetTrigger(result.Critical && _hasCombatParameters ? AttackCritHash : AttackHash);
+            }
+        }
+
+        AttackResult TryAttackTarget()
         {
             var target = _targeting != null ? _targeting.Target : null;
             if (target == null || target.IsDead)
-                return;
+                return default;
             if (target.reaction == Reaction.Friendly)
             {
                 Hud.Error("You can't attack that.");
-                return;
+                return default;
+            }
+            if (!InReach(target, needFacing: true))
+                return default;
+
+            if (_stats != null)
+                return Combat.MeleeAttack(_stats, target);
+            target.TakeDamage(attackDamage);
+            return default;
+        }
+
+        /// <summary>
+        /// Starts a swing or an ability if the shared cooldown allows, and puts you in your
+        /// fighting stance. False — do nothing — if it's too soon after the last one.
+        /// </summary>
+        public bool TryBeginAction()
+        {
+            if (Time.time < _nextSwing)
+                return false;
+            _nextSwing = Time.time + swingInterval;
+            _combatUntil = Time.time + combatLinger;
+            return true;
+        }
+
+        /// <summary>The selected target, if it's alive and something you may attack; else null, with why.</summary>
+        public Health EnemyTarget(out string error)
+        {
+            error = null;
+            var target = _targeting != null ? _targeting.Target : null;
+            if (target == null || target.IsDead)
+            {
+                error = "You have no target.";
+                return null;
+            }
+            if (target.reaction == Reaction.Friendly)
+            {
+                error = "You can't attack that.";
+                return null;
+            }
+            return target;
+        }
+
+        /// <summary>A melee attack on <paramref name="target"/> with your weapon, changed by <paramref name="options"/>.</summary>
+        public AttackResult Strike(Health target, AttackOptions options = default)
+        {
+            if (target == null || target.IsDead)
+                return default;
+            if (_stats != null)
+                return Combat.MeleeAttack(_stats, target, options);
+            target.TakeDamage(attackDamage);
+            return default;
+        }
+
+        /// <summary>The weapon style WarriorSetup's animator expects (0 fists, 1 one-hander, 2 two-hander, 3 dagger).</summary>
+        public int CurrentWeaponStyle => WeaponStyle();
+
+        /// <summary>
+        /// Rushes at <paramref name="target"/> at <paramref name="speed"/> until it's in reach,
+        /// then calls <paramref name="arrived"/>. Gives up after a few seconds, in water, or if
+        /// the target dies.
+        /// </summary>
+        public void Charge(Health target, float speed, System.Action arrived)
+        {
+            _chargeTarget = target;
+            _chargeSpeed = speed;
+            _chargeArrived = arrived;
+            _chargeGiveUpAt = Time.time + 3f;
+            _autoRun = false;
+            if (HasParameter(_animator, ChargingHash))
+                _animator.SetBool(ChargingHash, true);
+        }
+
+        void EndCharge()
+        {
+            _chargeTarget = null;
+            _chargeArrived = null;
+            if (HasParameter(_animator, ChargingHash))
+                _animator.SetBool(ChargingHash, false);
+        }
+
+        Vector3 ChargeMove(Vector3 move)
+        {
+            var target = _chargeTarget;
+            if (target == null || target.IsDead || _swimming || Time.time > _chargeGiveUpAt)
+            {
+                EndCharge();
+                return move;
             }
 
+            var toTarget = target.transform.position - transform.position;
+            toTarget.y = 0f;
+            if (toTarget.sqrMagnitude > 0.0001f)
+                transform.rotation = Quaternion.LookRotation(toTarget, Vector3.up);
+
+            if (InReach(target, needFacing: false))
+            {
+                var arrived = _chargeArrived;
+                EndCharge();
+                arrived?.Invoke();
+                return Vector3.zero;
+            }
+            // Don't overshoot the last stretch in one frame.
+            float step = Mathf.Min(_chargeSpeed, toTarget.magnitude / Mathf.Max(Time.deltaTime, 0.0001f));
+            return toTarget.normalized * step;
+        }
+
+        /// <summary>
+        /// Whether <paramref name="target"/> is within attackRange — and, with
+        /// <paramref name="needFacing"/>, inside the frontal cone attackAngle describes.
+        /// </summary>
+        public bool InReach(Health target, bool needFacing)
+        {
             Vector3 toTarget = target.transform.position - transform.position;
             toTarget.y = 0f;
 
@@ -708,18 +874,37 @@ namespace WowSandbox
                 distance = Vector3.Distance(_controller.ClosestPoint(nearest), nearest);
             }
             if (distance > attackRange)
-                return;
+                return false;
 
             // A target right on top of (or, swimming, right under) you has no meaningful
             // direction to be "in front" in — let it through rather than judging the angle of
             // a near-zero vector.
-            if (toTarget.magnitude > 0.5f && Vector3.Angle(transform.forward, toTarget) > attackAngle * 0.5f)
-                return;
+            return !needFacing || toTarget.magnitude <= 0.5f ||
+                   Vector3.Angle(transform.forward, toTarget) <= attackAngle * 0.5f;
+        }
 
-            if (_stats != null)
-                Combat.MeleeAttack(_stats, target);
-            else
-                target.TakeDamage(attackDamage);
+        /// <summary>
+        /// WarriorSetup's WeaponStyle for what's in the main hand: 0 fists, 1 a one-hander,
+        /// 2 a two-hander, 3 a dagger (stabbed, not swung).
+        /// </summary>
+        int WeaponStyle()
+        {
+            var weapon = _inventory != null ? _inventory.Equipped(EquipSlot.MainHand) : null;
+            if (weapon == null)
+                return 0;
+            if (weapon.baseName == "Dagger")
+                return 3;
+            return weapon.twoHanded ? 2 : 1;
+        }
+
+        void OnEnable() => Combat.PlayerAttacked += OnPlayerAttacked;
+        void OnDisable() => Combat.PlayerAttacked -= OnPlayerAttacked;
+
+        // Being swung at puts you in your fighting stance too.
+        void OnPlayerAttacked(HealthController target, AttackResult result)
+        {
+            if (target != null && target.gameObject == gameObject)
+                _combatUntil = Time.time + combatLinger;
         }
 
         /// <summary>
@@ -753,6 +938,11 @@ namespace WowSandbox
             _animator.SetBool(GroundedHash, grounded && Time.time >= _jumpAnimGraceUntil);
             if (_hasSwimmingParameter)
                 _animator.SetBool(SwimmingHash, _swimming);
+            if (_hasCombatParameters)
+            {
+                _animator.SetInteger(WeaponStyleHash, WeaponStyle());
+                _animator.SetBool(InCombatHash, InCombat);
+            }
         }
     }
 }

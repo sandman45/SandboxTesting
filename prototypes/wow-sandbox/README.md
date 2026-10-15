@@ -56,6 +56,12 @@ As of 2026-10-13:
 - **Scenery:** a shipwreck, mixed chicken colours, palms swaying in the wind.
 - **Menus:** a title screen, a settings menu on Esc, and developer options.
 
+As of 2026-10-15:
+- **A WoW character as the player,** dressed in whatever's equipped: painted-on cloth, armour, helms, weapons and shields.
+- **Fishing poles:** fishing needs one, and it shows in his hand.
+- **Weapon-aware combat animations:** per-weapon swings, crits, fighting stances, parries, blocks and dodges.
+- **Warrior abilities** on an action bar: Heroic Strike, Shield Bash, Whirlwind and Charge.
+
 ✅ **Doodad chain verified end-to-end** on `md_pirateship` exported as OBJ: wow.export writes `pirateship_ModelPlacementInformation.csv` plus each doodad's OBJ, and wow.unity rebuilds `pirateship.prefab` with all 36 doodads (cannons, lanterns, hammocks, anchor) in place. Drag the **`.prefab`**, not the `.obj`. The traps on the way are listed under "Export format" below.
 
 ## Playable sandbox
@@ -88,7 +94,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | **WoW Sandbox → Add Ship Ladders** | Hangs four rope ladders (`ShipLadder`) on the floating ship, midship and aft on both sides, finding the rail and deck by raycasting the ship's colliders. Placeholder ropes and rungs. Re-running replaces hand-moved ladders. |
 | **WoW Sandbox → Add Ship Helm** | Adds `ShipSailing` to the ship and an invisible click box (`ShipHelm`) to drag over the wheel, which is part of the hull mesh. The box's forward (yellow line) must point to the bow. Its `Stand` child is where you stand to steer. |
 | **WoW Sandbox → Add Sea Life** | Fills the shallows with fish schools (`fishbasic01`, `AmbientSwimmer`) and fishing spots (`fishfrenzy`, `FishingSpot`), from the beach out to *Max distance offshore* (45, inside the Dangerous Waters line). Re-running replaces the batch; tick **Keep existing** to add that many more, spaced away from the ones already there. |
-| **WoW Sandbox → Update Warrior Animations** | Adds the fishing states (cast, wait, cheer) and the hit flinch (`CombatWound`) to the warrior controller already in use, in place. Use this rather than *Build Warrior Animator*, which recreates the controller and leaves the player in the scene without one. Safe to re-run. |
+| **WoW Sandbox → Update Warrior Animations** | Adds the fishing states (cast, wait, cheer), the hit flinch (`CombatWound`), the combat states (per-weapon swings, crits, stances, parry/block/dodge) and the ability states to the warrior controller already in use, in place, and gives the player in the scene `WarriorAbilities`. Use this rather than *Build Warrior Animator*, which recreates the controller and leaves the player in the scene without one. Safe to re-run; save the scene after. |
 | **WoW Sandbox → Make NPCs Fight** | Gives the wandering humanoids already in the scene `NpcCombat`, and adds Run and Attack to their animator controllers in place, so nothing needs respawning. New spawns from *Spawn Wandering NPCs* get it automatically. Skips chickens and friendlies. |
 | **WoW Sandbox → Add Shipwreck** | Lays the `md_shipwreck` hull and stern half-buried at the waterline, opposite the pirate ship by default (*Bearing*), scaled down (the hull is ~97 units at full size). It adds colliders and re-bakes the NavMesh. Re-running replaces the wreck. |
 | **WoW Sandbox → Place Player at Shipwreck** | Stands the player on the island side of the shipwreck, clear of it and facing it. That's where the game begins: the title screen circles them there, and it's the respawn point. Save the scene after. |
@@ -122,7 +128,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 
 **Sea life and fishing:**
 - **Fish schools:** each `fishbasic01` is already a small school of fish in one model. `AmbientSwimmer` cruises it between random points near home, 1–4 units down, above the seabed and inside the shallows. They're scenery: they can't be targeted or hurt.
-- **Fishing spots:** a `fishfrenzy` swirl rides just under the waves. Left-click it from within 15 units (from the beach, the deck or the water) to cast.
+- **Fishing spots:** a `fishfrenzy` swirl rides just under the waves. Left-click it from within 15 units (from the beach, the deck or the water) to cast. You need a fishing pole in your bags: the Twig Fishing Pole (2 sp) or the Fishing Pole (1 gp), both sold by the vendor. Without one: "You need a fishing pole."
   - **The cast:** a small splash where the line lands and a 3 s **Fishing** cast bar (`CastBarHud`). Moving, leaving reach or dying interrupts it.
   - **The result:** when the bar fills there's a 60% chance of a bite, shown by a big splash (`WaterSplash`), and the fish goes into your bags.
   - **Scattering:** after 3–5 catches the school scatters, and it comes back after 90 s.
@@ -136,7 +142,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | Very Rare | Moonfin Eel | 0.5% | 9% |
 | Legendary | Gilded Kingfish | 0% | 3% |
 
-- **The fishing animation:** he faces the water, casts (`FishingCast`), holds the fishing pose while waiting (`FishingLoop`) and cheers for a Rare or better fish. Not while swimming. There's no rod in his hand yet (see *Known gaps*). A model without fishing clips falls back to an overhand throw and the thrown-weapon ready pose.
+- **The fishing animation:** he faces the water, casts (`FishingCast`), holds the fishing pose while waiting (`FishingLoop`) and cheers for a Rare or better fish. Not while swimming. The best pole in your bags appears in his right hand while he fishes (`EquipmentVisuals.Hold`), and the main-hand weapon is put away until he's done. A model without fishing clips falls back to an overhand throw and the thrown-weapon ready pose.
 
 **Fighting NPCs:** `NpcCombat`, on the wandering humanoids.
 - **Aggro:** a Hostile one that sees you within 12 units on land runs at you and swings every 2 s (d20 against your AC). Anything you hit fights back, whatever its reaction.
@@ -144,19 +150,44 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 - **Taking hits:** a blow that lands makes you flinch (`CombatWound`, not while swimming) and breaks a fishing cast.
 - **Loot:** humanoids drop Rare items about 1 time in 20 and Very Rare about 1 in 100, and a Pirate Hat about 1 in 25 (`LootDrop.HumanoidDrops`).
 
+**Your own combat:** the warrior's swings follow what's in hand. *Update Warrior Animations* builds these states.
+- **Swing timer:** one swing a second (`swingInterval` on `WowCharacterController`); pressing `1` sooner does nothing. Abilities share that timer, like WoW's global cooldown.
+- **Swings per weapon:** fists, a one-hander, a two-hander and a dagger (stabbed) each have their own attack clips. Swings alternate between the clip's two variations, and a critical hit plays `CombatCritical`. The attack is rolled before the swing plays, so the crit gets the crit swing.
+- **Fighting stance:** for 6 s after you swing or are swung at (`combatLinger`), you stand in the ready pose for your weapon (`Ready1H`, `Ready2H`, `ReadyUnarmed`).
+- **Parry, block, dodge:** a blow that misses you plays a reaction. With a shield it's mostly a block, with a weapon mostly a parry, and with fists mostly a dodge (`HealthController`). The odds are cosmetic: the d20 already decided the miss.
+
+**Warrior abilities** (`WarriorAbilities`, keys `3`–`6`): each rolls to hit like a swing, so it can miss, crit (doubling all its dice) or kill. All the numbers are on the component.
+
+| Key | Ability | Effect | Cooldown |
+|---|---|---|---|
+| `3` | Heroic Strike | Your weapon attack, plus 1d8 damage | 6 s |
+| `4` | Shield Bash | Needs a shield. 1d4 + STR damage, and a hit stuns the target for 2 s (`NpcCombat.Stun`: no moving, no swinging) | 12 s |
+| `5` | Whirlwind | A weapon attack on every enemy in reach, all around you; no target needed | 10 s |
+| `6` | Charge | Rush a target 8–25 units away at 3× run speed, strike on arrival and stun it 1 s. Not while swimming; gives up after 3 s | 15 s |
+
+- **Action bar (`ActionBarHud`):** keys 1–6 at the bottom middle of the screen, 64 px up. Each slot shows its key, a short code and its name.
+  - **Cooldowns:** a shade drains as the cooldown runs out, with the seconds left on the long ones.
+  - **Red** means it can't be used right now: no shield for Bash, no enemy in reach, or the target outside Charge's range.
+  - **Clicking** a slot is the same as pressing its key.
+  - **Tooltips:** hover for the ability's range, cooldown, damage with your current weapon, what's stopping you, and the cooldown left, counting down live.
+  - **At the helm** the bar hides, since the helm panel takes its place.
+- **Errors** are WoW's: "Heroic Strike isn't ready yet.", "You are too far away!", "You need a shield equipped.", "Too close to charge."
+
 **Gear on the player:** `EquipmentVisuals` dresses the player in whatever's equipped, from the looks *Harvest Gear* builds. Items without a look leave that part of the body bare. Chain mail, for one, shows a bare chest.
-- **Starting outfit:** a Linen Shirt, Cloth Shorts and Worn Sandals. The fighter's kit (chain mail, longsword, shield, dagger, cap) starts in the bags. The Pirate Hat is loot only; the Developer panel has **Pirate Hat** and **Linen Outfit** buttons.
+- **Starting outfit:** a Linen Shirt, Cloth Shorts and Worn Sandals, with a Dagger in hand. A Longsword, Shield, Chain Mail, Leather Cap and Twig Fishing Pole start in the bags. The vendor also sells two-handers like the Maul (2d6, 10 gp) and Claymore (2d6, 50 gp). The Pirate Hat is loot only; the Developer panel has **Pirate Hat** and **Linen Outfit** buttons.
 - **Slots:** Head, Shoulders, Back, Chest, Hands, Legs and Feet, then Main, Off, Neck and Ring, in two rows on the character sheet (C).
 - **Three kinds of gear,** and one item can use several:
   - **Painted on:** cloth shirts, trousers and sandals are drawn into the body texture. Each item's pixels are pasted onto a copy of the bare body.
   - **Body pieces:** WoW swaps parts of the body mesh to match gear. The shirt adds sleeve cuffs (`Wrists2`) and the hat hides the hair (`Hair2`).
-  - **Separate meshes:** rigid ones (helms, and later weapons, shields and shoulders) go on WoW's own attachment point for their slot. A helm's is `bone_168` (attachment 11), a child of `bone_Head`. Skinned armour is bound to the player's own bones by name.
+  - **Separate meshes:** rigid ones (helms, weapons, shields, fishing poles) go on WoW's own attachment point for their slot: right hand 1, shield 0. A helm's is `bone_168` (attachment 11), a child of `bone_Head`. Skinned armour is bound to the player's own bones by name.
 - **Attachment points come from a raw export.** wow.export's glTF leaves them out, so *Harvest Gear* reads them from `thinhuman/raw/thinhumanmale.m2` (`M2Attachments`). To make one: Models tab → `character/thinhuman/male/thinhumanmale.m2` → **Export M2 / WMO (Raw)**, tick **M2 .skel Files** in case a model keeps them there, then rename the folder to `raw`. Without it, helms fall back to `HelmFitter`'s guess, which puts a hat's brim at the chin.
-- **Adding a piece:**
-  1. In wow.export, export the player's model wearing **only** that item: same customisation as `base`, glTF with animations, Apply Pose off.
-  2. Rename the new `thinhuman/male` folder at once. wow.export always writes this model there, so the next export overwrites it.
-  3. Add the folder and its catalog item to `GearHarvester.Pieces`.
-  4. Re-run *Harvest Gear*.
+- **Adding a piece:** there are two ways, depending on whether the item is held or worn.
+  - **Held (weapons, shields, fishing poles):** export just the item from the Models tab, as glTF. It lands under `WowExports/item/`, in the same item space as a character export's copy, and goes on the attachment point for its slot. A standalone export uses the model's default colour, though.
+  - **Worn (shirts, armour, boots, gloves, helms):** in the Characters tab, export the player's model wearing **only** that item: same customisation as `base`, glTF with animations. Rename the new `thinhuman/male` folder at once, since wow.export always writes this model there and the next export overwrites it. Only a character export shows the painted-on texture and the body pieces an item adds or hides.
+  - **Then re-run *Harvest Gear*.** It finds new exports by itself and adds a row for each to `WowExports/GearSources.asset`, guessing the item from the name (`knife` → Dagger, `sword_1h_long` → Longsword, `fishingpole` → Fishing Pole). The Console lists every guess. Fix a wrong one, fill in one it couldn't make (such as a multi-item export), or clear the item to leave an export out, all in the Inspector. Then run it again. Each item gets one look, and the first row wins.
+  - **How it guesses**, in order: the `Picks` table for exports whose names mislead (`hammer_2h_maul_b_03white` → Warhammer), an exact catalog name, a catalog name inside the export name (longest wins), then a word table, which only accepts a guess when the export's weapon family agrees (a `2h` export won't become a one-hander).
+  - **Legendaries and magic copies:** an item with a look under its own name uses it; otherwise it uses its base item's look ("+1 Longsword" → Longsword).
+- **Painting order:** painted-on layers go on in WoW's order, legs, feet, chest, then hands, so gloves cover a shirt's sleeves.
 
 **Title screen, settings and developer options:** none of these need setup. Each is created when you press Play.
 - **Title screen (`TitleScreen`):**
@@ -192,8 +223,9 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | `X` | Swim **down** (in water only) |
 | Middle mouse / `Num Lock` | Auto-run (`W` or `S` cancels) |
 | Left-click | Target; on a corpse in reach, loot it; on a vendor, open the shop; on the ship's wheel, take the helm; on a fishing spot, cast |
-| `1` | Attack your target |
+| `1` | Attack your target (one swing a second) |
 | `2` | Drink a healing potion |
+| `3`–`6` | Heroic Strike, Shield Bash, Whirlwind, Charge (or click them on the action bar) |
 | `B` / `I` | Bags |
 | `C` | Character sheet |
 | `M` | World map (scroll over it to zoom) |
@@ -250,8 +282,9 @@ The camera stores its yaw as an **offset from the character's facing** rather th
 - **Turning in place plays idle**, so the character pivots with their feet planted — there are no turn clips in the export.
 - **The ship's ladders are placeholders** — plain ropes and rungs, positioned by raycast. A better ladder model and placement are still to do.
 - **Running the ship aground hasn't been tested** in-editor yet.
-- **Weapons, shields and shoulders haven't been tried.** *Harvest Gear* already puts them on their attachment points (right hand 1, shield 0, shoulders 5/6, back 12), but nothing has been exported to test it. The hand and shield points sit at the model's origin in the rest pose, on bones under `bone_WeaponR`/`bone_WeaponL`/`bone_EXP_L1_Shield1`, which the animations presumably move into the hands. A fishing rod in hand would come the same way.
-- **Only four items have a look so far:** the linen outfit and the Pirate Hat. Everything else needs a piece export of its own.
+- **Shoulders and back haven't been tried.** *Harvest Gear* puts them on attachment points 5/6 and 12, but nothing has been exported to test it. Weapons and shields work: their points sit at the model's origin in the rest pose (hand `bone_177` under `bone_WeaponR`, shield `bone_174`) and the animations move them into the hands.
+- **The combat animations and abilities are new and lightly tested:** the two-handed grip, Charge's run and arrival, and how much Whirlwind turns are the ones to watch. A stunned thief just stops; there's no dazed animation.
+- **Not every item has a look yet:** nothing goes in the Shoulders, Back or Legs-armour slots yet, and each new item needs its export (the exports themselves are gitignored, so every clone needs its own). Rings and amulets never show, as in WoW.
 
 ## Export format: glTF for M2, OBJ for WMO
 

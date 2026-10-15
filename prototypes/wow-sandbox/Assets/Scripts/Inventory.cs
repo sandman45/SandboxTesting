@@ -50,7 +50,7 @@ namespace WowSandbox
         public int bagSize = 20;
         [Tooltip("Coin purse, in copper pieces (100 cp = 1 gp).")]
         public int copper = 15 * Money.Gold;
-        [Tooltip("Start in a linen shirt, shorts and sandals, with a fighter's kit in the bags: chain mail, longsword, shield, dagger and cap.")]
+        [Tooltip("Start in a linen shirt, shorts and sandals with a dagger, and in the bags a fighter's kit (chain mail, longsword, shield, cap) and a twig fishing pole.")]
         public bool starterKit = true;
         [Tooltip("Seconds between potions.")]
         public float potionCooldown = 2f;
@@ -91,11 +91,12 @@ namespace WowSandbox
                 _equipped[(int)EquipSlot.Chest] = ItemCatalog.Create("Linen Shirt");
                 _equipped[(int)EquipSlot.Legs] = ItemCatalog.Create("Cloth Shorts");
                 _equipped[(int)EquipSlot.Feet] = ItemCatalog.Create("Worn Sandals");
+                _equipped[(int)EquipSlot.MainHand] = ItemCatalog.Create("Dagger");
                 Add(ItemCatalog.Create("Chain Mail"));
                 Add(ItemCatalog.Create("Longsword"));
                 Add(ItemCatalog.Create("Shield"));
-                Add(ItemCatalog.Create("Dagger"));
                 Add(ItemCatalog.Create("Leather Cap"));
+                Add(ItemCatalog.Create("Twig Fishing Pole"));
             }
 
             // Even with nothing worn: tells CharacterStats this character's weapon now comes
@@ -108,13 +109,17 @@ namespace WowSandbox
             // 2 drinks a healing potion, as 1 swings the sword.
             var keyboard = Keyboard.current;
             if (keyboard != null && keyboard.digit2Key.wasPressedThisFrame)
-            {
-                int index = Array.FindIndex(Bag, item => item is { IsPotion: true });
-                if (index < 0)
-                    Hud.Error("You have no potions.");
-                else if (!Use(index, out var error) && error != null)
-                    Hud.Error(error);
-            }
+                DrinkPotion();
+        }
+
+        /// <summary>Drinks the first potion in the bags (key 2, or its action-bar button).</summary>
+        public void DrinkPotion()
+        {
+            int index = Array.FindIndex(Bag, item => item is { IsPotion: true });
+            if (index < 0)
+                Hud.Error("You have no potions.");
+            else if (!Use(index, out var error) && error != null)
+                Hud.Error(error);
         }
 
         /// <summary>Spends coin if there's enough of it.</summary>
@@ -400,6 +405,18 @@ namespace WowSandbox
         [ContextMenu("Give Random Uncommon")] public void GiveUncommon() => GiveOrWarn(ItemCatalog.RandomMagic(ItemRarity.Uncommon));
         [ContextMenu("Give Random Rare")] public void GiveRare() => GiveOrWarn(ItemCatalog.RandomMagic(ItemRarity.Rare));
         [ContextMenu("Give Random Very Rare")] public void GiveVeryRare() => GiveOrWarn(ItemCatalog.RandomMagic(ItemRarity.VeryRare));
+
+        /// <summary>The most valuable item in the bags that <paramref name="match"/> accepts, or null — the best fishing pole, say.</summary>
+        public Item BestInBags(Predicate<Item> match)
+        {
+            Item best = null;
+            foreach (var item in Bag)
+            {
+                if (item != null && match(item) && (best == null || item.valueCopper > best.valueCopper))
+                    best = item;
+            }
+            return best;
+        }
 
         /// <summary>A fresh copy of a catalog item by name, e.g. "Pirate Hat" (developer panel).</summary>
         public void Give(string itemName) => GiveOrWarn(ItemCatalog.Create(itemName));
