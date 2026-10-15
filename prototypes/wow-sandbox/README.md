@@ -61,6 +61,12 @@ As of 2026-10-15:
 - **Fishing poles:** fishing needs one, and it shows in his hand.
 - **Weapon-aware combat animations:** per-weapon swings, crits, fighting stances, parries, blocks and dodges.
 - **Warrior abilities** on an action bar: Heroic Strike, Shield Bash, Whirlwind and Charge.
+- **Action bar:** clickable, with cooldowns, tooltips and red when unusable; keys 1 Attack, 2–5 abilities, 6 Potion. `Tab` targets the nearest enemy.
+- **More armour:** shoulders (Leather Spaulders, Iron Pauldrons) and legs (Leather Leggings, Iron Legguards), with built-in fits for oversized pieces.
+- **Rope ladders** draped over the ship's hull in WoW's rope-ladder art, swaying at the foot.
+- **The island dressed:** beach sand at the waterline, scattered palms, bushes, rocks and driftwood, and a dense grass carpet.
+- **Looting kneels**, as in WoW.
+- **Treasure chests and items on the ground** to open and pick up, with good odds of rare, epic and legendary loot; the Developer panel spawns any exported chest.
 
 ✅ **Doodad chain verified end-to-end** on `md_pirateship` exported as OBJ: wow.export writes `pirateship_ModelPlacementInformation.csv` plus each doodad's OBJ, and wow.unity rebuilds `pirateship.prefab` with all 36 doodads (cannons, lanterns, hammocks, anchor) in place. Drag the **`.prefab`**, not the `.obj`. The traps on the way are listed under "Export format" below.
 
