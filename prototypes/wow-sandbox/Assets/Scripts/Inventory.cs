@@ -106,13 +106,13 @@ namespace WowSandbox
 
         void Update()
         {
-            // 2 drinks a healing potion, as 1 swings the sword.
+            // 6 drinks a healing potion: the last slot on the action bar.
             var keyboard = Keyboard.current;
-            if (keyboard != null && keyboard.digit2Key.wasPressedThisFrame)
+            if (keyboard != null && keyboard.digit6Key.wasPressedThisFrame)
                 DrinkPotion();
         }
 
-        /// <summary>Drinks the first potion in the bags (key 2, or its action-bar button).</summary>
+        /// <summary>Drinks the first potion in the bags (key 6, or its action-bar button).</summary>
         public void DrinkPotion()
         {
             int index = Array.FindIndex(Bag, item => item is { IsPotion: true });

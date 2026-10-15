@@ -204,8 +204,10 @@ namespace WowSandbox
             Wearable("Leather Gloves", "Gl", EquipSlot.Hands, ItemKind.Clothing, 5 * Money.Silver),
             Wearable("Gauntlets", "Ga", EquipSlot.Hands, ItemKind.Clothing, 2 * Money.Gold),
             Wearable("Leather Spaulders", "Sp", EquipSlot.Shoulders, ItemKind.Clothing, 5 * Money.Silver),
-            // The one exception: iron plates over the shoulders turn a blow (+1 AC).
+            // The exceptions: iron plates over the shoulders or legs turn a blow (+1 AC).
             Protective(Wearable("Iron Pauldrons", "Pa", EquipSlot.Shoulders, ItemKind.Clothing, 2 * Money.Gold), 1),
+            Wearable("Leather Leggings", "LL", EquipSlot.Legs, ItemKind.Clothing, 5 * Money.Silver),
+            Protective(Wearable("Iron Legguards", "IL", EquipSlot.Legs, ItemKind.Clothing, 2 * Money.Gold), 1),
             Wearable("Leather Boots", "Bt", EquipSlot.Feet, ItemKind.Clothing, 1 * Money.Gold),
             Wearable("Traveler's Boots", "TB", EquipSlot.Feet, ItemKind.Clothing, 2 * Money.Gold),
             // The player's starting outfit. These three have a look (EquipmentVisuals).
@@ -322,7 +324,7 @@ namespace WowSandbox
                 return item;
 
             item.rarity = rarity;
-            // Iron Pauldrons' own +1 AC isn't magic, and doesn't make them "of Protection".
+            // The iron pieces' own +1 AC isn't magic, and doesn't make them "of Protection".
             int mundaneProtection = item.protectionBonus;
             int tier = rarity switch { ItemRarity.Uncommon => 1, ItemRarity.Rare => 2, _ => 3 };
             bool split = Random.value < 0.5f;

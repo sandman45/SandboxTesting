@@ -112,7 +112,7 @@ namespace WowSandbox
                 return price > 0 ? $"Right-click to sell for {Money.Format(price)}" : "No sell price";
             }
             if (item != null && item.IsPotion)
-                return "Right-click to drink (or press 2) · drag to move";
+                return "Right-click to drink (or press 6) · drag to move";
             return "Right-click to equip · drag to move";
         }
 

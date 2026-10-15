@@ -7,33 +7,33 @@ using UnityEngine.UI;
 namespace WowSandbox
 {
     /// <summary>
-    /// The warrior's abilities, on keys 3–6 beside the swing (1) and the potion (2), each with
+    /// The warrior's abilities, on keys 2–5 between the swing (1) and the potion (6), each with
     /// its own cooldown and all sharing the swing's (WowCharacterController.TryBeginAction —
     /// WoW's global cooldown):
-    /// - 3 Heroic Strike: your weapon attack with +1d8 damage.
-    /// - 4 Shield Bash: needs a shield; d4 + STR, and a hit stuns the target for a moment.
-    /// - 5 Whirlwind: a weapon attack on every enemy within reach, all around you.
-    /// - 6 Charge: rush a target 8–25 units away, then strike it on arrival, stunning it briefly.
+    /// - 2 Heroic Strike: your weapon attack with +1d8 damage.
+    /// - 3 Shield Bash: needs a shield; d4 + STR, and a hit stuns the target for a moment.
+    /// - 4 Whirlwind: a weapon attack on every enemy within reach, all around you.
+    /// - 5 Charge: rush a target 8–25 units away, then strike it on arrival, stunning it briefly.
     /// Rolls go through Combat like any swing, so they can miss, crit and kill. An action bar
     /// along the bottom shows all six keys and their cooldowns.
     /// </summary>
     [RequireComponent(typeof(WowCharacterController))]
     public class WarriorAbilities : MonoBehaviour
     {
-        [Header("Heroic Strike (3)")]
+        [Header("Heroic Strike (2)")]
         public float heroicStrikeCooldown = 6f;
         public int heroicStrikeDice = 1;
         public int heroicStrikeSides = 8;
 
-        [Header("Shield Bash (4)")]
+        [Header("Shield Bash (3)")]
         public float shieldBashCooldown = 12f;
         public int shieldBashSides = 4;
         public float shieldBashStun = 2f;
 
-        [Header("Whirlwind (5)")]
+        [Header("Whirlwind (4)")]
         public float whirlwindCooldown = 10f;
 
-        [Header("Charge (6)")]
+        [Header("Charge (5)")]
         public float chargeCooldown = 15f;
         public float chargeMinRange = 8f;
         public float chargeMaxRange = 25f;
@@ -65,17 +65,17 @@ namespace WowSandbox
             var keyboard = Keyboard.current;
             if (keyboard == null)
                 return;
+            if (keyboard.digit2Key.wasPressedThisFrame) Use(2);
             if (keyboard.digit3Key.wasPressedThisFrame) Use(3);
             if (keyboard.digit4Key.wasPressedThisFrame) Use(4);
             if (keyboard.digit5Key.wasPressedThisFrame) Use(5);
-            if (keyboard.digit6Key.wasPressedThisFrame) Use(6);
         }
 
         bool CanAct => !_movement.IsLocked && !TitleScreen.Showing && !(_health != null && _health.IsDead);
 
         /// <summary>
-        /// What key <paramref name="key"/> does — the abilities on 3–6 — for the action bar's
-        /// buttons too. 1 and 2 (the swing and the potion) are handled by their own components
+        /// What key <paramref name="key"/> does — the abilities on 2–5 — for the action bar's
+        /// buttons too. 1 and 6 (the swing and the potion) are handled by their own components
         /// on the keyboard, so a click on those goes to them.
         /// </summary>
         public void Use(int key)
@@ -85,11 +85,11 @@ namespace WowSandbox
             switch (key)
             {
                 case 1: _movement.Attack(); break;
-                case 2: if (_inventory != null) _inventory.DrinkPotion(); break;
-                case 3: HeroicStrike(); break;
-                case 4: ShieldBash(); break;
-                case 5: Whirlwind(); break;
-                case 6: Charge(); break;
+                case 2: HeroicStrike(); break;
+                case 3: ShieldBash(); break;
+                case 4: Whirlwind(); break;
+                case 5: Charge(); break;
+                case 6: if (_inventory != null) _inventory.DrinkPotion(); break;
             }
         }
 
@@ -232,19 +232,19 @@ namespace WowSandbox
 
         // --- For the action bar ---------------------------------------------------------------
 
-        /// <summary>Seconds left on each key's cooldown, 1–6 (1 and 2 are the swing and the potion).</summary>
+        /// <summary>Seconds left on each key's cooldown, 1–6 (1 and 6 are the swing and the potion).</summary>
         public float CooldownLeft(int key)
         {
             float own = key switch
             {
-                3 => _heroicReady,
-                4 => _bashReady,
-                5 => _whirlwindReady,
-                6 => _chargeReady,
+                2 => _heroicReady,
+                3 => _bashReady,
+                4 => _whirlwindReady,
+                5 => _chargeReady,
                 _ => 0f,
             } - Time.time;
             // The shared cooldown covers the swing and every ability, not the potion.
-            float shared = key == 2 ? 0f : _movement.SwingCooldownLeft;
+            float shared = key == 6 ? 0f : _movement.SwingCooldownLeft;
             return Mathf.Max(own, shared, 0f);
         }
 
@@ -255,14 +255,14 @@ namespace WowSandbox
         /// </summary>
         public bool Usable(int key)
         {
-            if (key == 2 || key == 5)
+            if (key == 6 || key == 4)
                 return true;
             var target = _movement.EnemyTarget(out _);
-            if (key == 4 && !(_inventory != null && _inventory.Equipped(EquipSlot.OffHand) is { kind: ItemKind.Shield }))
+            if (key == 3 && !(_inventory != null && _inventory.Equipped(EquipSlot.OffHand) is { kind: ItemKind.Shield }))
                 return false;
             if (target == null)
                 return false;
-            if (key == 6)
+            if (key == 5)
             {
                 var gap = target.transform.position - transform.position;
                 gap.y = 0f;
@@ -301,7 +301,7 @@ namespace WowSandbox
                     Header("Attack", reach, $"{gcd:0.#} sec swing");
                     lines.Add($"Swing at your target with your {(weapon != null ? weapon.name : "fists")} for {weaponDamage} damage.");
                     break;
-                case 2:
+                case 6:
                     int potions = 0;
                     if (_inventory != null)
                         for (int i = 0; i < _inventory.BagSize; i++)
@@ -313,23 +313,23 @@ namespace WowSandbox
                         ? $"<color=#{dim}>{potions} in your bags</color>"
                         : $"<color=#{bad}>You have no potions.</color>");
                     break;
-                case 3:
+                case 2:
                     Header("Heroic Strike", reach, $"{heroicStrikeCooldown:0.#} sec cooldown");
                     lines.Add($"A mighty blow: your weapon's {weaponDamage} damage, plus " +
                               $"<color=#{good}>{heroicStrikeDice}d{heroicStrikeSides}</color>.");
                     break;
-                case 4:
+                case 3:
                     Header("Shield Bash", reach, $"{shieldBashCooldown:0.#} sec cooldown");
                     lines.Add($"Bash your target with your shield for 1d{shieldBashSides} + STR damage, " +
                               $"stunning it for <color=#{good}>{shieldBashStun:0.#} sec</color>.");
                     if (!(_inventory != null && _inventory.Equipped(EquipSlot.OffHand) is { kind: ItemKind.Shield }))
                         lines.Add($"<color=#{bad}>Requires a shield</color>");
                     break;
-                case 5:
+                case 4:
                     Header("Whirlwind", reach + ", all around", $"{whirlwindCooldown:0.#} sec cooldown");
                     lines.Add($"Spin and strike every enemy within reach for {weaponDamage} damage. No target needed.");
                     break;
-                case 6:
+                case 5:
                     Header("Charge", $"{chargeMinRange:0.#}–{chargeMaxRange:0.#} yd range", $"{chargeCooldown:0.#} sec cooldown");
                     lines.Add($"Rush at your target and strike it for {weaponDamage} damage, " +
                               $"stunning it for <color=#{good}>{chargeStun:0.#} sec</color>. Not while swimming.");
@@ -338,7 +338,7 @@ namespace WowSandbox
                     return null;
             }
 
-            if (key != 2)
+            if (key != 6)
                 lines.Add($"<color=#{dim}>Rolls to hit like a swing — it can miss, or crit for double dice.</color>");
             float left = CooldownLeft(key);
             if (left > 0.05f)
@@ -349,10 +349,10 @@ namespace WowSandbox
 
         public float CooldownLength(int key) => key switch
         {
-            3 => heroicStrikeCooldown,
-            4 => shieldBashCooldown,
-            5 => whirlwindCooldown,
-            6 => chargeCooldown,
+            2 => heroicStrikeCooldown,
+            3 => shieldBashCooldown,
+            4 => whirlwindCooldown,
+            5 => chargeCooldown,
             _ => _movement.swingInterval,
         };
     }
@@ -371,8 +371,8 @@ namespace WowSandbox
 
         static readonly (string name, string glyph, string caption)[] Slots =
         {
-            ("Attack", "Atk", "Attack"), ("Potion", "HP", "Potion"), ("Heroic Strike", "HS", "Heroic"),
-            ("Shield Bash", "SB", "Bash"), ("Whirlwind", "WW", "Whirlwind"), ("Charge", "Ch", "Charge"),
+            ("Attack", "Atk", "Attack"), ("Heroic Strike", "HS", "Heroic"), ("Shield Bash", "SB", "Bash"),
+            ("Whirlwind", "WW", "Whirlwind"), ("Charge", "Ch", "Charge"), ("Potion", "HP", "Potion"),
         };
 
         static readonly Color Unusable = new Color(0.9f, 0.25f, 0.2f);

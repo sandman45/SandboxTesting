@@ -123,7 +123,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 - **Buying:** the Merchant tab has every mundane piece of gear at its D&D price, plus healing potions. Click an item, or drag it into the bags.
 - **Selling:** right-click a bag item while the shop is open, or drag it onto the shop. You get half its value, and Rare+ items ask first.
 - **Buyback:** the Buyback tab has your last 12 sales. **Sell Junk** sells every Common trade good, so prize fish aren't sold with the junk.
-- **Potions:** right-click one in the bags, or press `2`, to drink it.
+- **Potions:** right-click one in the bags, or press `6`, to drink it.
 - **Friendly NPCs** can't be attacked.
 
 **Sea life and fishing:**
@@ -156,16 +156,16 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 - **Fighting stance:** for 6 s after you swing or are swung at (`combatLinger`), you stand in the ready pose for your weapon (`Ready1H`, `Ready2H`, `ReadyUnarmed`).
 - **Parry, block, dodge:** a blow that misses you plays a reaction. With a shield it's mostly a block, with a weapon mostly a parry, and with fists mostly a dodge (`HealthController`). The odds are cosmetic: the d20 already decided the miss.
 
-**Warrior abilities** (`WarriorAbilities`, keys `3`–`6`): each rolls to hit like a swing, so it can miss, crit (doubling all its dice) or kill. All the numbers are on the component.
+**Warrior abilities** (`WarriorAbilities`, keys `2`–`5`): each rolls to hit like a swing, so it can miss, crit (doubling all its dice) or kill. All the numbers are on the component.
 
 | Key | Ability | Effect | Cooldown |
 |---|---|---|---|
-| `3` | Heroic Strike | Your weapon attack, plus 1d8 damage | 6 s |
-| `4` | Shield Bash | Needs a shield. 1d4 + STR damage, and a hit stuns the target for 2 s (`NpcCombat.Stun`: no moving, no swinging) | 12 s |
-| `5` | Whirlwind | A weapon attack on every enemy in reach, all around you; no target needed | 10 s |
-| `6` | Charge | Rush a target 8–25 units away at 3× run speed, strike on arrival and stun it 1 s. Not while swimming; gives up after 3 s | 15 s |
+| `2` | Heroic Strike | Your weapon attack, plus 1d8 damage | 6 s |
+| `3` | Shield Bash | Needs a shield. 1d4 + STR damage, and a hit stuns the target for 2 s (`NpcCombat.Stun`: no moving, no swinging) | 12 s |
+| `4` | Whirlwind | A weapon attack on every enemy in reach, all around you; no target needed | 10 s |
+| `5` | Charge | Rush a target 8–25 units away at 3× run speed, strike on arrival and stun it 1 s. Not while swimming; gives up after 3 s | 15 s |
 
-- **Action bar (`ActionBarHud`):** keys 1–6 at the bottom middle of the screen, 64 px up. Each slot shows its key, a short code and its name.
+- **Action bar (`ActionBarHud`):** keys 1–6 at the bottom middle of the screen, 64 px up: Attack, the four abilities, then the potion on 6. Each slot shows its key, a short code and its name.
   - **Cooldowns:** a shade drains as the cooldown runs out, with the seconds left on the long ones.
   - **Red** means it can't be used right now: no shield for Bash, no enemy in reach, or the target outside Charge's range.
   - **Clicking** a slot is the same as pressing its key.
@@ -174,7 +174,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 - **Errors** are WoW's: "Heroic Strike isn't ready yet.", "You are too far away!", "You need a shield equipped.", "Too close to charge."
 
 **Gear on the player:** `EquipmentVisuals` dresses the player in whatever's equipped, from the looks *Harvest Gear* builds. Items without a look leave that part of the body bare. Chain mail, for one, shows a bare chest.
-- **Starting outfit:** a Linen Shirt, Cloth Shorts and Worn Sandals, with a Dagger in hand. A Longsword, Shield, Chain Mail, Leather Cap and Twig Fishing Pole start in the bags. The vendor also sells two-handers like the Maul (2d6, 10 gp) and Claymore (2d6, 50 gp), and shoulders: Leather Spaulders (5 sp, cosmetic) and Iron Pauldrons (2 gp, +1 AC, the one non-magic AC outside chest armour and shields). The Pirate Hat is loot only; the Developer panel has **Pirate Hat** and **Linen Outfit** buttons.
+- **Starting outfit:** a Linen Shirt, Cloth Shorts and Worn Sandals, with a Dagger in hand. A Longsword, Shield, Chain Mail, Leather Cap and Twig Fishing Pole start in the bags. The vendor also sells two-handers like the Maul (2d6, 10 gp) and Claymore (2d6, 50 gp), shoulders: Leather Spaulders (5 sp, cosmetic) and Iron Pauldrons (2 gp, +1 AC), and legs: Leather Leggings (5 sp, cosmetic) and Iron Legguards (2 gp, +1 AC). The two iron pieces are the only non-magic AC outside chest armour and shields. The body armours are chest-only exports, so they don't cover the legs; the shorts or leggings show below them. The Pirate Hat is loot only; the Developer panel has **Pirate Hat** and **Linen Outfit** buttons.
 - **Slots:** Head, Shoulders, Back, Chest, Hands, Legs and Feet, then Main, Off, Neck and Ring, in two rows on the character sheet (C).
 - **Three kinds of gear,** and one item can use several:
   - **Painted on:** cloth shirts, trousers and sandals are drawn into the body texture. Each item's pixels are pasted onto a copy of the bare body.
@@ -187,7 +187,8 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
   - **Then re-run *Harvest Gear*.** It finds new exports by itself and adds a row for each to `WowExports/GearSources.asset`, guessing the item from the name (`knife` → Dagger, `sword_1h_long` → Longsword, `fishingpole` → Fishing Pole). The Console lists every guess. Fix a wrong one, fill in one it couldn't make (such as a multi-item export), or clear the item to leave an export out, all in the Inspector. Then run it again. Each item gets one look, and the first row wins.
   - **How it guesses**, in order: the `Picks` table for exports whose names mislead (`hammer_2h_maul_b_03white` → Warhammer), an exact catalog name, a catalog name inside the export name (longest wins), then a word table, which only accepts a guess when the export's weapon family agrees (a `2h` export won't become a one-hander).
   - **Legendaries and magic copies:** an item with a look under its own name uses it; otherwise it uses its base item's look ("+1 Longsword" → Longsword).
-  - **Size:** a row's **Scale** shrinks or grows the item's separate meshes, each about its own attachment point (WoW's plate shoulders are huge on a human: the Iron Pauldrons use 0.65). It's copied into the look's *Attached Scale*, which you can also change during Play and re-equip to try values; the next harvest overwrites it from the row.
+  - **Fit:** some items need resizing or moving on this character. `GearHarvester.Fits` holds those in code, so they survive a fresh clone: the Iron Pauldrons at 0.65× (WoW's plate shoulders are huge on a human) and the Iron Helm lowered 0.03.
+  - **Tuning a fit:** a GearSources row's **Scale** (anything but 1) and **Offset** (anything but zero, in the character's axes: y up, and he's about 1.9 tall) override the built-in fit. Scale is also copied to the look's *Attached Scale*, which you can change during Play and re-equip to try values; the next harvest overwrites it. Offset is baked into the look at harvest, so it needs a re-harvest. Put a value you settle on into `Fits`: the GearSources asset is gitignored and per machine.
 - **Painting order:** painted-on layers go on in WoW's order, legs, feet, chest, then hands, so gloves cover a shirt's sleeves.
 
 **Title screen, settings and developer options:** none of these need setup. Each is created when you press Play.
@@ -225,8 +226,9 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | Middle mouse / `Num Lock` | Auto-run (`W` or `S` cancels) |
 | Left-click | Target; on a corpse in reach, loot it; on a vendor, open the shop; on the ship's wheel, take the helm; on a fishing spot, cast |
 | `1` | Attack your target (one swing a second) |
-| `2` | Drink a healing potion |
-| `3`–`6` | Heroic Strike, Shield Bash, Whirlwind, Charge (or click them on the action bar) |
+| `2`–`5` | Heroic Strike, Shield Bash, Whirlwind, Charge (or click them on the action bar) |
+| `6` | Drink a healing potion |
+| `Tab` | Target the nearest enemy on screen within 40 units; press again for the next one out (`TargetingController`; neutral creatures only with *Tab Includes Neutral*) |
 | `B` / `I` | Bags |
 | `C` | Character sheet |
 | `M` | World map (scroll over it to zoom) |
@@ -285,7 +287,7 @@ The camera stores its yaw as an **offset from the character's facing** rather th
 - **Running the ship aground hasn't been tested** in-editor yet.
 - **Cloaks haven't been tried.** *Harvest Gear* puts them on attachment point 12, but nothing has been exported to test it. Weapons and shields work: their points sit at the model's origin in the rest pose (hand `bone_177` under `bone_WeaponR`, shield `bone_174`) and the animations move them into the hands.
 - **The combat animations and abilities are new and lightly tested:** the two-handed grip, Charge's run and arrival, and how much Whirlwind turns are the ones to watch. A stunned thief just stops; there's no dazed animation.
-- **Not every item has a look yet:** nothing goes in the Back or Legs-armour slots yet, and each new item needs its export (the exports themselves are gitignored, so every clone needs its own). Rings and amulets never show, as in WoW.
+- **Not every item has a look yet:** nothing goes in the Back slot (a cloak needs a character model that can wear one), and each new item needs its export (the exports themselves are gitignored, so every clone needs its own). Rings and amulets never show, as in WoW.
 
 ## Export format: glTF for M2, OBJ for WMO
 
