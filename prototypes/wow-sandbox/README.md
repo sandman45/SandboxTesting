@@ -174,12 +174,12 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 - **Errors** are WoW's: "Heroic Strike isn't ready yet.", "You are too far away!", "You need a shield equipped.", "Too close to charge."
 
 **Gear on the player:** `EquipmentVisuals` dresses the player in whatever's equipped, from the looks *Harvest Gear* builds. Items without a look leave that part of the body bare. Chain mail, for one, shows a bare chest.
-- **Starting outfit:** a Linen Shirt, Cloth Shorts and Worn Sandals, with a Dagger in hand. A Longsword, Shield, Chain Mail, Leather Cap and Twig Fishing Pole start in the bags. The vendor also sells two-handers like the Maul (2d6, 10 gp) and Claymore (2d6, 50 gp). The Pirate Hat is loot only; the Developer panel has **Pirate Hat** and **Linen Outfit** buttons.
+- **Starting outfit:** a Linen Shirt, Cloth Shorts and Worn Sandals, with a Dagger in hand. A Longsword, Shield, Chain Mail, Leather Cap and Twig Fishing Pole start in the bags. The vendor also sells two-handers like the Maul (2d6, 10 gp) and Claymore (2d6, 50 gp), and shoulders: Leather Spaulders (5 sp, cosmetic) and Iron Pauldrons (2 gp, +1 AC, the one non-magic AC outside chest armour and shields). The Pirate Hat is loot only; the Developer panel has **Pirate Hat** and **Linen Outfit** buttons.
 - **Slots:** Head, Shoulders, Back, Chest, Hands, Legs and Feet, then Main, Off, Neck and Ring, in two rows on the character sheet (C).
 - **Three kinds of gear,** and one item can use several:
   - **Painted on:** cloth shirts, trousers and sandals are drawn into the body texture. Each item's pixels are pasted onto a copy of the bare body.
   - **Body pieces:** WoW swaps parts of the body mesh to match gear. The shirt adds sleeve cuffs (`Wrists2`) and the hat hides the hair (`Hair2`).
-  - **Separate meshes:** rigid ones (helms, weapons, shields, fishing poles) go on WoW's own attachment point for their slot: right hand 1, shield 0. A helm's is `bone_168` (attachment 11), a child of `bone_Head`. Skinned armour is bound to the player's own bones by name.
+  - **Separate meshes:** rigid ones (helms, shoulders, weapons, shields, fishing poles) go on WoW's own attachment point for their slot: right hand 1, shield 0, shoulders 5 (right) and 6 (left). A character export names each shoulder's mesh `Shoulder (L)_Item<id>_0` / `Shoulder (R)_Item<id>_0`, and each goes on its own point. A helm's is `bone_168` (attachment 11), a child of `bone_Head`. Skinned armour is bound to the player's own bones by name.
 - **Attachment points come from a raw export.** wow.export's glTF leaves them out, so *Harvest Gear* reads them from `thinhuman/raw/thinhumanmale.m2` (`M2Attachments`). To make one: Models tab → `character/thinhuman/male/thinhumanmale.m2` → **Export M2 / WMO (Raw)**, tick **M2 .skel Files** in case a model keeps them there, then rename the folder to `raw`. Without it, helms fall back to `HelmFitter`'s guess, which puts a hat's brim at the chin.
 - **Adding a piece:** there are two ways, depending on whether the item is held or worn.
   - **Held (weapons, shields, fishing poles):** export just the item from the Models tab, as glTF. It lands under `WowExports/item/`, in the same item space as a character export's copy, and goes on the attachment point for its slot. A standalone export uses the model's default colour, though.
@@ -187,6 +187,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
   - **Then re-run *Harvest Gear*.** It finds new exports by itself and adds a row for each to `WowExports/GearSources.asset`, guessing the item from the name (`knife` → Dagger, `sword_1h_long` → Longsword, `fishingpole` → Fishing Pole). The Console lists every guess. Fix a wrong one, fill in one it couldn't make (such as a multi-item export), or clear the item to leave an export out, all in the Inspector. Then run it again. Each item gets one look, and the first row wins.
   - **How it guesses**, in order: the `Picks` table for exports whose names mislead (`hammer_2h_maul_b_03white` → Warhammer), an exact catalog name, a catalog name inside the export name (longest wins), then a word table, which only accepts a guess when the export's weapon family agrees (a `2h` export won't become a one-hander).
   - **Legendaries and magic copies:** an item with a look under its own name uses it; otherwise it uses its base item's look ("+1 Longsword" → Longsword).
+  - **Size:** a row's **Scale** shrinks or grows the item's separate meshes, each about its own attachment point (WoW's plate shoulders are huge on a human: the Iron Pauldrons use 0.65). It's copied into the look's *Attached Scale*, which you can also change during Play and re-equip to try values; the next harvest overwrites it from the row.
 - **Painting order:** painted-on layers go on in WoW's order, legs, feet, chest, then hands, so gloves cover a shirt's sleeves.
 
 **Title screen, settings and developer options:** none of these need setup. Each is created when you press Play.
@@ -282,9 +283,9 @@ The camera stores its yaw as an **offset from the character's facing** rather th
 - **Turning in place plays idle**, so the character pivots with their feet planted — there are no turn clips in the export.
 - **The ship's ladders are placeholders** — plain ropes and rungs, positioned by raycast. A better ladder model and placement are still to do.
 - **Running the ship aground hasn't been tested** in-editor yet.
-- **Shoulders and back haven't been tried.** *Harvest Gear* puts them on attachment points 5/6 and 12, but nothing has been exported to test it. Weapons and shields work: their points sit at the model's origin in the rest pose (hand `bone_177` under `bone_WeaponR`, shield `bone_174`) and the animations move them into the hands.
+- **Cloaks haven't been tried.** *Harvest Gear* puts them on attachment point 12, but nothing has been exported to test it. Weapons and shields work: their points sit at the model's origin in the rest pose (hand `bone_177` under `bone_WeaponR`, shield `bone_174`) and the animations move them into the hands.
 - **The combat animations and abilities are new and lightly tested:** the two-handed grip, Charge's run and arrival, and how much Whirlwind turns are the ones to watch. A stunned thief just stops; there's no dazed animation.
-- **Not every item has a look yet:** nothing goes in the Shoulders, Back or Legs-armour slots yet, and each new item needs its export (the exports themselves are gitignored, so every clone needs its own). Rings and amulets never show, as in WoW.
+- **Not every item has a look yet:** nothing goes in the Back or Legs-armour slots yet, and each new item needs its export (the exports themselves are gitignored, so every clone needs its own). Rings and amulets never show, as in WoW.
 
 ## Export format: glTF for M2, OBJ for WMO
 

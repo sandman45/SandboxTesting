@@ -203,6 +203,9 @@ namespace WowSandbox
             Wearable("Iron Helm", "He", EquipSlot.Head, ItemKind.Clothing, 2 * Money.Gold),
             Wearable("Leather Gloves", "Gl", EquipSlot.Hands, ItemKind.Clothing, 5 * Money.Silver),
             Wearable("Gauntlets", "Ga", EquipSlot.Hands, ItemKind.Clothing, 2 * Money.Gold),
+            Wearable("Leather Spaulders", "Sp", EquipSlot.Shoulders, ItemKind.Clothing, 5 * Money.Silver),
+            // The one exception: iron plates over the shoulders turn a blow (+1 AC).
+            Protective(Wearable("Iron Pauldrons", "Pa", EquipSlot.Shoulders, ItemKind.Clothing, 2 * Money.Gold), 1),
             Wearable("Leather Boots", "Bt", EquipSlot.Feet, ItemKind.Clothing, 1 * Money.Gold),
             Wearable("Traveler's Boots", "TB", EquipSlot.Feet, ItemKind.Clothing, 2 * Money.Gold),
             // The player's starting outfit. These three have a look (EquipmentVisuals).
@@ -319,6 +322,8 @@ namespace WowSandbox
                 return item;
 
             item.rarity = rarity;
+            // Iron Pauldrons' own +1 AC isn't magic, and doesn't make them "of Protection".
+            int mundaneProtection = item.protectionBonus;
             int tier = rarity switch { ItemRarity.Uncommon => 1, ItemRarity.Rare => 2, _ => 3 };
             bool split = Random.value < 0.5f;
             var abilities = new List<Ability>();
@@ -350,10 +355,10 @@ namespace WowSandbox
                 bool smallRare = tier == 2 && split;
                 item.abilityBonuses[(int)ability] = tier == 1 || smallRare ? 1 : 2;
                 if (tier == 3 || smallRare)
-                    item.protectionBonus = 1;
+                    item.protectionBonus = mundaneProtection + 1;
             }
 
-            item.name = MagicName(item, abilities);
+            item.name = MagicName(item, abilities, mundaneProtection);
             item.valueCopper += rarity switch
             {
                 ItemRarity.Uncommon => 100 * Money.Gold,
@@ -363,12 +368,12 @@ namespace WowSandbox
             return item;
         }
 
-        static string MagicName(Item item, List<Ability> abilities)
+        static string MagicName(Item item, List<Ability> abilities, int mundaneProtection)
         {
             string name = item.magicBonus > 0 ? $"+{item.magicBonus} {item.baseName}" : item.baseName;
 
             var suffixes = abilities.Distinct().Select(AbilityNoun).ToList();
-            if (item.protectionBonus > 0)
+            if (item.protectionBonus > mundaneProtection)
                 suffixes.Add("Protection");
             return suffixes.Count == 0 ? name : $"{name} of {string.Join(" and ", suffixes)}";
         }
@@ -427,6 +432,12 @@ namespace WowSandbox
             name = name, baseName = name, kind = kind, slot = slot, glyph = glyph,
             iconColor = kind == ItemKind.Jewelry ? JewelryColor : ClothingColor, valueCopper = value,
         };
+
+        static Item Protective(Item item, int armorClass)
+        {
+            item.protectionBonus = armorClass;
+            return item;
+        }
 
         static Item Trade(string name, string glyph, int value) => new()
         {

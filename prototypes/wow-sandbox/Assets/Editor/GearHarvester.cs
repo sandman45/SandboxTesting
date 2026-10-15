@@ -85,6 +85,11 @@ namespace WowSandbox.EditorTools
             (new[] { "hammer_2h" }, "Maul"),
             (new[] { "hammer" }, "Warhammer"),
             (new[] { "mace" }, "Mace"),
+            (new[] { "spaulder" }, "Leather Spaulders"),
+            (new[] { "leather", "shoulder" }, "Leather Spaulders"),
+            (new[] { "pauldron" }, "Iron Pauldrons"),
+            (new[] { "iron", "shoulder" }, "Iron Pauldrons"),
+            (new[] { "plate", "shoulder" }, "Iron Pauldrons"),
             (new[] { "shield" }, "Shield"),
             (new[] { "buckler" }, "Shield"),
         };
@@ -167,6 +172,7 @@ namespace WowSandbox.EditorTools
                         continue;
                     }
                     var look = Harvest(baseExport, basePixels, width, height, piece, source.export, source.item, attachments, out string summary);
+                    SetScale(look, source, ref summary);
                     looks.Add(look);
                     byItem[source.item] = (look, new HashSet<string> { "*" }, source.export);
                     report.Add($"{label}: {summary}");
@@ -200,6 +206,7 @@ namespace WowSandbox.EditorTools
                 else
                 {
                     var look = StandaloneLook(source.export, source.item, pieces);
+                    SetScale(look, source, ref how);
                     looks.Add(look);
                     byItem[source.item] = (look, new HashSet<string> { slot }, Path.GetFileName(source.export));
                 }
@@ -475,6 +482,16 @@ namespace WowSandbox.EditorTools
         /// <paramref name="space"/> (the character model's space, at rest): the mesh moved by the
         /// attachment's offset. Null bone if the slot has no attachment point the model has.
         /// </summary>
+        /// <summary>The row's scale onto the look's attached meshes (the first row for an item sets it).</summary>
+        static void SetScale(GearLook look, GearSources.Source source, ref string summary)
+        {
+            float scale = source.scale > 0f ? source.scale : 1f;
+            look.attachedScale = scale;
+            EditorUtility.SetDirty(look);
+            if (!Mathf.Approximately(scale, 1f))
+                summary += $"; attached meshes at {scale:0.##}× size";
+        }
+
         static void TryAttach(string slot, Transform space, Transform[] skeleton, Dictionary<int, M2Attachments.Attachment> attachments,
             out Transform bone, out Vector3 position, out Quaternion rotation, out Vector3 scale, out string how)
         {
