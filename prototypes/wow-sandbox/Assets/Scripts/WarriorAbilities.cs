@@ -71,6 +71,9 @@ namespace WowSandbox
             if (keyboard.digit5Key.wasPressedThisFrame) Use(5);
         }
 
+        /// <summary>A weapon in the main hand: the abilities (and the action bar) need one.</summary>
+        public bool Armed => _inventory != null && _inventory.Equipped(EquipSlot.MainHand) is { kind: ItemKind.Weapon };
+
         bool CanAct => !_movement.IsLocked && !TitleScreen.Showing && !(_health != null && _health.IsDead);
 
         /// <summary>
@@ -82,6 +85,11 @@ namespace WowSandbox
         {
             if (!CanAct)
                 return;
+            if (key >= 2 && key <= 5 && !Armed)
+            {
+                Hud.Error("You need a weapon equipped.");
+                return;
+            }
             switch (key)
             {
                 case 1: _movement.Attack(); break;
@@ -445,10 +453,10 @@ namespace WowSandbox
                 Destroy(gameObject);
                 return;
             }
-            // The helm's own panel sits where the bar does.
-            bool helm = _helm != null && _helm.IsDriving;
-            _group.alpha = helm ? 0f : 1f;
-            _group.blocksRaycasts = !helm;
+            // The helm's own panel sits where the bar does; and no bar until a weapon is in hand.
+            bool hidden = (_helm != null && _helm.IsDriving) || !_abilities.Armed;
+            _group.alpha = hidden ? 0f : 1f;
+            _group.blocksRaycasts = !hidden;
 
             for (int i = 0; i < Slots.Length; i++)
             {

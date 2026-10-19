@@ -27,6 +27,19 @@ namespace WowSandbox
         static Rect _bounds;
         static Rect _island;
 
+        /// <summary>
+        /// Whether the player has found a map: until then there's no minimap and M does nothing.
+        /// Nothing in the world gives one yet; the Developer panel's Show Minimap and Enable Map
+        /// stand in for it (<see cref="MinimapShown"/>, <see cref="MapUsable"/>).
+        /// </summary>
+        public static bool Found { get; set; }
+
+        public static bool MinimapShown => Found || (DevOptions.Enabled && DevOptions.ShowMinimap);
+        public static bool MapUsable => Found || (DevOptions.Enabled && DevOptions.EnableMap);
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetFound() => Found = false;
+
         public static Texture Texture
         {
             get

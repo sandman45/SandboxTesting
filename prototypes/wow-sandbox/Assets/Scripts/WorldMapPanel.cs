@@ -33,6 +33,14 @@ namespace WowSandbox
 
         void Reset() => toggleKey = Key.M;
 
+        protected override bool CanOpen()
+        {
+            if (WorldMap.MapUsable)
+                return true;
+            Hud.Error("You don't have a map.");
+            return false;
+        }
+
         protected override void Awake()
         {
             _targeting = GetComponent<TargetingController>();

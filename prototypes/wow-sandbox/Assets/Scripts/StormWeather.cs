@@ -237,6 +237,18 @@ namespace WowSandbox
             _phase = CyclePhase.Building;
         }
 
+        /// <summary>
+        /// The wreck's storm starts dying down (the player has woken on the beach): the cycle's
+        /// clearing stage from here, then fine weather.
+        /// </summary>
+        public void ClearAfterWreck()
+        {
+            if (intensity <= 0f)
+                return;
+            _phase = CyclePhase.Clearing;
+            TransitionTo(0f, clearingSeconds * intensity);
+        }
+
         /// <summary>Fine weather this instant, and no cycle running.</summary>
         public void StopStorm()
         {
@@ -288,8 +300,12 @@ namespace WowSandbox
         {
             // The developer panel's saved storm settings, if any.
             DevOptions.Configure(this);
-            // Fine weather behind the title screen; it calls BeginPlay when you start.
-            if (TitleScreen.Showing)
+            // Washed up on the beach: the storm that wrecked you, at its height, until you wake
+            // (ShipwreckWake calls ClearAfterWreck). Otherwise fine weather behind the title
+            // screen; it calls BeginPlay when you start.
+            if (ShipwreckWake.Lying && buildsOnPlay)
+                TransitionTo(1f, 0f);
+            else if (TitleScreen.Showing)
                 intensity = 0f;
             else
                 BeginPlay();
@@ -300,7 +316,8 @@ namespace WowSandbox
         /// <summary>Starts Play's storm cycle, if it builds on Play — as Play starts, or once the title screen goes.</summary>
         public void BeginPlay()
         {
-            if (!buildsOnPlay)
+            // The wreck's storm is already raging; waking up clears it instead.
+            if (!buildsOnPlay || ShipwreckWake.Lying)
                 return;
             intensity = startIntensity;
             TransitionTo(1f, buildUpSeconds);

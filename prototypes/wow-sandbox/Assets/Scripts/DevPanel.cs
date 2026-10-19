@@ -28,6 +28,8 @@ namespace WowSandbox
         Text _stormOnPlay;
         Text _godMode;
         Text _skipTitle;
+        Text _showMinimap;
+        Text _enableMap;
         Action _refreshSliders;
 
         // Inactive copies of one living enemy per kind and one chicken per colour, taken as
@@ -35,7 +37,7 @@ namespace WowSandbox
         readonly List<GameObject> _enemies = new();
         readonly List<GameObject> _chickens = new();
 
-        protected override Vector2 PanelSize => new(Width, 662f + (ChestRows > 0 ? 28f + 32f * ChestRows : 0f));
+        protected override Vector2 PanelSize => new(Width, 754f + (ChestRows > 0 ? 28f + 32f * ChestRows : 0f));
 
         // The Spawn section's chest buttons: one per exported chest model, four to a row.
         static GameObject[] _chests;
@@ -187,10 +189,21 @@ namespace WowSandbox
                     i.Give("Worn Sandals");
                 })));
 
+            row = Buttons(ref y,
+                ("Show Minimap", () => DevOptions.ShowMinimap = !DevOptions.ShowMinimap),
+                ("Enable Map", () => DevOptions.EnableMap = !DevOptions.EnableMap));
+            _showMinimap = row[0].GetComponentInChildren<Text>();
+            _enableMap = row[1].GetComponentInChildren<Text>();
+
             y -= 4f;
             SliderRow("Max zoom out", ref y, GameSettings.MinZoom, GameSettings.MaxZoom,
                 () => GameSettings.MaxZoomDistance, v => GameSettings.MaxZoomDistance = v, v => $"{v:0}");
             SliderRow("Game speed", ref y, 0.25f, 4f, () => Time.timeScale, v => Time.timeScale = v, v => $"{v:0.00}×");
+            // Live on the player, not saved: for finding the numbers to bake into the defaults.
+            SliderRow("Swim float depth", ref y, 0.4f, 0.95f, () => Swimmer()?.floatDepth ?? 0f,
+                v => { if (Swimmer() != null) Swimmer().floatDepth = v; }, v => $"{v:0.00}");
+            SliderRow("Swim stroke lift", ref y, -0.5f, 1f, () => Swimmer()?.swimStrokeLift ?? 0f,
+                v => { if (Swimmer() != null) Swimmer().swimStrokeLift = v; }, v => $"{v:0.00}");
 
             var bottom = new Vector2(0.5f, 0f);
             Hud.TextButton("Back", Root, bottom, new Vector2(-65f, 18f), new Vector2(110f, 30f), () =>
@@ -210,6 +223,8 @@ namespace WowSandbox
             _stormOnPlay.text = $"Storm on Play: {(DevOptions.StormOnPlay ? "On" : "Off")}";
             _godMode.text = $"God Mode: {(HealthController.GodMode ? "On" : "Off")}";
             _skipTitle.text = $"Skip Title: {(DevOptions.SkipTitle ? "On" : "Off")}";
+            _showMinimap.text = $"Show Minimap: {(DevOptions.ShowMinimap ? "On" : "Off")}";
+            _enableMap.text = $"Enable Map: {(DevOptions.EnableMap ? "On" : "Off")}";
             _refreshSliders?.Invoke();
         }
 
@@ -220,6 +235,8 @@ namespace WowSandbox
             else
                 Hud.Error("There's no StormWeather in the scene.");
         }
+
+        static WowCharacterController Swimmer() => FindAnyObjectByType<WowCharacterController>();
 
         static void Player<T>(Action<T> act) where T : Component
         {

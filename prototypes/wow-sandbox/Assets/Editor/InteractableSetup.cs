@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -313,15 +314,78 @@ namespace WowSandbox.EditorTools
 
         static string ModelKey(PickupKind kind) => "WowSandbox.GroundItemModel." + kind;
 
+        // The Item dropdown: only items with a model to show — their own gear model or one set for
+        // their kind. "Group/Name" labels make submenus; "" is coin only. Rebuilt when a kind's
+        // model changes or the window regains focus (after a Harvest Gear run).
+        static string[] _itemChoiceNames, _itemChoiceLabels;
+        static string[] ItemChoiceNames { get { BuildItemChoices(); return _itemChoiceNames; } }
+        static string[] ItemChoiceLabels { get { BuildItemChoices(); return _itemChoiceLabels; } }
+
+        void OnFocus() => _itemChoiceNames = null;
+
+        static bool HasKindModel(PickupKind kind) =>
+            AssetDatabase.LoadAssetAtPath<GameObject>(EditorPrefs.GetString(ModelKey(kind), "")) != null;
+
+        static bool HasModel(Item item, GearLibrary library)
+        {
+            var look = library != null ? library.For(item) : null;
+            return (look != null && look.attachedPieces.Any(p => p.mesh != null)) || HasKindModel(KindOf(item));
+        }
+
+        static void BuildItemChoices()
+        {
+            if (_itemChoiceNames != null)
+                return;
+            var library = GearHarvester.LoadLibrary();
+            var groups = new (string group, IEnumerable<Item> items)[]
+            {
+                ("Weapons", ItemCatalog.Weapons),
+                ("Armor", ItemCatalog.Armors.Append(ItemCatalog.Shield)),
+                ("Clothing", ItemCatalog.Clothing.Concat(ItemCatalog.LootOnly)),
+                ("Jewelry", ItemCatalog.Jewelry),
+                ("Tools", ItemCatalog.Tools),
+                ("Potions", ItemCatalog.Potions),
+                ("Trade Goods", ItemCatalog.TradeGoods),
+                ("Fish", ItemCatalog.Fish.Skip(1)),
+                ("Legendaries", ItemCatalog.Legendaries),
+            };
+            var names = new List<string>();
+            var labels = new List<string>();
+            if (HasKindModel(PickupKind.Coin))
+            {
+                names.Add("");
+                labels.Add("Coin only");
+            }
+            foreach (var (group, items) in groups)
+                foreach (var item in items.Where(item => HasModel(item, library)))
+                {
+                    names.Add(item.name);
+                    labels.Add(group + "/" + item.name);
+                }
+            _itemChoiceNames = names.ToArray();
+            _itemChoiceLabels = labels.ToArray();
+        }
+
         void OnGUI()
         {
             EditorGUILayout.HelpBox("Places an item on the ground where the Scene view is looking. Click it in Play to " +
-                                    "pick it up. Its model is the one set for its kind below.", MessageType.Info);
-            itemName = EditorGUILayout.TextField(new GUIContent("Item", "A catalog name, e.g. Longsword. Empty for coin only."), itemName);
-            if (!string.IsNullOrWhiteSpace(itemName) && !ItemCatalog.TryFind(itemName.Trim(), out _))
-                EditorGUILayout.HelpBox("No item by that name. Close: " +
-                    string.Join(", ", ItemCatalog.Names.Where(n => n.ToLowerInvariant().Contains(itemName.Trim().ToLowerInvariant())).Take(5)),
-                    MessageType.Warning);
+                                    "pick it up. Weapons, shields, helms and shoulders use their own gear model (Harvest Gear); " +
+                                    "anything else uses the model set for its kind below.", MessageType.Info);
+            bool anyChoices = ItemChoiceNames.Length > 0;
+            if (anyChoices)
+            {
+                int chosen = System.Array.IndexOf(ItemChoiceNames, string.IsNullOrWhiteSpace(itemName) ? "" : itemName.Trim());
+                if (chosen < 0)
+                    chosen = Mathf.Max(0, System.Array.IndexOf(ItemChoiceNames, "Longsword"));
+                chosen = EditorGUILayout.Popup(new GUIContent("Item", "Items with a model to show: their own gear model, " +
+                                                              "or one set for their kind below."), chosen, ItemChoiceLabels);
+                itemName = ItemChoiceNames[chosen];
+            }
+            else
+            {
+                EditorGUILayout.HelpBox("No items have a model yet. Run Harvest Gear, or set a model for a kind below.",
+                                        MessageType.Warning);
+            }
             count = Mathf.Max(1, EditorGUILayout.IntField("Count", count));
             copper = Mathf.Max(0, EditorGUILayout.IntField(new GUIContent("Coin (copper)", "100 = 1 silver, 10,000 = 1 gold."), copper));
             size = EditorGUILayout.FloatField(new GUIContent("Size", "Its longest side, in world units. 0 keeps the model's own size."), size);
@@ -334,12 +398,16 @@ namespace WowSandbox.EditorTools
                 var current = AssetDatabase.LoadAssetAtPath<GameObject>(EditorPrefs.GetString(ModelKey(kind), ""));
                 var picked = (GameObject)EditorGUILayout.ObjectField(kind.ToString(), current, typeof(GameObject), false);
                 if (picked != current)
+                {
                     EditorPrefs.SetString(ModelKey(kind), picked != null ? AssetDatabase.GetAssetPath(picked) : "");
+                    _itemChoiceNames = null;
+                }
             }
             EditorGUILayout.EndScrollView();
 
-            if (GUILayout.Button("Place", GUILayout.Height(28f)))
-                PlaceGroundItem();
+            using (new EditorGUI.DisabledScope(!anyChoices))
+                if (GUILayout.Button("Place", GUILayout.Height(28f)))
+                    PlaceGroundItem();
         }
 
         void PlaceGroundItem()
@@ -366,12 +434,13 @@ namespace WowSandbox.EditorTools
             Undo.RegisterCreatedObjectUndo(root, "Place Ground Item");
             root.transform.SetPositionAndRotation(point, facing * Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
 
-            GameObject look;
-            if (model != null)
+            // The item's own gear model if it has one, else the model set for its kind.
+            GameObject look = GearModel(catalogItem, root.transform);
+            if (look == null && model != null)
             {
                 look = (GameObject)PrefabUtility.InstantiatePrefab(model, root.transform);
             }
-            else
+            else if (look == null)
             {
                 // Until a model is set for this kind: a small sack-coloured lump.
                 look = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -403,6 +472,48 @@ namespace WowSandbox.EditorTools
 
             Selection.activeGameObject = root;
             EditorSceneManager.MarkSceneDirty(root.scene);
+        }
+
+        /// <summary>
+        /// The item's own model from Harvest Gear's library — the meshes a weapon, shield, helm or
+        /// shoulder rides a bone with — laid flat, side by side if there are several (a pair of
+        /// shoulders). Null when it has none (body armour is painted on or skinned), so the
+        /// kind's model is used instead.
+        /// </summary>
+        static GameObject GearModel(Item item, Transform parent)
+        {
+            var look = item != null ? GearHarvester.LoadLibrary()?.For(item) : null;
+            var pieces = look != null ? look.attachedPieces.Where(p => p.mesh != null).ToArray() : null;
+            if (pieces == null || pieces.Length == 0)
+                return null;
+
+            var root = new GameObject("Model");
+            root.transform.SetParent(parent, false);
+            float x = 0f;
+            foreach (var piece in pieces)
+            {
+                var child = new GameObject(piece.name);
+                child.transform.SetParent(root.transform, false);
+                child.AddComponent<MeshFilter>().sharedMesh = piece.mesh;
+                child.AddComponent<MeshRenderer>().sharedMaterials = piece.materials;
+
+                // Lie it down along its longest side, then line it up after the last one.
+                var mesh = piece.mesh.bounds;
+                var rotation = mesh.size.y > mesh.size.x && mesh.size.y > mesh.size.z
+                    ? Quaternion.Euler(0f, 0f, 90f) : Quaternion.identity;
+                float minX = float.MaxValue, maxX = float.MinValue;
+                for (int corner = 0; corner < 8; corner++)
+                {
+                    var offset = Vector3.Scale(mesh.extents, new Vector3((corner & 1) == 0 ? -1 : 1, (corner & 2) == 0 ? -1 : 1, (corner & 4) == 0 ? -1 : 1));
+                    float cornerX = (rotation * (mesh.center + offset)).x;
+                    minX = Mathf.Min(minX, cornerX);
+                    maxX = Mathf.Max(maxX, cornerX);
+                }
+                child.transform.localRotation = rotation;
+                child.transform.localPosition = new Vector3(x - minX, 0f, 0f);
+                x += maxX - minX + 0.05f;
+            }
+            return root;
         }
 
         static PickupKind KindOf(Item item)

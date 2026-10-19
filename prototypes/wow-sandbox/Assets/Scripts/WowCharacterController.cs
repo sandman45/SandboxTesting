@@ -44,6 +44,13 @@ namespace WowSandbox
                  "from a ledge, say. Below the surface you hold depth instead; Space is the " +
                  "only thing that raises you.")]
         public float settleSpeed = 3f;
+        [Tooltip("How deep you float at the surface: the waterline sits this fraction of the " +
+                 "capsule up from the feet. Smaller floats higher — 0.7 is about shoulder deep.")]
+        [Range(0.4f, 0.95f)] public float floatDepth = 0.7f;
+        [Tooltip("Lifts the model this far (world units) while swimming along: the swim stroke " +
+                 "lies the body out flat, lower than the upright float, so it would go under. " +
+                 "Eases in with speed. Purely cosmetic.")]
+        public float swimStrokeLift = 0.1f;
         [Tooltip("Degrees the model tips forward while swimming. 90 would be fully horizontal, " +
                  "but that points the model's face straight down rather than along the " +
                  "direction of travel, so 0 (upright) reads better without a dedicated swim " +
@@ -114,6 +121,7 @@ namespace WowSandbox
         bool _hasSwimmingParameter;
         float _modelPitch;
         Quaternion _modelRestRotation;
+        Vector3 _modelRestPosition;
 
         // Cached animator parameter hashes.
         static readonly int SpeedHash = Animator.StringToHash("Speed");
@@ -211,7 +219,10 @@ namespace WowSandbox
             if (modelRoot == null && transform.childCount > 0)
                 modelRoot = transform.GetChild(0);
             if (modelRoot != null)
+            {
                 _modelRestRotation = modelRoot.localRotation;
+                _modelRestPosition = modelRoot.localPosition;
+            }
 
             // "Swimming" only exists in controllers built after swimming was added. A player
             // already in the scene keeps the controller it was spawned with — rebuilding the
@@ -640,7 +651,9 @@ namespace WowSandbox
             if (!_swimming && fraction >= swimEnterHeight)
             {
                 _swimming = true;
-                _atSurface = false;
+                // Up to the surface and ride it, however you came in — wading off the beach or
+                // jumping from the ship. X dives under from there.
+                _atSurface = true;
                 // Drop whatever fall speed we entered the water with, or you torpedo to the
                 // lake bed before the buoyancy can catch you.
                 _verticalVelocity = 0f;
@@ -665,9 +678,9 @@ namespace WowSandbox
         {
             float verticalSpeed = swimSpeed * verticalSwimFactor;
 
-            // Floating height: eyes at the waterline rather than the whole capsule under it.
+            // Floating height: head and shoulders out rather than the whole capsule under it.
             // Taken from the wave-displaced surface right here, not the calm sea level.
-            float floatY = water.SurfaceHeightAt(transform.position) - _controller.height * 0.85f;
+            float floatY = water.SurfaceHeightAt(transform.position) - _controller.height * floatDepth;
 
             float input = 0f;
             if (keyboard.spaceKey.isPressed) input += 1f;
@@ -908,8 +921,9 @@ namespace WowSandbox
         }
 
         /// <summary>
-        /// Tips the model forward while swimming. This goes on the model child, which already
-        /// carries the +90 degree facing offset, so transform.forward on the root stays honest.
+        /// Tips the model forward while swimming, and lifts it while stroking along. This goes on
+        /// the model child, which already carries the +90 degree facing offset, so
+        /// transform.forward on the root stays honest.
         /// </summary>
         void UpdateModelPitch()
         {
@@ -922,6 +936,11 @@ namespace WowSandbox
             // Left-multiplied, so the pitch is about the root's X axis (the character's right)
             // rather than the model's own rotated axes.
             modelRoot.localRotation = Quaternion.Euler(_modelPitch, 0f, 0f) * _modelRestRotation;
+
+            // _animSpeed eases 0 → 1 as you get going, so the lift does too.
+            float lift = _swimming ? swimStrokeLift * Mathf.Clamp01(_animSpeed) : 0f;
+            var restWorld = transform.TransformVector(_modelRestPosition);
+            modelRoot.localPosition = transform.InverseTransformVector(restWorld + Vector3.up * lift);
         }
 
         void UpdateAnimator(bool grounded, bool walking, float forward, float strafe)
