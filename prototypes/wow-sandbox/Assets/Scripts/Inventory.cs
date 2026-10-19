@@ -48,10 +48,9 @@ namespace WowSandbox
     public class Inventory : MonoBehaviour
     {
         public int bagSize = 20;
-        [Tooltip("Coin purse, in copper pieces (100 cp = 1 gp).")]
-        public int copper = 15 * Money.Gold;
-        [Tooltip("Start in a linen shirt, shorts and sandals with a dagger, and in the bags a fighter's kit (chain mail, longsword, shield, cap) and a twig fishing pole.")]
-        public bool starterKit = true;
+        /// <summary>Coin purse, in copper pieces (100 cp = 1 gp). Starts empty — not serialized, so
+        /// an old value saved in the scene can't put coin back.</summary>
+        [NonSerialized] public int copper;
         [Tooltip("Seconds between potions.")]
         public float potionCooldown = 2f;
 
@@ -86,20 +85,7 @@ namespace WowSandbox
 
         void Start()
         {
-            if (starterKit)
-            {
-                _equipped[(int)EquipSlot.Chest] = ItemCatalog.Create("Linen Shirt");
-                _equipped[(int)EquipSlot.Legs] = ItemCatalog.Create("Cloth Shorts");
-                _equipped[(int)EquipSlot.Feet] = ItemCatalog.Create("Worn Sandals");
-                _equipped[(int)EquipSlot.MainHand] = ItemCatalog.Create("Dagger");
-                Add(ItemCatalog.Create("Chain Mail"));
-                Add(ItemCatalog.Create("Longsword"));
-                Add(ItemCatalog.Create("Shield"));
-                Add(ItemCatalog.Create("Leather Cap"));
-                Add(ItemCatalog.Create("Twig Fishing Pole"));
-            }
-
-            // Even with nothing worn: tells CharacterStats this character's weapon now comes
+            // Nothing worn to start: this tells CharacterStats this character's weapon now comes
             // from equipment, so an empty main hand fights unarmed.
             EquipmentChanged();
         }

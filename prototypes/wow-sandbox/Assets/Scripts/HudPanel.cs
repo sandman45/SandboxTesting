@@ -87,9 +87,12 @@ namespace WowSandbox
                 Open();
         }
 
+        /// <summary>False keeps the panel shut (say why with Hud.Error).</summary>
+        protected virtual bool CanOpen() => true;
+
         public void Open()
         {
-            if (IsOpen)
+            if (IsOpen || !CanOpen())
                 return;
             IsOpen = true;
             _open.Add(this);

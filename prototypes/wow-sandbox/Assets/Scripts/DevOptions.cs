@@ -14,6 +14,8 @@ namespace WowSandbox
 
         const string StormOnPlayKey = "dev.stormOnPlay";
         const string SkipTitleKey = "dev.skipTitle";
+        const string ShowMinimapKey = "dev.showMinimap";
+        const string EnableMapKey = "dev.enableMap";
         const string BuildKey = "dev.stormBuildSeconds";
         const string HoldKey = "dev.stormHoldSeconds";
         const string ClearKey = "dev.stormClearSeconds";
@@ -29,6 +31,20 @@ namespace WowSandbox
         {
             get => PlayerPrefs.GetInt(SkipTitleKey, 0) == 1;
             set => Save(() => PlayerPrefs.SetInt(SkipTitleKey, value ? 1 : 0));
+        }
+
+        /// <summary>The minimap shows without a map found (WorldMap.Found).</summary>
+        public static bool ShowMinimap
+        {
+            get => PlayerPrefs.GetInt(ShowMinimapKey, 0) == 1;
+            set => Save(() => PlayerPrefs.SetInt(ShowMinimapKey, value ? 1 : 0));
+        }
+
+        /// <summary>M opens the world map without a map found (WorldMap.Found).</summary>
+        public static bool EnableMap
+        {
+            get => PlayerPrefs.GetInt(EnableMapKey, 0) == 1;
+            set => Save(() => PlayerPrefs.SetInt(EnableMapKey, value ? 1 : 0));
         }
 
         /// <summary>Stage lengths in seconds; the weather's Inspector values until set.</summary>

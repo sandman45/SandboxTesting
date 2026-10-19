@@ -24,6 +24,7 @@ namespace WowSandbox
         const float Width = Diameter + 10f;
 
         TargetingController _targeting;
+        RectTransform _frame;
         RawImage _map;
         MapMarkers _markers;
         Text _coordinates;
@@ -38,6 +39,11 @@ namespace WowSandbox
 
         void LateUpdate()
         {
+            // Hidden until the player finds a map.
+            _frame.gameObject.SetActive(WorldMap.MinimapShown);
+            if (!WorldMap.MinimapShown)
+                return;
+
             Vector3 position = transform.position;
             var bounds = WorldMap.Bounds;
 
@@ -69,6 +75,7 @@ namespace WowSandbox
             var topLeft = new Vector2(0f, 1f);
             var frame = Hud.Rect("Minimap", Hud.Layer(HudLayer.Frames), Vector2.one, topRightOffset,
                 new Vector2(Width, Diameter + 56f));
+            _frame = frame;
 
             Hud.Label("Zone", frame, topLeft, new Vector2(0f, 0f), new Vector2(Width, 20f),
                 15, TextAnchor.MiddleCenter, HudTheme.Heading, FontStyle.Bold).text = zoneName;

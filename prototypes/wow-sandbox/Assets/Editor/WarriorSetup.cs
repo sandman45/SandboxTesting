@@ -79,18 +79,19 @@ namespace WowSandbox.EditorTools
             bool hit = AddHitState(controller, clips);
             bool combat = AddCombatStates(controller, clips);
             bool loot = AddLootStates(controller, clips);
+            bool washedUp = AddWashedUpStates(controller, clips);
             // The abilities that play the new states, on the player already in the scene.
             foreach (var player in Object.FindObjectsByType<WowCharacterController>())
             {
                 if (player.GetComponent<WarriorAbilities>() == null)
                     Undo.AddComponent<WarriorAbilities>(player.gameObject);
             }
-            if (fishing || hit || combat || loot)
+            if (fishing || hit || combat || loot || washedUp)
             {
                 EditorUtility.SetDirty(controller);
                 AssetDatabase.SaveAssets();
                 Debug.Log("[WarriorSetup] Warrior controller updated:" + (fishing ? " fishing" : "") +
-                          (hit ? " hit reaction" : "") + (combat ? " combat" : "") + (loot ? " looting" : "") + ".", controller);
+                          (hit ? " hit reaction" : "") + (combat ? " combat" : "") + (loot ? " looting" : "") + (washedUp ? " washed up" : "") + ".", controller);
             }
         }
 
@@ -304,6 +305,82 @@ namespace WowSandbox.EditorTools
             return true;
         }
 
+        static readonly string[] WashedUpStates = { "WashedUpSleep", "WashedUpSit", "WashedUpRise" };
+
+        /// <summary>
+        /// The opening, washed up on the beach (ShipwreckWake), driven by WashedUp (int): 2 lies
+        /// you down asleep (Sleep, looping) straight away; 1 sits you up (a slow blend into
+        /// SitGround); 0 stands you up (SitGroundUp) and back to locomotion. Without the sitting
+        /// clips, 1 or 0 gets straight up with SleepUp. Replaces any washed-up states already
+        /// there. False without the Sleep clip.
+        /// </summary>
+        static bool AddWashedUpStates(AnimatorController controller, AnimationClip[] clips)
+        {
+            var sleep = CopyVariation(clips, "Sleep", 0, loop: true);
+            var sit = CopyVariation(clips, "SitGround", 0, loop: true);
+            var stand = CopyVariation(clips, "SitGroundUp", 0);
+            var sleepUp = CopyVariation(clips, "SleepUp", 0);
+            if (sleep == null)
+            {
+                Debug.LogWarning("[WarriorSetup] No Sleep clip — the player will start on their feet.");
+                return false;
+            }
+
+            var stateMachine = controller.layers[0].stateMachine;
+            var locomotion = stateMachine.defaultState;
+            foreach (var child in stateMachine.states)
+                if (WashedUpStates.Contains(child.state.name))
+                    stateMachine.RemoveState(child.state);
+            foreach (var parameter in controller.parameters)
+                if (parameter.name == "WashedUp")
+                    controller.RemoveParameter(parameter);
+            controller.AddParameter("WashedUp", AnimatorControllerParameterType.Int);
+
+            var sleepState = stateMachine.AddState("WashedUpSleep");
+            sleepState.motion = sleep;
+            var down = stateMachine.AddAnyStateTransition(sleepState);
+            down.AddCondition(AnimatorConditionMode.Equals, 2f, "WashedUp");
+            down.duration = 0f;
+            down.hasExitTime = false;
+            down.canTransitionToSelf = false;
+
+            if (sit != null && stand != null)
+            {
+                var sitState = stateMachine.AddState("WashedUpSit");
+                sitState.motion = sit;
+                var sitUp = sleepState.AddTransition(sitState);
+                sitUp.AddCondition(AnimatorConditionMode.Less, 2f, "WashedUp");
+                sitUp.hasExitTime = false;
+                // Slow, in seconds: the blend from lying to sitting is the sitting up.
+                sitUp.hasFixedDuration = true;
+                sitUp.duration = 1.2f;
+
+                var riseState = stateMachine.AddState("WashedUpRise");
+                riseState.motion = stand;
+                var standUp = sitState.AddTransition(riseState);
+                standUp.AddCondition(AnimatorConditionMode.Equals, 0f, "WashedUp");
+                standUp.hasExitTime = false;
+                standUp.duration = 0.15f;
+                PlayThrough(riseState, locomotion, 0.9f);
+            }
+            else
+            {
+                Debug.LogWarning("[WarriorSetup] No SitGround/SitGroundUp clips — waking up gets straight up.");
+                AnimatorState up = locomotion;
+                if (sleepUp != null)
+                {
+                    up = stateMachine.AddState("WashedUpRise");
+                    up.motion = sleepUp;
+                    PlayThrough(up, locomotion, 0.9f);
+                }
+                var wake = sleepState.AddTransition(up);
+                wake.AddCondition(AnimatorConditionMode.Less, 2f, "WashedUp");
+                wake.hasExitTime = false;
+                wake.duration = 0.15f;
+            }
+            return true;
+        }
+
         [MenuItem("WoW Sandbox/Spawn Warrior Player")]
         public static void SpawnPlayer()
         {
@@ -377,7 +454,7 @@ namespace WowSandbox.EditorTools
             stats.intelligence = 10;
             stats.charisma = 8;
             stats.hitDie = 10;
-            // Weapon and armour come from Inventory's starter kit (chain mail, longsword, shield).
+            // No weapon or armour to start: gear is found, looted or bought.
 
             root.AddComponent<HealthController>();
             root.AddComponent<BreathController>();
@@ -549,6 +626,7 @@ namespace WowSandbox.EditorTools
             AddFishingStates(controller, clips);
             AddHitState(controller, clips);
             AddCombatStates(controller, clips);
+            AddWashedUpStates(controller, clips);
 
             EditorUtility.SetDirty(controller);
             AssetDatabase.SaveAssets();
