@@ -29,7 +29,7 @@ namespace WowSandbox
 
         /// <summary>
         /// Whether the player has found a map: until then there's no minimap and M does nothing.
-        /// Nothing in the world gives one yet; the Developer panel's Show Minimap and Enable Map
+        /// A MapPickup in the world sets it; the Developer panel's Show Minimap and Enable Map
         /// stand in for it (<see cref="MinimapShown"/>, <see cref="MapUsable"/>).
         /// </summary>
         public static bool Found { get; set; }

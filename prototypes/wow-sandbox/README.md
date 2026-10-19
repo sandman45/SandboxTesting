@@ -132,7 +132,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 
 **Maps:**
 - **Snapshot:** `WorldMap` takes one top-down snapshot of the whole sea. It leaves out the moving ship, and the hull's dry-zone hole, which would otherwise show as land.
-- **No map to start:** the minimap is hidden and `M` says "You don't have a map." until the player finds one (`WorldMap.Found`). Nothing in the world gives one yet; the Developer panel's **Show Minimap** and **Enable Map** toggles (saved, like Skip Title) stand in for it.
+- **No map to start:** the minimap is hidden and `M` says "You don't have a map." until the player finds one (`WorldMap.Found`): a map lying in the world (`MapPickup`) — click it to learn it, no bag space, a "You found a map" message. Place it with **Place Ground Item**: set a model in its **Map** slot and pick **Map** from the Item list. The Developer panel's **Show Minimap** and **Enable Map** toggles (saved, like Skip Title) stand in for it.
 - **World map (`M`):** opens on the island. The mouse wheel zooms out to the full sea, and the map centres on you once you're off the island.
 - **Ship marker:** the ship is drawn on both maps as a to-scale silhouette.
 
