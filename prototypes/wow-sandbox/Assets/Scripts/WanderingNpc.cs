@@ -11,6 +11,8 @@ namespace WowSandbox
     /// hut is baked into the navmesh as unwalkable, so an agent simply has nowhere to
     /// path through it. That also means this needs a baked NavMesh to do anything at
     /// all; see WoW Sandbox -> Bake NavMesh.
+    ///
+    /// Animals (<see cref="FearsFire"/>) run from a lit torch in the player's hand.
     /// </summary>
     [RequireComponent(typeof(NavMeshAgent))]
     public class WanderingNpc : MonoBehaviour
@@ -37,12 +39,19 @@ namespace WowSandbox
         bool _waiting;
         int _speedHash;
         bool _hasSpeedParameter;
+        float _walkSpeed;
+        bool _fleeing;
+        float _nextFleePath;
+
+        /// <summary>An animal: it keeps away from a lit torch (HeldLight). People don't.</summary>
+        protected virtual bool FearsFire => false;
 
         protected virtual void Start()
         {
             _agent = GetComponent<NavMeshAgent>();
             _animator = GetComponentInChildren<Animator>();
             _home = transform.position;
+            _walkSpeed = _agent.speed;
             // HD character exports (the Kul Tiran thieves) carry a white EyeGlow sheet.
             Vendor.HideEyeGlow(gameObject);
 
@@ -78,6 +87,11 @@ namespace WowSandbox
 
         protected virtual void Update()
         {
+            if (FearsFire && Flee())
+            {
+                UpdateSpeedParameter();
+                return;
+            }
             if (_agent.pathPending)
                 return;
 
@@ -95,6 +109,44 @@ namespace WowSandbox
                 _resumeAt = Time.time + Random.Range(pauseSeconds.x, pauseSeconds.y);
             }
 
+            UpdateSpeedParameter();
+        }
+
+        /// <summary>Runs from a lit torch, true while it's near; back to wandering once it isn't.</summary>
+        bool Flee()
+        {
+            if (!HeldLight.TorchNear(transform.position, out var torch))
+            {
+                if (_fleeing)
+                {
+                    _fleeing = false;
+                    _agent.speed = _walkSpeed;
+                    _waiting = true;
+                    _resumeAt = Time.time + Random.Range(pauseSeconds.x, pauseSeconds.y);
+                }
+                return false;
+            }
+
+            if (!_fleeing)
+            {
+                _fleeing = true;
+                _agent.speed = _walkSpeed * 1.8f;
+                _nextFleePath = 0f;
+            }
+            if (Time.time >= _nextFleePath)
+            {
+                _nextFleePath = Time.time + 0.5f;
+                var away = transform.position - torch;
+                away.y = 0f;
+                away = away.sqrMagnitude > 0.01f ? away.normalized : Random.insideUnitSphere;
+                if (NavMesh.SamplePosition(transform.position + away * 6f, out NavMeshHit hit, sampleRange, NavMesh.AllAreas))
+                    _agent.SetDestination(hit.position);
+            }
+            return true;
+        }
+
+        void UpdateSpeedParameter()
+        {
             if (_hasSpeedParameter)
             {
                 // Normalise against the agent's own top speed so the blend tree reads 0..1

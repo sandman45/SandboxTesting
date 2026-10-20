@@ -29,6 +29,8 @@ namespace WowSandbox
         Text _stormOnPlay;
         Text _godMode;
         Text _skipTitle;
+        Text _hideClouds;
+        Text _showClock;
         Text _showMinimap;
         Text _enableMap;
         Action _refreshSliders;
@@ -149,9 +151,11 @@ namespace WowSandbox
             var row = Buttons(ref y,
                 ("Lightning", () => Weather(w => w.StrikeNow())),
                 ("Storm on Play", () => DevOptions.StormOnPlay = !DevOptions.StormOnPlay),
-                ("Skip Title", () => DevOptions.SkipTitle = !DevOptions.SkipTitle));
+                ("Skip Title", () => DevOptions.SkipTitle = !DevOptions.SkipTitle),
+                ("Clouds", () => DevOptions.HideClouds = !DevOptions.HideClouds));
             _stormOnPlay = row[1].GetComponentInChildren<Text>();
             _skipTitle = row[2].GetComponentInChildren<Text>();
+            _hideClouds = row[3].GetComponentInChildren<Text>();
 
             StormLength("Build-up", ref y, DevOptions.BuildSeconds, DevOptions.SetBuildSeconds, 300f);
             StormLength("Full storm", ref y, DevOptions.HoldSeconds, DevOptions.SetHoldSeconds, 600f);
@@ -167,6 +171,8 @@ namespace WowSandbox
                 ("Noon", () => Clock(c => c.SetHour(12f))),
                 ("Dusk", () => Clock(c => c.SetHour(DayNightCycle.Sunset - 0.25f))),
                 ("Midnight", () => Clock(c => c.SetHour(0f))));
+            _showClock = Buttons(ref y, ("Clock", () => DevOptions.ShowClock = !DevOptions.ShowClock))[0]
+                .GetComponentInChildren<Text>();
 
             Heading("Sea", ref y);
             Buttons(ref y,
@@ -206,6 +212,13 @@ namespace WowSandbox
                     i.Give("Linen Shirt");
                     i.Give("Cloth Shorts");
                     i.Give("Worn Sandals");
+                })),
+                ("Light Kit", () => Player<Inventory>(i =>
+                {
+                    i.Add(ItemCatalog.Create("Torch", 3));
+                    i.Give("Hooded Lantern");
+                    i.Give("Bullseye Lantern");
+                    i.Add(ItemCatalog.Create("Flask of Oil", 2));
                 })));
 
             row = Buttons(ref y,
@@ -245,6 +258,8 @@ namespace WowSandbox
             _stormOnPlay.text = $"Storm on Play: {(DevOptions.StormOnPlay ? "On" : "Off")}";
             _godMode.text = $"God Mode: {(HealthController.GodMode ? "On" : "Off")}";
             _skipTitle.text = $"Skip Title: {(DevOptions.SkipTitle ? "On" : "Off")}";
+            _hideClouds.text = $"Clouds: {(DevOptions.HideClouds ? "Hidden" : "Shown")}";
+            _showClock.text = $"Clock: {(DevOptions.ShowClock ? "Shown" : "Hidden")}";
             _showMinimap.text = $"Show Minimap: {(DevOptions.ShowMinimap ? "On" : "Off")}";
             _enableMap.text = $"Enable Map: {(DevOptions.EnableMap ? "On" : "Off")}";
             _refreshSliders?.Invoke();

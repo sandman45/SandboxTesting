@@ -8,5 +8,6 @@ namespace WowSandbox
     /// </summary>
     public class ChickenWanderer : WanderingNpc
     {
+        protected override bool FearsFire => true;
     }
 }

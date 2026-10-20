@@ -100,6 +100,12 @@ namespace WowSandbox
 
         public bool IsNight => SunHeight < -0.05f;
 
+        /// <summary>Game hours passing per real second right now — 0 while the clock waits (the wreck) or is paused.</summary>
+        public float HoursPerSecond => ShipwreckWake.Lying || _target >= 0f ? 0f : 24f / (dayMinutes * 60f) * timeSpeed;
+
+        /// <summary>Game hours gone by this frame; at the default 24-minute day without a cycle.</summary>
+        public static float HoursThisFrame => (Active != null ? Active.HoursPerSecond : 1f / 60f) * Time.deltaTime;
+
         /// <summary>The clock as 06:30.</summary>
         public string ClockText
         {
@@ -193,8 +199,8 @@ namespace WowSandbox
                 else
                     hour += step;
             }
-            else if (!ShipwreckWake.Lying)
-                hour += 24f / (dayMinutes * 60f) * timeSpeed * Time.deltaTime;
+            else
+                hour += HoursPerSecond * Time.deltaTime;
             hour = Mathf.Repeat(hour, 24f);
 
             Vector3 sun = SunDirection(hour);

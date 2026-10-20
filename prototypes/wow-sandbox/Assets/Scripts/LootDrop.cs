@@ -38,6 +38,9 @@ namespace WowSandbox
             (() => ItemCatalog.RandomMagic(ItemRarity.Uncommon), 18),
             (() => ItemCatalog.RandomMagic(ItemRarity.Rare), 5),
             (() => ItemCatalog.RandomMagic(ItemRarity.VeryRare), 1),
+            // Everyone carries a light about them.
+            (() => ItemCatalog.Create("Torch", Random.Range(1, 4)), 8),
+            (() => ItemCatalog.Create("Flask of Oil", Random.Range(1, 3)), 4),
         };
 
         readonly List<Item> _items = new();

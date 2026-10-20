@@ -21,7 +21,7 @@ namespace WowSandbox.EditorTools
             public string export;
             [Tooltip("The catalog item it dresses, e.g. \"Longsword\". Empty leaves the export out.")]
             public string item;
-            [Tooltip("Item models only: Main-hand, Off-hand, Head, Back, Shoulder (L) or Shoulder (R). Empty follows the item.")]
+            [Tooltip("Item models only: Main-hand, Off-hand, Off-hand (held), Head, Back, Shoulder (L) or Shoulder (R). Empty follows the item.")]
             public string slot;
             [Tooltip("Size of the item's separate meshes (helms, shoulders, weapons), each about its own " +
                      "attachment point: 0.85 is a little smaller. 1 (or 0) uses Harvest Gear's built-in fit " +

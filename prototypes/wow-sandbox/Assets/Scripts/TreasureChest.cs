@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 namespace WowSandbox
 {
@@ -59,6 +60,11 @@ namespace WowSandbox
             }
             for (int i = 0; i < bonusTreasure; i++)
                 items.Add(ItemCatalog.RandomTreasure());
+            // Supplies for the dark, on top of whatever it holds.
+            if (Random.value < 0.4f)
+                items.Add(ItemCatalog.Create("Torch", Random.Range(1, 4)));
+            if (Random.value < 0.25f)
+                items.Add(ItemCatalog.Create("Flask of Oil", Random.Range(1, 3)));
             _loot.Fill(items, copper);
         }
 

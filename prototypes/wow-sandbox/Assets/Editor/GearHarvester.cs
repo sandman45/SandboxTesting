@@ -50,6 +50,9 @@ namespace WowSandbox.EditorTools
         {
             ("hammer_2h_maul_b_03white", "Warhammer"),
             ("shield_2h_outlandraid_d_05", "Aegis of the Dawn"),
+            // Two lanterns exported, two lantern items.
+            ("misc_1h_lantern_a_01silver", "Hooded Lantern"),
+            ("misc_1h_lantern_b_01silver", "Bullseye Lantern"),
         };
 
         /// <summary>
@@ -96,6 +99,8 @@ namespace WowSandbox.EditorTools
             (new[] { "pauldron" }, "Iron Pauldrons"),
             (new[] { "iron", "shoulder" }, "Iron Pauldrons"),
             (new[] { "plate", "shoulder" }, "Iron Pauldrons"),
+            (new[] { "torch" }, "Torch"),
+            (new[] { "lantern" }, "Hooded Lantern"),
             (new[] { "shield" }, "Shield"),
             (new[] { "buckler" }, "Shield"),
         };
@@ -105,8 +110,8 @@ namespace WowSandbox.EditorTools
 
         /// <summary>
         /// wow.export names a rigid item mesh "&lt;slot&gt;_Item&lt;id&gt;_&lt;n&gt;"; the slot picks the attachment
-        /// point, first one the model has. Off-hand tries the shield's point first — an off-hand
-        /// weapon would want the left hand, which only matters once there is one.
+        /// point, first one the model has. Off-hand tries the shield's point first (on the forearm);
+        /// something held in the off hand — a torch, a lantern — goes in the left hand itself.
         /// </summary>
         static readonly (string slot, int[] attachments)[] SlotAttachments =
         {
@@ -116,6 +121,7 @@ namespace WowSandbox.EditorTools
             ("Back", new[] { M2Attachments.Back }),
             ("Main-hand", new[] { M2Attachments.HandRight }),
             ("Off-hand", new[] { M2Attachments.Shield, M2Attachments.HandLeft }),
+            ("Off-hand (held)", new[] { M2Attachments.HandLeft, M2Attachments.Shield }),
         };
 
         /// <summary>
@@ -356,13 +362,15 @@ namespace WowSandbox.EditorTools
 
         /// <summary>
         /// Where an item model is held, from the catalog item: weapons and tools in the main hand,
-        /// shields in the off hand, helms on the head, cloaks on the back, shoulders by the file's
+        /// shields on the off arm, torches and lanterns in the off hand, helms on the head, cloaks on the back, shoulders by the file's
         /// own lshoulder/rshoulder. Null for worn items, which need a character export.
         /// </summary>
         static string HeldSlot(Item item, string path)
         {
             if (item.kind == ItemKind.Tool)
                 return "Main-hand";
+            if (item.kind == ItemKind.Light)
+                return "Off-hand (held)";
             string file = Path.GetFileName(path).ToLowerInvariant();
             return item.slot switch
             {

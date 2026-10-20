@@ -45,7 +45,8 @@ namespace WowSandbox
             CacheRenderSettings();
             BuildVolume();
 
-            var dome = FindFirstObjectByType<SkyDomeFollow>();
+            // Also while it's switched off (the developer panel's Hide Clouds), so turning it back on still hides it under water.
+            var dome = FindFirstObjectByType<SkyDomeFollow>(FindObjectsInactive.Include);
             if (dome != null)
                 _skyDomeRenderers = dome.GetComponentsInChildren<Renderer>(true);
 

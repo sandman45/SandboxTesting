@@ -342,6 +342,30 @@ namespace WowSandbox
             return true;
         }
 
+        /// <summary>One of the equipped stack used up — a torch burnt out. The slot empties with the last.</summary>
+        public void UseUpEquipped(EquipSlot slot)
+        {
+            var item = Equipped(slot);
+            if (item == null)
+                return;
+            if (--item.count <= 0)
+                _equipped[(int)slot] = null;
+            item.fuel = 0f;
+            EquipmentChanged();
+        }
+
+        /// <summary>Takes one of the item called <paramref name="itemName"/> out of the bags — a flask of oil for the lantern.</summary>
+        public bool TakeOneFromBags(string itemName)
+        {
+            int index = Array.FindIndex(Bag, item => item != null && item.baseName == itemName);
+            if (index < 0)
+                return false;
+            if (--Bag[index].count <= 0)
+                Bag[index] = null;
+            Changed?.Invoke();
+            return true;
+        }
+
         int FirstEmpty() => Array.IndexOf(Bag, null);
 
         int EmptyCount()

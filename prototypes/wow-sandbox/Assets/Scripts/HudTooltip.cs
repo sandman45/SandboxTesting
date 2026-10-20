@@ -155,6 +155,27 @@ namespace WowSandbox
                     lines.Add($"<color=#{good}>Carry it to fish at a fishing spot</color>");
                     break;
 
+                case ItemKind.Light when item.IsTorch:
+                    lines.Add($"<color=#{good}>Off hand: lights the dark. Burns {ItemCatalog.TorchHours:0} hours, then the next one lights</color>");
+                    if (item.fuel > 0f)
+                        // Only burns in the hand; one put away keeps what it has left.
+                        lines.Add($"<color=#{dim}>{GameTime(item.fuel)} of burn left</color>");
+                    lines.Add($"<color=#{dim}>Strike with it (key 7) for 1d4 + STR fire. Animals keep away from the flame</color>");
+                    break;
+
+                case ItemKind.Light when item.IsLantern:
+                    lines.Add($"<color=#{good}>Off hand: lights the dark. Burns {ItemCatalog.OilHours:0} hours per Flask of Oil</color>");
+                    if (item.baseName == "Bullseye Lantern")
+                        lines.Add($"<color=#{good}>Brighter, and reaches further</color>");
+                    lines.Add(item.fuel > 0f
+                        ? $"<color=#{dim}>Oil: {GameTime(item.fuel)} left</color>"
+                        : $"<color=#{bad}>Empty — needs a Flask of Oil in your bags</color>");
+                    break;
+
+                case ItemKind.Light:
+                    lines.Add($"<color=#{good}>Fills a lantern for {ItemCatalog.OilHours:0} hours of light</color>");
+                    break;
+
                 case ItemKind.Consumable when item.IsPotion:
                     lines.Add($"<color=#{good}>Use: Restores {Dice.Format(item.healDieCount, item.healDieSides, item.healBonus)} health</color>");
                     break;
@@ -177,6 +198,13 @@ namespace WowSandbox
             return string.Join("\n", lines);
         }
 
+        /// <summary>Game hours as "3h 20m" (or "45m").</summary>
+        static string GameTime(float hours)
+        {
+            int minutes = Mathf.CeilToInt(hours * 60f);
+            return minutes >= 60 ? $"{minutes / 60}h {minutes % 60:00}m" : $"{minutes}m";
+        }
+
         static string KindLine(Item item) => item.kind switch
         {
             ItemKind.Weapon => item.twoHanded ? "Two-Handed Weapon" : "Main Hand Weapon",
@@ -185,6 +213,7 @@ namespace WowSandbox
             ItemKind.TradeGood => "Trade Good",
             ItemKind.Consumable => "Potion",
             ItemKind.Tool => "Tool",
+            ItemKind.Light => item.slot == EquipSlot.OffHand ? "Held In Off Hand" : "Lamp Oil",
             _ => item.slot.ToString(),
         };
     }

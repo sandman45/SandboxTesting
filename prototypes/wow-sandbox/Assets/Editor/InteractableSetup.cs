@@ -297,7 +297,7 @@ namespace WowSandbox.EditorTools
 
         // --- Ground items --------------------------------------------------------------------
 
-        enum PickupKind { Weapon, Armor, Shield, Clothing, Jewelry, Potion, TradeGood, Tool, Coin, Map }
+        enum PickupKind { Weapon, Armor, Shield, Clothing, Jewelry, Potion, TradeGood, Tool, Coin, Map, Light }
 
         // The dropdown's entry for the map (MapPickup), which isn't a catalog item.
         const string MapChoice = "<Map>";
@@ -347,6 +347,7 @@ namespace WowSandbox.EditorTools
                 ("Clothing", ItemCatalog.Clothing.Concat(ItemCatalog.LootOnly)),
                 ("Jewelry", ItemCatalog.Jewelry),
                 ("Tools", ItemCatalog.Tools),
+                ("Lights", ItemCatalog.Lights),
                 ("Potions", ItemCatalog.Potions),
                 ("Trade Goods", ItemCatalog.TradeGoods),
                 ("Fish", ItemCatalog.Fish.Skip(1)),
@@ -364,8 +365,9 @@ namespace WowSandbox.EditorTools
                 names.Add(MapChoice);
                 labels.Add("Map (unlocks the minimap and M)");
             }
+            // Lights are always listed: without a model of their own they get a stand-in (StandInLight).
             foreach (var (group, items) in groups)
-                foreach (var item in items.Where(item => HasModel(item, library)))
+                foreach (var item in items.Where(item => HasModel(item, library) || item.kind == ItemKind.Light))
                 {
                     names.Add(item.name);
                     labels.Add(group + "/" + item.name);
@@ -448,6 +450,10 @@ namespace WowSandbox.EditorTools
             if (look == null && model != null)
             {
                 look = (GameObject)PrefabUtility.InstantiatePrefab(model, root.transform);
+            }
+            else if (look == null && catalogItem is { kind: ItemKind.Light })
+            {
+                look = StandInLight(catalogItem, root.transform);
             }
             else if (look == null)
             {
@@ -532,6 +538,36 @@ namespace WowSandbox.EditorTools
             return root;
         }
 
+        /// <summary>
+        /// A light with no model of its own or set for its kind: the exported lantern for the
+        /// lantern, and for a torch a plain stick stood in the ground. Null for oil (a lump, like
+        /// any item without a model).
+        /// </summary>
+        static GameObject StandInLight(Item item, Transform parent)
+        {
+            if (item.IsLantern)
+            {
+                var path = LightSourceSetup.FindModels().FirstOrDefault(p => NightLight.KindFromName(Path.GetFileNameWithoutExtension(p)) == NightLight.Kind.Lantern);
+                var prefab = path != null ? AssetDatabase.LoadAssetAtPath<GameObject>(path) : null;
+                return prefab != null ? (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent) : null;
+            }
+            if (!item.IsTorch)
+                return null;
+
+            var stick = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            Object.DestroyImmediate(stick.GetComponent<Collider>());
+            stick.transform.SetParent(parent, false);
+            stick.transform.localScale = new Vector3(0.1f, 1f, 0.1f);
+            var renderer = stick.GetComponent<Renderer>();
+            // Its own copy, saved in the scene: tinting the shared default would turn every primitive brown.
+            var wood = new Material(renderer.sharedMaterial) { name = "Torch (stand-in)" };
+            wood.color = new Color(0.3f, 0.2f, 0.12f);
+            if (wood.HasProperty("_BaseColor"))
+                wood.SetColor("_BaseColor", new Color(0.3f, 0.2f, 0.12f));
+            renderer.sharedMaterial = wood;
+            return stick;
+        }
+
         static PickupKind KindOf(Item item)
         {
             if (item == null) return PickupKind.Coin;
@@ -544,6 +580,7 @@ namespace WowSandbox.EditorTools
                 ItemKind.Clothing => PickupKind.Clothing,
                 ItemKind.Jewelry => PickupKind.Jewelry,
                 ItemKind.Tool => PickupKind.Tool,
+                ItemKind.Light => PickupKind.Light,
                 _ => PickupKind.TradeGood,
             };
         }
@@ -551,7 +588,7 @@ namespace WowSandbox.EditorTools
         // --- Shared --------------------------------------------------------------------------
 
         /// <summary>The point under the Scene view's centre, and a facing toward the camera.</summary>
-        static bool Ground(out Vector3 point, out Quaternion facing)
+        internal static bool Ground(out Vector3 point, out Quaternion facing)
         {
             point = default;
             facing = Quaternion.identity;
@@ -578,7 +615,7 @@ namespace WowSandbox.EditorTools
             return true;
         }
 
-        static Bounds RendererBounds(GameObject root, bool solidOnly = false)
+        internal static Bounds RendererBounds(GameObject root, bool solidOnly = false)
         {
             var renderers = root.GetComponentsInChildren<Renderer>(true)
                 .Where(r => !solidOnly || r.sharedMaterials.All(m => m == null || !m.name.EndsWith("_Glow"))).ToArray();

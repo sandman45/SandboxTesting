@@ -132,6 +132,11 @@ namespace WowSandbox
         static readonly int SpeedHash = Animator.StringToHash("Speed");
         static readonly int GroundedHash = Animator.StringToHash("Grounded");
         static readonly int JumpHash = Animator.StringToHash("Jump");
+        // WarriorSetup's jump states: take-off, airborne, landing.
+        static readonly int[] JumpStateHashes =
+        {
+            Animator.StringToHash("JumpStart"), Animator.StringToHash("JumpAir"), Animator.StringToHash("JumpEnd"),
+        };
         static readonly int AttackHash = Animator.StringToHash("Attack");
         static readonly int AttackCritHash = Animator.StringToHash("AttackCrit");
         static readonly int AttackVariantHash = Animator.StringToHash("AttackVariant");
@@ -393,7 +398,10 @@ namespace WowSandbox
                 if (grounded && _verticalVelocity < 0f)
                     _verticalVelocity = -2f; // keep it pinned to the ground
 
-                if (grounded && keyboard.spaceKey.wasPressedThisFrame)
+                // Not again until the last jump's animation has played out (the landing hands back
+                // to the run at once if you're moving): a jump pressed during the landing used to
+                // leave the trigger waiting, and the take-off then played mid-way through the next one.
+                if (grounded && keyboard.spaceKey.wasPressedThisFrame && !JumpAnimationPlaying())
                 {
                     _verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
                     if (_animator != null)
@@ -946,6 +954,17 @@ namespace WowSandbox
             float lift = _swimming ? swimStrokeLift * Mathf.Clamp01(_animSpeed) : 0f;
             var restWorld = transform.TransformVector(_modelRestPosition);
             modelRoot.localPosition = transform.InverseTransformVector(restWorld + Vector3.up * lift);
+        }
+
+        /// <summary>The animator is in (or blending into) a jump state — take-off, airborne or landing.</summary>
+        bool JumpAnimationPlaying()
+        {
+            if (_animator == null || _animator.runtimeAnimatorController == null)
+                return false;
+            if (System.Array.IndexOf(JumpStateHashes, _animator.GetCurrentAnimatorStateInfo(0).shortNameHash) >= 0)
+                return true;
+            return _animator.IsInTransition(0) &&
+                   System.Array.IndexOf(JumpStateHashes, _animator.GetNextAnimatorStateInfo(0).shortNameHash) >= 0;
         }
 
         void UpdateAnimator(bool grounded, bool walking, float forward, float strafe)

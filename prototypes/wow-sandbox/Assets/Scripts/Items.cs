@@ -54,6 +54,8 @@ namespace WowSandbox
         Consumable,
         /// <summary>Carried rather than worn, for a job — the Fishing Pole. Never sold as junk.</summary>
         Tool,
+        /// <summary>Light for the dark: torches and lanterns (held in the off hand), and lamp oil.</summary>
+        Light,
     }
 
     /// <summary>
@@ -99,6 +101,10 @@ namespace WowSandbox
         public int healDieSides;
         public int healBonus;
 
+        [Header("Light")]
+        [Tooltip("Torch: game hours left on the one burning (0 = none lit yet). Lantern: hours of oil left in it.")]
+        public float fuel;
+
         [Header("Stack and value")]
         public int valueCopper;
         public int maxStack = 1;
@@ -107,6 +113,8 @@ namespace WowSandbox
         public bool IsEquippable => slot != EquipSlot.None;
         public bool IsPotion => kind == ItemKind.Consumable && healDieCount > 0;
         public bool IsFishingPole => kind == ItemKind.Tool && baseName != null && baseName.EndsWith("Fishing Pole");
+        public bool IsTorch => kind == ItemKind.Light && baseName == "Torch";
+        public bool IsLantern => kind == ItemKind.Light && baseName != null && baseName.EndsWith("Lantern");
         public bool Stackable => maxStack > 1;
         public int AbilityBonus(Ability ability) => abilityBonuses[(int)ability];
         public bool HasAbilityBonuses => abilityBonuses.Any(bonus => bonus != 0);
@@ -268,6 +276,26 @@ namespace WowSandbox
             Tool("Fishing Pole", "FP", 1 * Money.Gold),
         };
 
+        /// <summary>
+        /// Light for the dark, D&D-priced. A torch burns TorchHours and is gone (they stack, and the
+        /// next one lights); a lantern burns OilHours per flask of oil, filled from your bags.
+        /// Longer than D&D's hour: a night here is about twelve game hours.
+        /// Kept out of Equippable, so there's never a "+1 Torch of Strength".
+        /// </summary>
+        public static readonly Item[] Lights =
+        {
+            Light("Torch", "To", EquipSlot.OffHand, 1, stack: 10),
+            Light("Hooded Lantern", "La", EquipSlot.OffHand, 5 * Money.Gold, fuel: OilHours),
+            // D&D's: a brighter, longer beam for the same oil.
+            Light("Bullseye Lantern", "BL", EquipSlot.OffHand, 10 * Money.Gold, fuel: OilHours),
+            Light("Flask of Oil", "Oi", EquipSlot.None, 1 * Money.Silver, stack: 10),
+        };
+
+        // Game hours (1 real minute each at the default speed): about three torches, or a flask
+        // and a half, to see out a night.
+        public const float TorchHours = 4f;
+        public const float OilHours = 8f;
+
         public static readonly Item[] Potions =
         {
             Potion("Potion of Healing", 2, 4, 2, 50 * Money.Gold),
@@ -284,10 +312,10 @@ namespace WowSandbox
         };
 
         static IEnumerable<Item> Equippable => Weapons.Concat(Armors).Append(Shield).Concat(Clothing).Concat(Jewelry);
-        static IEnumerable<Item> All => Equippable.Concat(LootOnly).Concat(Tools).Concat(TradeGoods).Concat(Fish.Skip(1)).Concat(Potions).Concat(Legendaries);
+        static IEnumerable<Item> All => Equippable.Concat(LootOnly).Concat(Tools).Concat(Lights).Concat(TradeGoods).Concat(Fish.Skip(1)).Concat(Potions).Concat(Legendaries);
 
-        /// <summary>A merchant's shelves: every mundane piece of gear, the tools, then the potions — fresh copies.</summary>
-        public static Item[] VendorStock() => Equippable.Concat(Tools).Concat(Potions).Select(item => item.Clone()).ToArray();
+        /// <summary>A merchant's shelves: every mundane piece of gear, the tools and lights, then the potions — fresh copies.</summary>
+        public static Item[] VendorStock() => Equippable.Concat(Tools).Concat(Lights).Concat(Potions).Select(item => item.Clone()).ToArray();
 
         /// <summary>Every item name in the catalog (Harvest Gear checks its rows against these).</summary>
         public static IEnumerable<string> Names => All.Select(item => item.name);
@@ -475,6 +503,12 @@ namespace WowSandbox
         {
             name = name, baseName = name, kind = ItemKind.Tool, glyph = glyph,
             iconColor = new Color(0.45f, 0.36f, 0.22f), valueCopper = value,
+        };
+
+        static Item Light(string name, string glyph, EquipSlot slot, int value, int stack = 1, float fuel = 0f) => new()
+        {
+            name = name, baseName = name, kind = ItemKind.Light, slot = slot, glyph = glyph,
+            iconColor = new Color(0.62f, 0.42f, 0.16f), valueCopper = value, maxStack = stack, fuel = fuel,
         };
 
         static readonly Color PotionColor = new(0.72f, 0.16f, 0.16f);

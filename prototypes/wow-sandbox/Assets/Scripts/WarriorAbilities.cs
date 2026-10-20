@@ -14,8 +14,10 @@ namespace WowSandbox
     /// - 3 Shield Bash: needs a shield; d4 + STR, and a hit stuns the target for a moment.
     /// - 4 Whirlwind: a weapon attack on every enemy within reach, all around you.
     /// - 5 Charge: rush a target 8–25 units away, then strike it on arrival, stunning it briefly.
+    /// - 7 Torch Swing: with a torch in the off hand, 1d4 + STR — fire while it's lit. No main-hand
+    ///   weapon needed, so it's what you have on the first night.
     /// Rolls go through Combat like any swing, so they can miss, crit and kill. An action bar
-    /// along the bottom shows all six keys and their cooldowns.
+    /// along the bottom shows all seven keys and their cooldowns.
     /// </summary>
     [RequireComponent(typeof(WowCharacterController))]
     public class WarriorAbilities : MonoBehaviour
@@ -41,6 +43,10 @@ namespace WowSandbox
         public float chargeSpeedMultiplier = 3f;
         public float chargeStun = 1f;
 
+        [Header("Torch Swing (7)")]
+        public float torchSwingCooldown = 6f;
+        public int torchSwingSides = 4;
+
         static readonly int HeroicStrikeHash = Animator.StringToHash("HeroicStrike");
         static readonly int ShieldBashHash = Animator.StringToHash("ShieldBash");
         static readonly int WhirlwindHash = Animator.StringToHash("Whirlwind");
@@ -49,7 +55,7 @@ namespace WowSandbox
         Inventory _inventory;
         HealthController _health;
 
-        float _heroicReady, _bashReady, _whirlwindReady, _chargeReady;
+        float _heroicReady, _bashReady, _whirlwindReady, _chargeReady, _torchReady;
 
         void Awake()
         {
@@ -69,10 +75,14 @@ namespace WowSandbox
             if (keyboard.digit3Key.wasPressedThisFrame) Use(3);
             if (keyboard.digit4Key.wasPressedThisFrame) Use(4);
             if (keyboard.digit5Key.wasPressedThisFrame) Use(5);
+            if (keyboard.digit7Key.wasPressedThisFrame) Use(7);
         }
 
         /// <summary>A weapon in the main hand: the abilities (and the action bar) need one.</summary>
         public bool Armed => _inventory != null && _inventory.Equipped(EquipSlot.MainHand) is { kind: ItemKind.Weapon };
+
+        /// <summary>A torch in the off hand — Torch Swing needs one (and the action bar shows for it).</summary>
+        public bool HasTorch => _inventory != null && _inventory.Equipped(EquipSlot.OffHand) is { IsTorch: true };
 
         bool CanAct => !_movement.IsLocked && !TitleScreen.Showing && !(_health != null && _health.IsDead);
 
@@ -98,6 +108,7 @@ namespace WowSandbox
                 case 4: Whirlwind(); break;
                 case 5: Charge(); break;
                 case 6: if (_inventory != null) _inventory.DrinkPotion(); break;
+                case 7: TorchSwing(); break;
             }
         }
 
@@ -188,6 +199,23 @@ namespace WowSandbox
             });
         }
 
+        void TorchSwing()
+        {
+            if (!Ready(_torchReady, "Torch Swing"))
+                return;
+            if (!HasTorch)
+            {
+                Hud.Error("You need a torch in your off hand.");
+                return;
+            }
+            if (!MeleeTarget(out var target) || !_movement.TryBeginAction())
+                return;
+            _torchReady = Time.time + torchSwingCooldown;
+            // The shield bash is the warrior's off-hand blow; a torch swings the same way.
+            Play(ShieldBashHash);
+            _movement.Strike(target, new AttackOptions { ReplaceDice = 1, ReplaceSides = torchSwingSides, Fire = HeldLight.IsLit });
+        }
+
         // --- Helpers -------------------------------------------------------------------------
 
         static bool Ready(float readyAt, string name)
@@ -240,7 +268,7 @@ namespace WowSandbox
 
         // --- For the action bar ---------------------------------------------------------------
 
-        /// <summary>Seconds left on each key's cooldown, 1–6 (1 and 6 are the swing and the potion).</summary>
+        /// <summary>Seconds left on each key's cooldown, 1–7 (1 and 6 are the swing and the potion).</summary>
         public float CooldownLeft(int key)
         {
             float own = key switch
@@ -249,6 +277,7 @@ namespace WowSandbox
                 3 => _bashReady,
                 4 => _whirlwindReady,
                 5 => _chargeReady,
+                7 => _torchReady,
                 _ => 0f,
             } - Time.time;
             // The shared cooldown covers the swing and every ability, not the potion.
@@ -267,6 +296,10 @@ namespace WowSandbox
                 return true;
             var target = _movement.EnemyTarget(out _);
             if (key == 3 && !(_inventory != null && _inventory.Equipped(EquipSlot.OffHand) is { kind: ItemKind.Shield }))
+                return false;
+            if (key == 7 && !HasTorch)
+                return false;
+            if (key is >= 2 and <= 5 && !Armed)
                 return false;
             if (target == null)
                 return false;
@@ -342,6 +375,13 @@ namespace WowSandbox
                     lines.Add($"Rush at your target and strike it for {weaponDamage} damage, " +
                               $"stunning it for <color=#{good}>{chargeStun:0.#} sec</color>. Not while swimming.");
                     break;
+                case 7:
+                    Header("Torch Swing", reach, $"{torchSwingCooldown:0.#} sec cooldown");
+                    lines.Add($"Strike with the torch in your off hand for 1d{torchSwingSides} + STR damage — " +
+                              $"<color=#{HudTheme.Hex(HudTheme.FireDamage)}>fire</color> while it's lit. No weapon needed.");
+                    if (!HasTorch)
+                        lines.Add($"<color=#{bad}>Requires a torch in your off hand</color>");
+                    break;
                 default:
                     return null;
             }
@@ -361,12 +401,13 @@ namespace WowSandbox
             3 => shieldBashCooldown,
             4 => whirlwindCooldown,
             5 => chargeCooldown,
+            7 => torchSwingCooldown,
             _ => _movement.swingInterval,
         };
     }
 
     /// <summary>
-    /// A WoW action bar at the bottom middle of the screen, lifted clear of the edge: keys 1–6,
+    /// A WoW action bar at the bottom middle of the screen, lifted clear of the edge: keys 1–7,
     /// each with its ability's short name, a shade that drains as its cooldown runs out (with
     /// the seconds left on it), and red when it can't be used right now.
     /// </summary>
@@ -381,6 +422,7 @@ namespace WowSandbox
         {
             ("Attack", "Atk", "Attack"), ("Heroic Strike", "HS", "Heroic"), ("Shield Bash", "SB", "Bash"),
             ("Whirlwind", "WW", "Whirlwind"), ("Charge", "Ch", "Charge"), ("Potion", "HP", "Potion"),
+            ("Torch Swing", "TS", "Torch"),
         };
 
         static readonly Color Unusable = new Color(0.9f, 0.25f, 0.2f);
@@ -388,10 +430,10 @@ namespace WowSandbox
         WarriorAbilities _abilities;
         ShipHelm _helm;
         CanvasGroup _group;
-        readonly RectTransform[] _shades = new RectTransform[6];
-        readonly Text[] _seconds = new Text[6];
-        readonly Text[] _glyphs = new Text[6];
-        readonly Text[] _names = new Text[6];
+        readonly RectTransform[] _shades = new RectTransform[Slots.Length];
+        readonly Text[] _seconds = new Text[Slots.Length];
+        readonly Text[] _glyphs = new Text[Slots.Length];
+        readonly Text[] _names = new Text[Slots.Length];
 
         public static void Build(WarriorAbilities abilities)
         {
@@ -453,8 +495,8 @@ namespace WowSandbox
                 Destroy(gameObject);
                 return;
             }
-            // The helm's own panel sits where the bar does; and no bar until a weapon is in hand.
-            bool hidden = (_helm != null && _helm.IsDriving) || !_abilities.Armed;
+            // The helm's own panel sits where the bar does; and no bar until a weapon (or a torch) is in hand.
+            bool hidden = (_helm != null && _helm.IsDriving) || !(_abilities.Armed || _abilities.HasTorch);
             _group.alpha = hidden ? 0f : 1f;
             _group.blocksRaycasts = !hidden;
 
