@@ -295,12 +295,20 @@ namespace WowSandbox.EditorTools
             {
                 var reachState = stateMachine.AddState("LootReach");
                 reachState.motion = reach;
+                // WoW's Loot is a half-second snatch; slowed, and eased in and out of, it reads as
+                // reaching down for something rather than a twitch, and stands up without a jerk.
+                reachState.speed = 0.6f;
                 var grab = stateMachine.AddAnyStateTransition(reachState);
                 grab.AddCondition(AnimatorConditionMode.If, 0f, "LootGrab");
-                grab.duration = 0.1f;
+                grab.duration = 0.2f;
+                grab.hasFixedDuration = true;
                 grab.hasExitTime = false;
                 grab.canTransitionToSelf = false;
-                PlayThrough(reachState, locomotion, 0.9f);
+                var back = reachState.AddTransition(locomotion);
+                back.hasExitTime = true;
+                back.exitTime = 0.7f;
+                back.duration = 0.3f;
+                back.hasFixedDuration = true;
             }
             return true;
         }

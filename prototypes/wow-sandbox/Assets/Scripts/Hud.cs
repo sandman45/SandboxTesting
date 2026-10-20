@@ -32,6 +32,7 @@ namespace WowSandbox
         public static readonly Color Dead = new(0.55f, 0.55f, 0.55f);
         public static readonly Color DamageFlash = new(0.95f, 0.15f, 0.1f, 1f);
         public static readonly Color DamageText = new(1f, 0.92f, 0.35f);
+        public static readonly Color FireDamage = new(1f, 0.42f, 0.12f);
 
         public static readonly Color HealthFull = new(0.2f, 0.75f, 0.25f);
         public static readonly Color HealthLow = new(0.85f, 0.15f, 0.1f);

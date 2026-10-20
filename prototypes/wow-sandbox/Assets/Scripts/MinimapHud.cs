@@ -89,8 +89,9 @@ namespace WowSandbox
         void UpdateClock()
         {
             var cycle = DayNightCycle.Active;
-            _clock.gameObject.SetActive(cycle != null);
-            if (cycle == null)
+            bool shown = cycle != null && DevOptions.ShowClock;
+            _clock.gameObject.SetActive(shown);
+            if (!shown)
                 return;
 
             // Sun at the top at noon, rising on the left and setting on the right; the moon opposite.

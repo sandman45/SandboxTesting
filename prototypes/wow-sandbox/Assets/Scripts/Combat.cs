@@ -14,6 +14,8 @@ namespace WowSandbox
         public int Damage;
         public bool Killed;
         public int ExperienceAwarded;
+        /// <summary>Fire damage — a burning torch — shown in its own colour.</summary>
+        public bool Fire;
     }
 
     /// <summary>
@@ -25,6 +27,8 @@ namespace WowSandbox
     {
         public int BonusDice, BonusSides;
         public int ReplaceDice, ReplaceSides;
+        /// <summary>The damage is fire (a lit torch).</summary>
+        public bool Fire;
     }
 
     /// <summary>
@@ -54,6 +58,7 @@ namespace WowSandbox
 
             var defender = target.GetComponent<CharacterStats>();
             var result = Roll(attacker, defender != null ? defender.ArmorClass : DefaultArmorClass);
+            result.Fire = options.Fire;
             if (result.Hit)
             {
                 int times = result.Critical ? 2 : 1;

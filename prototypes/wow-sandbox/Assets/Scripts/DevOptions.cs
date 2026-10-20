@@ -16,6 +16,8 @@ namespace WowSandbox
         const string SkipTitleKey = "dev.skipTitle";
         const string ShowMinimapKey = "dev.showMinimap";
         const string EnableMapKey = "dev.enableMap";
+        const string HideCloudsKey = "dev.hideClouds";
+        const string ShowClockKey = "dev.showClock";
         const string BuildKey = "dev.stormBuildSeconds";
         const string HoldKey = "dev.stormHoldSeconds";
         const string ClearKey = "dev.stormClearSeconds";
@@ -45,6 +47,41 @@ namespace WowSandbox
         {
             get => PlayerPrefs.GetInt(EnableMapKey, 0) == 1;
             set => Save(() => PlayerPrefs.SetInt(EnableMapKey, value ? 1 : 0));
+        }
+
+        /// <summary>
+        /// The WoW cloud dome hidden, for a clear look at the sky behind it (stars, the moon,
+        /// the sun's path). Storm overcast still greys the sky. Applied as it's set and at Play.
+        /// </summary>
+        public static bool HideClouds
+        {
+            get => PlayerPrefs.GetInt(HideCloudsKey, 0) == 1;
+            set
+            {
+                Save(() => PlayerPrefs.SetInt(HideCloudsKey, value ? 1 : 0));
+                ApplyClouds();
+            }
+        }
+
+        /// <summary>
+        /// Shows or hides every sky dome. The whole object, not its renderers: UnderwaterEffect
+        /// turns those back on whenever you surface, which would bring the clouds straight back.
+        /// Play-mode only, so leaving Play puts the scene's dome back as it was.
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void ApplyClouds()
+        {
+            if (!Application.isPlaying)
+                return;
+            foreach (var dome in Object.FindObjectsByType<SkyDomeFollow>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                dome.gameObject.SetActive(!HideClouds);
+        }
+
+        /// <summary>The time-of-day clock in the top-right corner (MinimapHud). On until switched off.</summary>
+        public static bool ShowClock
+        {
+            get => PlayerPrefs.GetInt(ShowClockKey, 1) == 1;
+            set => Save(() => PlayerPrefs.SetInt(ShowClockKey, value ? 1 : 0));
         }
 
         /// <summary>Stage lengths in seconds; the weather's Inspector values until set.</summary>

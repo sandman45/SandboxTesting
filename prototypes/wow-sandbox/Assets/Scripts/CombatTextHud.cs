@@ -69,9 +69,9 @@ namespace WowSandbox
             if (!result.Hit)
                 Show("Miss", world, jitter, HudTheme.Miss, 0.85f, duration);
             else if (result.Critical)
-                Show($"{result.Damage}!", world, jitter, HudTheme.Critical, 1.4f, duration * 1.2f);
+                Show($"{result.Damage}!", world, jitter, result.Fire ? HudTheme.FireDamage : HudTheme.Critical, 1.4f, duration * 1.2f);
             else
-                Show(result.Damage.ToString(), world, jitter, HudTheme.DamageText, 1f, duration);
+                Show(result.Damage.ToString(), world, jitter, result.Fire ? HudTheme.FireDamage : HudTheme.DamageText, 1f, duration);
 
             if (result.ExperienceAwarded > 0)
                 Show($"+{result.ExperienceAwarded} XP", world, jitter + new Vector2(0f, -34f),
