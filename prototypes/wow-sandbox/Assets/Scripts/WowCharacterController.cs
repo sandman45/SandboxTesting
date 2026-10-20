@@ -44,13 +44,18 @@ namespace WowSandbox
                  "from a ledge, say. Below the surface you hold depth instead; Space is the " +
                  "only thing that raises you.")]
         public float settleSpeed = 3f;
-        [Tooltip("How deep you float at the surface: the waterline sits this fraction of the " +
-                 "capsule up from the feet. Smaller floats higher — 0.7 is about shoulder deep.")]
-        [Range(0.4f, 0.95f)] public float floatDepth = 0.7f;
-        [Tooltip("Lifts the model this far (world units) while swimming along: the swim stroke " +
-                 "lies the body out flat, lower than the upright float, so it would go under. " +
-                 "Eases in with speed. Purely cosmetic.")]
-        public float swimStrokeLift = 0.1f;
+        // These two aren't saved in the scene, so the values here always win: a copy saved on
+        // the player kept overriding them. Tune them in game with the Developer panel's sliders,
+        // then change them here.
+
+        /// <summary>How deep you float at the surface: the waterline sits this fraction of the
+        /// capsule up from the feet. Smaller floats higher — 0.7 is about shoulder deep.</summary>
+        [System.NonSerialized] public float floatDepth = 0.7f;
+
+        /// <summary>Lifts the model this far (world units) while swimming along: the swim stroke
+        /// lies the body out flat, lower than the upright float, so it would go under. Eases in
+        /// with speed. Purely cosmetic.</summary>
+        [System.NonSerialized] public float swimStrokeLift = 0.1f;
         [Tooltip("Degrees the model tips forward while swimming. 90 would be fully horizontal, " +
                  "but that points the model's face straight down rather than along the " +
                  "direction of travel, so 0 (upright) reads better without a dedicated swim " +

@@ -297,7 +297,10 @@ namespace WowSandbox.EditorTools
 
         // --- Ground items --------------------------------------------------------------------
 
-        enum PickupKind { Weapon, Armor, Shield, Clothing, Jewelry, Potion, TradeGood, Tool, Coin }
+        enum PickupKind { Weapon, Armor, Shield, Clothing, Jewelry, Potion, TradeGood, Tool, Coin, Map }
+
+        // The dropdown's entry for the map (MapPickup), which isn't a catalog item.
+        const string MapChoice = "<Map>";
 
         [SerializeField] string itemName = "Longsword";
         [SerializeField] int count = 1;
@@ -309,7 +312,7 @@ namespace WowSandbox.EditorTools
         static void OpenGroundItem()
         {
             var window = GetWindow<InteractableSetup>(true, "Place Ground Item");
-            window.minSize = new Vector2(420f, 420f);
+            window.minSize = new Vector2(420f, 480f);
         }
 
         static string ModelKey(PickupKind kind) => "WowSandbox.GroundItemModel." + kind;
@@ -356,6 +359,11 @@ namespace WowSandbox.EditorTools
                 names.Add("");
                 labels.Add("Coin only");
             }
+            if (HasKindModel(PickupKind.Map))
+            {
+                names.Add(MapChoice);
+                labels.Add("Map (unlocks the minimap and M)");
+            }
             foreach (var (group, items) in groups)
                 foreach (var item in items.Where(item => HasModel(item, library)))
                 {
@@ -392,7 +400,7 @@ namespace WowSandbox.EditorTools
 
             GUILayout.Space(6f);
             EditorGUILayout.LabelField("Model for each kind of item", EditorStyles.boldLabel);
-            _scroll = EditorGUILayout.BeginScrollView(_scroll, GUILayout.Height(200f));
+            _scroll = EditorGUILayout.BeginScrollView(_scroll, GUILayout.Height(System.Enum.GetValues(typeof(PickupKind)).Length * 21f + 6f));
             foreach (PickupKind kind in System.Enum.GetValues(typeof(PickupKind)))
             {
                 var current = AssetDatabase.LoadAssetAtPath<GameObject>(EditorPrefs.GetString(ModelKey(kind), ""));
@@ -412,13 +420,14 @@ namespace WowSandbox.EditorTools
 
         void PlaceGroundItem()
         {
+            bool map = itemName == MapChoice;
             Item catalogItem = null;
-            if (!string.IsNullOrWhiteSpace(itemName) && !ItemCatalog.TryFind(itemName.Trim(), out catalogItem))
+            if (!map && !string.IsNullOrWhiteSpace(itemName) && !ItemCatalog.TryFind(itemName.Trim(), out catalogItem))
             {
                 Debug.LogWarning($"[Interactables] No item called \"{itemName}\".");
                 return;
             }
-            if (catalogItem == null && copper <= 0)
+            if (!map && catalogItem == null && copper <= 0)
             {
                 Debug.LogWarning("[Interactables] Give it an item or some coin.");
                 return;
@@ -426,9 +435,9 @@ namespace WowSandbox.EditorTools
             if (!Ground(out var point, out var facing))
                 return;
 
-            var kind = KindOf(catalogItem);
+            var kind = map ? PickupKind.Map : KindOf(catalogItem);
             var model = AssetDatabase.LoadAssetAtPath<GameObject>(EditorPrefs.GetString(ModelKey(kind), ""));
-            string label = catalogItem != null ? catalogItem.name : "Coin";
+            string label = map ? "Tattered Map" : catalogItem != null ? catalogItem.name : "Coin";
 
             var root = new GameObject(label);
             Undo.RegisterCreatedObjectUndo(root, "Place Ground Item");
@@ -464,6 +473,13 @@ namespace WowSandbox.EditorTools
             look.transform.position += Vector3.up * (point.y - bounds.min.y);
 
             AddBoxCollider(root, trigger: true, minSize: 0.5f);
+            if (map)
+            {
+                root.AddComponent<MapPickup>().displayName = label;
+                Selection.activeGameObject = root;
+                EditorSceneManager.MarkSceneDirty(root.scene);
+                return;
+            }
             var ground = root.AddComponent<GroundItem>();
             ground.item = catalogItem != null ? catalogItem.name : "";
             ground.count = count;
