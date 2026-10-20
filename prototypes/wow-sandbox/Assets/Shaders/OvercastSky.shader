@@ -56,6 +56,7 @@ Shader "WowSandbox/OvercastSky"
             float4 _WeatherOvercastColor;
             float  _WeatherOvercast;
             float  _WeatherFlash;
+            float4 _DayNightTint;         // DayNightCycle; alpha 0 = no cycle, leave as is
 
             Varyings vert (Attributes IN)
             {
@@ -67,6 +68,7 @@ Shader "WowSandbox/OvercastSky"
             half4 frag (Varyings IN) : SV_Target
             {
                 half3 color = _WeatherOvercastColor.rgb * _Brightness;
+                color *= lerp(half3(1, 1, 1), _DayNightTint.rgb, _DayNightTint.a);
                 color += _WeatherFlash * half3(0.75, 0.8, 0.95);
                 return half4(color, saturate(_WeatherOvercast));
             }

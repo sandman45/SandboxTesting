@@ -35,6 +35,26 @@ namespace WowSandbox
             public float end;
         }
 
+        /// <summary>
+        /// Fine weather's sun, sky, ambient and fog colour — what the storm blends from. The
+        /// scene's own as Play starts; DayNightCycle turns that into this hour's.
+        /// </summary>
+        public struct ClearSky
+        {
+            public Color sunColor;
+            public float sunIntensity;
+            public float sunShadowStrength;
+            public UnityEngine.Rendering.SphericalHarmonicsL2 ambient;
+            public Color skyTint;
+            public Color skyGround;
+            public float skyExposure;
+            public float skyAtmosphere;
+            public float skySunSize;
+            public Color fogColor;
+            /// <summary>DayNightCycle.Tint: what the storm's own colours are multiplied by, so a storm at night is dark.</summary>
+            public Color tint;
+        }
+
         [Header("Storm")]
         [Range(0f, 1f)] public float intensity;
 
@@ -133,23 +153,16 @@ namespace WowSandbox
 
         // Captured scene state.
         FogState _sceneFog;
+        ClearSky _scene;
         // The player's clear-weather fog (GameSettings), in place of the scene's while set.
         bool _hasClearFog;
         float _clearFogStart, _clearFogEnd;
         Material _sceneSky;
         Light _sun;
-        Color _sunColor;
-        float _sunIntensity;
-        float _sunShadowStrength;
-        UnityEngine.Rendering.SphericalHarmonicsL2 _ambientProbe;
 
         // Runtime state.
+        ClearSky _clear;        // this hour's fine weather: the scene's, through DayNightCycle
         Material _sky;
-        Color _skyTint;
-        Color _skyGround;
-        float _skyExposure;
-        float _skyAtmosphere;
-        float _skySunSize;
         float _cloudOffset;
         WaterWaves _waves;
         Camera _camera;
@@ -180,6 +193,7 @@ namespace WowSandbox
         static readonly int OvercastId = Shader.PropertyToID("_WeatherOvercast");
         static readonly int FlashId = Shader.PropertyToID("_WeatherFlash");
         static readonly int CloudOffsetId = Shader.PropertyToID("_WeatherCloudOffset");
+        static readonly int DayNightTintId = Shader.PropertyToID("_DayNightTint");
 
         /// <summary>
         /// The fog the world should have above water right now. UnderwaterEffect blends from
@@ -293,6 +307,9 @@ namespace WowSandbox
             // Likewise the leviathan at the storm's peak; it stands down if there's no leviathan.
             if (GetComponent<StormLeviathan>() == null)
                 gameObject.AddComponent<StormLeviathan>();
+            // And the time of day, which tells this what fine weather looks like at this hour.
+            if (GetComponent<DayNightCycle>() == null)
+                gameObject.AddComponent<DayNightCycle>();
             _aboveWaterFog = _sceneFog;
         }
 
@@ -368,6 +385,8 @@ namespace WowSandbox
             if (_waves != null)
                 _waves.stormIntensity = intensity;
 
+            _clear = DayNightCycle.Active != null ? DayNightCycle.Active.Evaluate(_scene) : _scene;
+
             float flash = UpdateLightning();
             // The flash itself is a few milliseconds of pulses; the glimpse of the distance it
             // gives lingers a little longer, or you'd never register what you saw.
@@ -425,31 +444,31 @@ namespace WowSandbox
 
             if (_sky != null)
             {
-                SetIfPresent(_sky, "_SkyTint", Color.Lerp(_skyTint, overcastColor, overcast));
-                SetIfPresent(_sky, "_Exposure", Mathf.Lerp(_skyExposure, _skyExposure * 0.35f, overcast) + flash);
+                SetIfPresent(_sky, "_SkyTint", Color.Lerp(_clear.skyTint, overcastColor, overcast));
+                SetIfPresent(_sky, "_Exposure", Mathf.Lerp(_clear.skyExposure, _clear.skyExposure * 0.35f, overcast) + flash);
                 // Thinner, not thicker: in Skybox/Procedural a thick atmosphere is what makes a
                 // sunset, so thickening it for the storm put an orange band on the horizon.
-                SetIfPresent(_sky, "_AtmosphereThickness", Mathf.Lerp(_skyAtmosphere, stormAtmosphere, overcast));
+                SetIfPresent(_sky, "_AtmosphereThickness", Mathf.Lerp(_clear.skyAtmosphere, stormAtmosphere, overcast));
                 // The lower half of the sky shows past the terrain's edge; the default is a
                 // warm brown that glows against storm grey.
-                SetIfPresent(_sky, "_GroundColor", Color.Lerp(_skyGround, stormFogColor, overcast));
+                SetIfPresent(_sky, "_GroundColor", Color.Lerp(_clear.skyGround, stormFogColor * _clear.tint, overcast));
                 // No sun disc through storm cloud.
-                SetIfPresent(_sky, "_SunSize", Mathf.Lerp(_skySunSize, 0f, overcast));
+                SetIfPresent(_sky, "_SunSize", Mathf.Lerp(_clear.skySunSize, 0f, overcast));
             }
 
             if (_sun != null)
             {
-                _sun.intensity = Mathf.Lerp(_sunIntensity, _sunIntensity * stormSunlight, overcast);
-                _sun.color = Color.Lerp(_sunColor, stormSunColor, overcast);
+                _sun.intensity = Mathf.Lerp(_clear.sunIntensity, _clear.sunIntensity * stormSunlight, overcast);
+                _sun.color = Color.Lerp(_clear.sunColor, stormSunColor, overcast);
                 // Overcast light is diffuse, so its shadows go soft and faint.
-                _sun.shadowStrength = Mathf.Lerp(_sunShadowStrength, 0.2f, overcast);
+                _sun.shadowStrength = Mathf.Lerp(_clear.sunShadowStrength, 0.2f, overcast);
             }
 
             // Scale the ambient probe itself. With ambient sourced from the skybox, the probe
             // is baked from the sky once and RenderSettings.ambientIntensity isn't reliably applied to it
             // at runtime — the probe is what lighting actually reads.
             RenderSettings.ambientProbe =
-                _ambientProbe * (Mathf.Lerp(1f, stormAmbient, overcast) + flash * 1.2f);
+                _clear.ambient * (Mathf.Lerp(1f, stormAmbient, overcast) + flash * 1.2f);
         }
 
         // --- Fog -------------------------------------------------------------------------
@@ -487,7 +506,7 @@ namespace WowSandbox
             {
                 enabled = _sceneFog.enabled || _hasClearFog || closing > 0f || edgeFog,
                 mode = FogMode.Linear,
-                color = Color.Lerp(_sceneFog.color, stormFogColor, closing) + Color.white * (flash * 0.25f),
+                color = Color.Lerp(_clear.fogColor, stormFogColor * _clear.tint, closing) + Color.white * (flash * 0.25f),
                 density = _sceneFog.density,
                 start = Mathf.Lerp(clearStart, 0f, closing),
                 end = Mathf.Lerp(clearEnd, stormFogEnd, closing),
@@ -539,7 +558,7 @@ namespace WowSandbox
         // --- Horizon band ----------------------------------------------------------------
 
         /// <summary>A camera-pinned, inside-out sphere carrying one of the sky overlays.</summary>
-        static Transform BuildSkySphere(string name, Material material)
+        internal static Transform BuildSkySphere(string name, Material material)
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             go.name = name;
@@ -720,6 +739,10 @@ namespace WowSandbox
             float lifetime = Mathf.Max(spawnY - floorY, 1f) / rainFallSpeed;
             var main = _rain.main;
             main.startLifetime = lifetime;
+            // Nothing lights the drops at night but the lightning.
+            var dropColor = rainColor * Color.Lerp(_clear.tint, Color.white, 0.15f);
+            dropColor.a = rainColor.a;
+            main.startColor = dropColor;
 
             // Spawn upwind, so drops blown sideways over their fall still land around you.
             _rain.transform.position = cameraPosition + Vector3.up * rainHeight - wind * (lifetime * 0.5f);
@@ -975,26 +998,23 @@ namespace WowSandbox
         void CaptureScene()
         {
             _sceneFog = CaptureFog();
-            _ambientProbe = RenderSettings.ambientProbe;
-
-            _sun = RenderSettings.sun;
-            if (_sun == null)
+            _scene = new ClearSky
             {
-                foreach (var light in FindObjectsByType<Light>(FindObjectsSortMode.None))
-                {
-                    if (light.type == LightType.Directional)
-                    {
-                        _sun = light;
-                        break;
-                    }
-                }
-            }
+                ambient = RenderSettings.ambientProbe,
+                fogColor = _sceneFog.color,
+                skyTint = Color.white,
+                skyGround = Color.gray,
+                skyExposure = 1f,
+                skyAtmosphere = 1f,
+                tint = Color.white,
+            };
 
+            _sun = FindSun();
             if (_sun != null)
             {
-                _sunColor = _sun.color;
-                _sunIntensity = _sun.intensity;
-                _sunShadowStrength = _sun.shadowStrength;
+                _scene.sunColor = _sun.color;
+                _scene.sunIntensity = _sun.intensity;
+                _scene.sunShadowStrength = _sun.shadowStrength;
             }
 
             // Work on a copy of the sky material, so the saved asset is never touched.
@@ -1002,25 +1022,94 @@ namespace WowSandbox
             if (_sceneSky != null)
             {
                 _sky = new Material(_sceneSky) { name = _sceneSky.name + " (Storm)", hideFlags = HideFlags.DontSave };
-                _skyTint = _sky.HasProperty("_SkyTint") ? _sky.GetColor("_SkyTint") : Color.white;
-                _skyGround = _sky.HasProperty("_GroundColor") ? _sky.GetColor("_GroundColor") : Color.gray;
-                _skyExposure = _sky.HasProperty("_Exposure") ? _sky.GetFloat("_Exposure") : 1f;
-                _skyAtmosphere = _sky.HasProperty("_AtmosphereThickness") ? _sky.GetFloat("_AtmosphereThickness") : 1f;
-                _skySunSize = _sky.HasProperty("_SunSize") ? _sky.GetFloat("_SunSize") : 0f;
+                if (_sky.HasProperty("_SkyTint")) _scene.skyTint = _sky.GetColor("_SkyTint");
+                if (_sky.HasProperty("_GroundColor")) _scene.skyGround = _sky.GetColor("_GroundColor");
+                if (_sky.HasProperty("_Exposure")) _scene.skyExposure = _sky.GetFloat("_Exposure");
+                if (_sky.HasProperty("_AtmosphereThickness")) _scene.skyAtmosphere = _sky.GetFloat("_AtmosphereThickness");
+                if (_sky.HasProperty("_SunSize")) _scene.skySunSize = _sky.GetFloat("_SunSize");
                 RenderSettings.skybox = _sky;
+            }
+            _clear = _scene;
+        }
+
+        /// <summary>The scene's sun: the lighting settings' Sun Source, else the first directional light.</summary>
+        public static Light FindSun()
+        {
+            if (RenderSettings.sun != null)
+                return RenderSettings.sun;
+            foreach (var light in FindObjectsByType<Light>(FindObjectsSortMode.None))
+            {
+                if (light.type == LightType.Directional)
+                    return light;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Runs <paramref name="render"/> under the scene's own clear noon — no storm, no night —
+        /// then puts this moment's light back. For the world map's snapshot, which is taken
+        /// once and kept, so it mustn't catch the island at midnight or in a squall.
+        /// </summary>
+        public static void InDaylight(System.Action render)
+        {
+            var weather = Active;
+            if (weather == null)
+            {
+                render();
+                return;
+            }
+
+            var sun = weather._sun;
+            var probe = RenderSettings.ambientProbe;
+            var tint = Shader.GetGlobalColor(DayNightTintId);
+            float overcast = Shader.GetGlobalFloat(OvercastId);
+            float flash = Shader.GetGlobalFloat(FlashId);
+            Quaternion rotation = default;
+            Color color = default;
+            float strength = 0f;
+            if (sun != null)
+            {
+                rotation = sun.transform.rotation;
+                color = sun.color;
+                strength = sun.intensity;
+                sun.color = weather._scene.sunColor;
+                sun.intensity = weather._scene.sunIntensity;
+                if (DayNightCycle.Active != null)
+                    sun.transform.rotation = DayNightCycle.Active.NoonRotation;
+            }
+            RenderSettings.ambientProbe = weather._scene.ambient;
+            Shader.SetGlobalColor(DayNightTintId, Color.clear);
+            Shader.SetGlobalFloat(OvercastId, 0f);
+            Shader.SetGlobalFloat(FlashId, 0f);
+            try
+            {
+                render();
+            }
+            finally
+            {
+                if (sun != null)
+                {
+                    sun.transform.rotation = rotation;
+                    sun.color = color;
+                    sun.intensity = strength;
+                }
+                RenderSettings.ambientProbe = probe;
+                Shader.SetGlobalColor(DayNightTintId, tint);
+                Shader.SetGlobalFloat(OvercastId, overcast);
+                Shader.SetGlobalFloat(FlashId, flash);
             }
         }
 
         void RestoreScene()
         {
             Apply(_sceneFog);
-            RenderSettings.ambientProbe = _ambientProbe;
+            RenderSettings.ambientProbe = _scene.ambient;
 
             if (_sun != null)
             {
-                _sun.color = _sunColor;
-                _sun.intensity = _sunIntensity;
-                _sun.shadowStrength = _sunShadowStrength;
+                _sun.color = _scene.sunColor;
+                _sun.intensity = _scene.sunIntensity;
+                _sun.shadowStrength = _scene.sunShadowStrength;
             }
 
             if (_sceneSky != null)

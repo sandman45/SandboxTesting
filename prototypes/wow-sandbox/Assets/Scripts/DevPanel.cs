@@ -19,6 +19,7 @@ namespace WowSandbox
     /// </summary>
     public class DevPanel : HudPanel
     {
+        // Two columns of this width, side by side, so the panel fits on a laptop screen.
         const float Width = 470f;
         const float Pad = 20f;
         const float ButtonWidth = 101f;
@@ -31,13 +32,15 @@ namespace WowSandbox
         Text _showMinimap;
         Text _enableMap;
         Action _refreshSliders;
+        float _x;               // left edge of the column being built
 
         // Inactive copies of one living enemy per kind and one chicken per colour, taken as
         // Play starts, so spawning still works once you've killed every original.
         readonly List<GameObject> _enemies = new();
         readonly List<GameObject> _chickens = new();
 
-        protected override Vector2 PanelSize => new(Width, 754f + (ChestRows > 0 ? 28f + 32f * ChestRows : 0f));
+        // A first guess; Build sizes it to the taller column.
+        protected override Vector2 PanelSize => new(Width * 2f, 600f);
 
         // The Spawn section's chest buttons: one per exported chest model, four to a row.
         static GameObject[] _chests;
@@ -128,12 +131,14 @@ namespace WowSandbox
 
         protected override void Build()
         {
-            Hud.Label("Title", Root, new Vector2(0.5f, 1f), new Vector2(0f, -14f), new Vector2(Width, 28f),
+            Hud.Label("Title", Root, new Vector2(0.5f, 1f), new Vector2(0f, -14f), new Vector2(Width * 2f, 28f),
                 22, TextAnchor.MiddleCenter, HudTheme.Heading, FontStyle.Bold).text = "Developer";
 
-            float y = -50f;
+            const float top = -50f;
+            float y = top;
+            _x = 0f;
             Heading("Weather", ref y);
-            _stormStatus = Hud.Label("Status", Root, new Vector2(0f, 1f), new Vector2(Pad + 8f, y), new Vector2(Width - Pad * 2f, 20f),
+            _stormStatus = Hud.Label("Status", Root, new Vector2(0f, 1f), new Vector2(_x + Pad + 8f, y), new Vector2(Width - Pad * 2f, 20f),
                 13, TextAnchor.MiddleLeft, HudTheme.TextDim);
             y -= 24f;
             Buttons(ref y,
@@ -152,12 +157,26 @@ namespace WowSandbox
             StormLength("Full storm", ref y, DevOptions.HoldSeconds, DevOptions.SetHoldSeconds, 600f);
             StormLength("Clearing", ref y, DevOptions.ClearSeconds, DevOptions.SetClearSeconds, 300f);
 
+            Heading("Time of day", ref y);
+            SliderRow("Time", ref y, 0f, 24f, () => DayNightCycle.Active != null ? DayNightCycle.Active.hour : 0f,
+                v => Clock(c => c.SetHour(v)), v => DayNightCycle.Active != null ? DayNightCycle.Active.ClockText : "—");
+            SliderRow("Time speed", ref y, 0f, 30f, () => DayNightCycle.Active != null ? DayNightCycle.Active.timeSpeed : 0f,
+                v => Clock(c => c.timeSpeed = v), v => $"{v:0.0}×");
+            Buttons(ref y,
+                ("Dawn", () => Clock(c => c.SetHour(DayNightCycle.Sunrise + 0.25f))),
+                ("Noon", () => Clock(c => c.SetHour(12f))),
+                ("Dusk", () => Clock(c => c.SetHour(DayNightCycle.Sunset - 0.25f))),
+                ("Midnight", () => Clock(c => c.SetHour(0f))));
+
             Heading("Sea", ref y);
             Buttons(ref y,
                 ("Sharks", () => Player<DeepSeaDanger>(d => d.DebugSharks())),
                 ("Leviathan Grab", () => Player<DeepSeaDanger>(d => d.DebugLeviathan())),
                 ("Storm Leviathan", () => Weather(w => w.GetComponent<StormLeviathan>()?.RaiseNow())));
 
+            float left = y;
+            y = top;
+            _x = Width;
             Heading("Spawn", ref y);
             Buttons(ref y,
                 ("Enemy", () => Spawn(_enemies, "enemies", 10f)),
@@ -205,6 +224,9 @@ namespace WowSandbox
             SliderRow("Swim stroke lift", ref y, -0.5f, 1f, () => Swimmer()?.swimStrokeLift ?? 0f,
                 v => { if (Swimmer() != null) Swimmer().swimStrokeLift = v; }, v => $"{v:0.00}");
 
+            // Tall enough for the longer column and the Back/Close row under it.
+            Root.sizeDelta = new Vector2(Width * 2f, -Mathf.Min(left, y) + 56f);
+
             var bottom = new Vector2(0.5f, 0f);
             Hud.TextButton("Back", Root, bottom, new Vector2(-65f, 18f), new Vector2(110f, 30f), () =>
             {
@@ -236,6 +258,14 @@ namespace WowSandbox
                 Hud.Error("There's no StormWeather in the scene.");
         }
 
+        static void Clock(Action<DayNightCycle> act)
+        {
+            if (DayNightCycle.Active != null)
+                act(DayNightCycle.Active);
+            else
+                Hud.Error("There's no day and night — it comes with StormWeather.");
+        }
+
         static WowCharacterController Swimmer() => FindAnyObjectByType<WowCharacterController>();
 
         static void Player<T>(Action<T> act) where T : Component
@@ -259,7 +289,7 @@ namespace WowSandbox
         void Heading(string text, ref float y)
         {
             y -= 4f;
-            Hud.Label(text, Root, new Vector2(0f, 1f), new Vector2(Pad, y), new Vector2(Width - Pad * 2f, 22f),
+            Hud.Label(text, Root, new Vector2(0f, 1f), new Vector2(_x + Pad, y), new Vector2(Width - Pad * 2f, 22f),
                 15, TextAnchor.MiddleLeft, HudTheme.Heading, FontStyle.Bold).text = text;
             y -= 24f;
         }
@@ -272,7 +302,7 @@ namespace WowSandbox
             {
                 var (label, onClick) = buttons[i];
                 made[i] = Hud.TextButton(label, Root, new Vector2(0f, 1f),
-                    new Vector2(Pad + i * (ButtonWidth + ButtonGap), y), new Vector2(ButtonWidth, 26f), () => onClick());
+                    new Vector2(_x + Pad + i * (ButtonWidth + ButtonGap), y), new Vector2(ButtonWidth, 26f), () => onClick());
                 // Longer labels ("Storm on Play: Off") need the smaller type.
                 made[i].GetComponentInChildren<Text>().fontSize = 12;
             }
@@ -284,10 +314,10 @@ namespace WowSandbox
                        Func<float, string> format)
         {
             var topLeft = new Vector2(0f, 1f);
-            Hud.Label(label, Root, topLeft, new Vector2(Pad + 8f, y), new Vector2(130f, 24f),
+            Hud.Label(label, Root, topLeft, new Vector2(_x + Pad + 8f, y), new Vector2(130f, 24f),
                 14, TextAnchor.MiddleLeft, HudTheme.Text).text = label;
-            var slider = Hud.Slider(Root, topLeft, new Vector2(Pad + 140f, y - 6f), new Vector2(220f, 12f), min, max);
-            var value = Hud.Label("Value", Root, topLeft, new Vector2(Width - Pad - 60f, y), new Vector2(60f, 24f),
+            var slider = Hud.Slider(Root, topLeft, new Vector2(_x + Pad + 140f, y - 6f), new Vector2(220f, 12f), min, max);
+            var value = Hud.Label("Value", Root, topLeft, new Vector2(_x + Width - Pad - 60f, y), new Vector2(60f, 24f),
                 14, TextAnchor.MiddleRight, HudTheme.TextDim);
 
             slider.onValueChanged.AddListener(v =>

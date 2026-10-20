@@ -151,6 +151,10 @@ Shader "WowSandbox/Water"
             float4 _WeatherOvercastColor;
             float  _WeatherOvercast;
             float  _WeatherFlash;
+            // DayNightCycle's light for the hour. The water's colours, foam and that same
+            // reflection are all unlit, so without it the sea glows at midnight. Alpha 0
+            // (unset, no cycle) leaves them as they are.
+            float4 _DayNightTint;
 
             // Dry zones (WaterDryZone): regions the water is cut out of, like a ship's hull.
             // WaterVolume reads the same shapes, so the cut and the swim check agree.
@@ -351,6 +355,8 @@ Shader "WowSandbox/Water"
 
                 float depthT = saturate(waterDepth / max(_DepthMaxDistance, 0.001));
                 half4 water = lerp(_ShallowColor, _DeepColor, depthT);
+                half3 dayNight = lerp(half3(1, 1, 1), _DayNightTint.rgb, _DayNightTint.a);
+                water.rgb *= dayNight;
 
                 // --- Refraction ------------------------------------------------------
                 half3 behind = half3(0, 0, 0);
@@ -388,6 +394,7 @@ Shader "WowSandbox/Water"
                     // the direct call is stable across URP versions.
                     reflection = DecodeHDREnvironment(encoded, unity_SpecCube0_HDR);
                     reflection = lerp(reflection, _WeatherOvercastColor.rgb, _WeatherOvercast);
+                    reflection *= dayNight;
                     reflection += _WeatherFlash * half3(0.75, 0.8, 0.95);
                     reflection *= _ReflectionStrength;
                 }
@@ -422,14 +429,14 @@ Shader "WowSandbox/Water"
                     color = lerp(water.rgb, behind, refractionMask * 0.6);
                     color = lerp(color, reflection, fresnel);
                     color += sun;
-                    color = lerp(color, _FoamColor.rgb, foam);
+                    color = lerp(color, _FoamColor.rgb * dayNight, foam);
                     alpha = lerp(water.a, 1.0, foam);
                 }
                 else
                 {
                     // From below there's no sky to reflect -- looking up you see the murk of
                     // the water column and a bent view of the world above the surface.
-                    color = lerp(_UnderwaterTint.rgb, behind, refractionMask * 0.5);
+                    color = lerp(_UnderwaterTint.rgb * dayNight, behind, refractionMask * 0.5);
                     color += sun * fresnel;
                     alpha = _UnderwaterTint.a;
                 }
