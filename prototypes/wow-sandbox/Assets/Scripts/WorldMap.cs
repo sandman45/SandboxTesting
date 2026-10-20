@@ -165,11 +165,15 @@ namespace WowSandbox
             WaterDryZone.Suspend(true);
             try
             {
-                var request = new UniversalRenderPipeline.SingleCameraRequest { destination = _texture };
-                if (RenderPipeline.SupportsRenderRequest(camera, request))
-                    RenderPipeline.SubmitRenderRequest(camera, request);
-                else
-                    camera.Render();
+                // Taken once and kept, so in plain noon light whatever the hour or weather.
+                StormWeather.InDaylight(() =>
+                {
+                    var request = new UniversalRenderPipeline.SingleCameraRequest { destination = _texture };
+                    if (RenderPipeline.SupportsRenderRequest(camera, request))
+                        RenderPipeline.SubmitRenderRequest(camera, request);
+                    else
+                        camera.Render();
+                });
             }
             finally
             {

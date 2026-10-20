@@ -77,6 +77,9 @@ Shader "WowSandbox/SkyDome"
             float  _WeatherOvercast;      // 0 = the layer as authored, 1 = heavy grey overcast
             float  _WeatherFlash;         // lightning, 0..1
             float  _WeatherCloudOffset;   // extra scroll time, so wind can speed the clouds up
+            // Set by DayNightCycle: the hour's light, white by day, deep blue at night. Alpha 0
+            // (unset, no cycle) means leave the clouds as they are.
+            float4 _DayNightTint;
 
             Varyings vert (Attributes IN)
             {
@@ -101,6 +104,9 @@ Shader "WowSandbox/SkyDome"
                 half detail = 0.75 + 0.5 * dot(color.rgb, half3(0.299, 0.587, 0.114));
                 color.rgb = lerp(color.rgb, _WeatherOvercastColor.rgb * detail, _WeatherOvercast);
                 color.a = saturate(color.a + _WeatherOvercast * 0.85);
+
+                // Nothing lights an unlit cloud at night but this.
+                color.rgb *= lerp(half3(1, 1, 1), _DayNightTint.rgb, _DayNightTint.a);
 
                 // Lightning lights the cloud base from below.
                 color.rgb += _WeatherFlash * half3(0.75, 0.8, 0.95);

@@ -119,7 +119,8 @@ namespace WowSandbox
 
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogColor = Color.Lerp(AboveWaterFog().color, underwaterFog, blend);
+            // Darkened with the hour, or the sea glows teal at midnight.
+            RenderSettings.fogColor = Color.Lerp(AboveWaterFog().color, underwaterFog * DayNightCycle.Tint, blend);
             RenderSettings.fogDensity = Mathf.Lerp(0f, fogDensity, blend);
         }
 
