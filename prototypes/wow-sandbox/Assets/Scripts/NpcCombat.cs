@@ -12,6 +12,9 @@ namespace WowSandbox
     /// once you die, take to the water (it can't swim), get
     /// leashRange from its home, or stand somewhere its NavMesh can't reach (the ship's deck).
     /// WanderingNpc is switched off while it fights and back on once it's home.
+    ///
+    /// At night (<see cref="NightLife"/>) it doesn't see you at all asleep — only waking does
+    /// that — and on watch it spots you at half range unless you carry a light.
     /// </summary>
     [RequireComponent(typeof(Health), typeof(NavMeshAgent))]
     public class NpcCombat : MonoBehaviour
@@ -63,6 +66,13 @@ namespace WowSandbox
         {
             _stunnedUntil = Mathf.Max(_stunnedUntil, Time.time + seconds);
             if (_mode != Mode.Return)
+                _provoked = true;
+        }
+
+        /// <summary>Woken from sleep by you: a Hostile one gets up fighting.</summary>
+        public void WakeUp()
+        {
+            if (_health.reaction == Reaction.Hostile && _mode != Mode.Return)
                 _provoked = true;
         }
 
@@ -137,8 +147,10 @@ namespace WowSandbox
                 return false;
             if (_provoked)
                 return true;
+            if (_wanderer != null && _wanderer.enabled && _wanderer.Asleep)
+                return false;
             return _health.reaction == Reaction.Hostile &&
-                   Vector3.Distance(transform.position, _player.transform.position) <= aggroRange;
+                   Vector3.Distance(transform.position, _player.transform.position) <= NightLife.SightRange(aggroRange);
         }
 
         /// <summary>Alive, on land and within the leash — not whether a path exists.</summary>

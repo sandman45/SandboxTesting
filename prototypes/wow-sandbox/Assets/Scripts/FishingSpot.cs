@@ -15,6 +15,7 @@ namespace WowSandbox
     /// The further out a spot is, the better the fish: its distance past the island's edge
     /// blends the odds from nearOdds (at the shore) to farOdds (at farOffshore and beyond),
     /// one weight per rarity — Raw Fish up to the Legendary Gilded Kingfish (ItemCatalog.Fish).
+    /// After dark, half the Uncommon and Rare catches are night-only fish instead (ItemCatalog.NightFish).
     ///
     /// The click target is an invisible trigger sphere over the swirl (WoW Sandbox → Add Sea
     /// Life sizes it), checked here the same way ShipHelm checks its wheel, since a fishing
@@ -251,7 +252,7 @@ namespace WowSandbox
 
             WaterSplash.Play(Surface(_bobber), 1f);
 
-            var fish = ItemCatalog.Fish[(int)RollRarity()].Clone();
+            var fish = PickFish(RollRarity()).Clone();
             if (!_player.Add(fish))
             {
                 Hud.Error("Your bags are full.");
@@ -272,6 +273,15 @@ namespace WowSandbox
 
         /// <summary>How far out this spot is, from 0 at the shore to 1 at farOffshore.</summary>
         public float Remoteness => farOffshore > 0f ? Mathf.Clamp01(AmbientSwimmer.Offshore(transform.position) / farOffshore) : 1f;
+
+        /// <summary>The fish of that rarity — after dark, half the time, the night-only one.</summary>
+        static Item PickFish(ItemRarity rarity)
+        {
+            int tier = (int)rarity;
+            var night = tier < ItemCatalog.NightFish.Length ? ItemCatalog.NightFish[tier] : null;
+            bool dark = DayNightCycle.Active != null && DayNightCycle.Active.IsNight;
+            return night != null && dark && Random.value < 0.5f ? night : ItemCatalog.Fish[tier];
+        }
 
         ItemRarity RollRarity()
         {

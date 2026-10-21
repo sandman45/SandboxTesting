@@ -269,6 +269,19 @@ namespace WowSandbox
             Catch("Gilded Kingfish", "Kf", ItemRarity.Legendary, 100 * Money.Gold),
         };
 
+        /// <summary>
+        /// Fish that only bite after dark, by rarity like <see cref="Fish"/> (null where there's
+        /// none): at night FishingSpot lands one of these half the times it rolls that tier.
+        /// </summary>
+        public static readonly Item[] NightFish =
+        {
+            null,
+            Catch("Luminous Squid", "Sq", ItemRarity.Uncommon, 25 * Money.Silver),
+            Catch("Moonlit Ray", "Ry", ItemRarity.Rare, 8 * Money.Gold),
+            null,
+            null,
+        };
+
         /// <summary>Carried in the bags to do something: FishingSpot wants a fishing pole.</summary>
         public static readonly Item[] Tools =
         {
@@ -312,7 +325,7 @@ namespace WowSandbox
         };
 
         static IEnumerable<Item> Equippable => Weapons.Concat(Armors).Append(Shield).Concat(Clothing).Concat(Jewelry);
-        static IEnumerable<Item> All => Equippable.Concat(LootOnly).Concat(Tools).Concat(Lights).Concat(TradeGoods).Concat(Fish.Skip(1)).Concat(Potions).Concat(Legendaries);
+        static IEnumerable<Item> All => Equippable.Concat(LootOnly).Concat(Tools).Concat(Lights).Concat(TradeGoods).Concat(Fish.Skip(1)).Concat(NightFish.Where(fish => fish != null)).Concat(Potions).Concat(Legendaries);
 
         /// <summary>A merchant's shelves: every mundane piece of gear, the tools and lights, then the potions — fresh copies.</summary>
         public static Item[] VendorStock() => Equippable.Concat(Tools).Concat(Lights).Concat(Potions).Select(item => item.Clone()).ToArray();

@@ -84,6 +84,11 @@ namespace WowSandbox
                 Hud.Error("You are too far away.");
                 return;
             }
+            if (vendor.Asleep)
+            {
+                Hud.Info($"{vendor.name} is fast asleep. Come back at dawn.");
+                return;
+            }
 
             _vendor = vendor;
             _buybackTab = false;
@@ -93,6 +98,16 @@ namespace WowSandbox
             Open();
             // Your bags open alongside, as in WoW, so there's something to sell from.
             GetComponent<InventoryPanel>()?.Open();
+        }
+
+        protected override void Update()
+        {
+            base.Update();
+            if (IsOpen && _vendor != null && _vendor.Asleep)
+            {
+                Hud.Info($"{_vendor.name} yawns and shuts up shop for the night.");
+                Close();
+            }
         }
 
         protected override void Build()
