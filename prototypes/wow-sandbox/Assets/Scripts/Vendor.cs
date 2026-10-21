@@ -12,6 +12,9 @@ namespace WowSandbox
     /// They turn to face you and wave when you open the shop, and talk as you trade (if the
     /// model has those clips — WoW Sandbox → Add Vendor sets them up). Friendly, so they can't
     /// be attacked.
+    ///
+    /// Closed overnight: they sleep at the stall from bedtime to dawn (<see cref="NightLife"/>,
+    /// the Asleep animator bool from WoW Sandbox → Add Night Animations).
     /// </summary>
     [RequireComponent(typeof(Health))]
     public class Vendor : MonoBehaviour
@@ -27,6 +30,10 @@ namespace WowSandbox
 
         static readonly int WaveHash = Animator.StringToHash("Wave");
         static readonly int TalkHash = Animator.StringToHash("Talk");
+        static readonly int AsleepHash = Animator.StringToHash("Asleep");
+
+        /// <summary>Last to bed and first up, as shopkeepers are.</summary>
+        const float BedtimeJitter = 0.5f;
 
         Item[] _stock;
         readonly List<(Item item, int price)> _buyback = new();
@@ -36,6 +43,9 @@ namespace WowSandbox
 
         public IReadOnlyList<Item> Stock => _stock ??= ItemCatalog.VendorStock();
         public IReadOnlyList<(Item item, int price)> Buyback => _buyback;
+
+        /// <summary>Asleep for the night: the shop's shut.</summary>
+        public bool Asleep { get; private set; }
 
         void Awake()
         {
@@ -86,10 +96,31 @@ namespace WowSandbox
 
         void Update()
         {
+            bool asleep = NightLife.IsBedtime(BedtimeJitter);
+            if (asleep != Asleep)
+            {
+                Asleep = asleep;
+                _turning = false;
+                SetBool(AsleepHash, asleep);
+            }
             if (!_turning)
                 return;
             transform.rotation = Quaternion.RotateTowards(transform.rotation, _facing, turnSpeed * Time.deltaTime);
             _turning = Quaternion.Angle(transform.rotation, _facing) > 0.5f;
+        }
+
+        void SetBool(int hash, bool value)
+        {
+            if (_animator == null || _animator.runtimeAnimatorController == null)
+                return;
+            foreach (var parameter in _animator.parameters)
+            {
+                if (parameter.nameHash == hash)
+                {
+                    _animator.SetBool(hash, value);
+                    return;
+                }
+            }
         }
 
         void Trigger(int hash)

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using Unity.AI.Navigation;
 using UnityEditor;
@@ -230,6 +231,39 @@ namespace WowSandbox.EditorTools
                 EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
             Debug.Log($"[NpcSpawner] Gave {armed} NPC(s) NpcCombat and added Run/Attack to {controllers} " +
                       "animator controller(s). Save the scene to keep them.");
+        }
+
+        /// <summary>
+        /// Gives the animator controllers of every wandering NPC, chicken and vendor already in
+        /// the scene the Asleep states for the night (M2AnimatorBuilder.AddSleepStates), edited
+        /// in place. Safe to run again.
+        /// </summary>
+        [MenuItem("WoW Sandbox/Add Night Animations")]
+        public static void AddNightAnimations()
+        {
+            int controllers = 0, without = 0;
+            var patched = new HashSet<AnimatorController>();
+            var npcs = Object.FindObjectsByType<WanderingNpc>(FindObjectsInactive.Include).Select(npc => npc.gameObject)
+                             .Concat(Object.FindObjectsByType<Vendor>(FindObjectsInactive.Include).Select(vendor => vendor.gameObject));
+            foreach (var npc in npcs)
+            {
+                var animator = npc.GetComponentInChildren<Animator>();
+                if (animator == null || animator.runtimeAnimatorController is not AnimatorController controller ||
+                    !patched.Add(controller))
+                    continue;
+
+                var source = PrefabUtility.GetCorrespondingObjectFromSource(animator.gameObject);
+                string modelPath = source != null ? AssetDatabase.GetAssetPath(source) : null;
+                if (string.IsNullOrEmpty(modelPath))
+                    continue;
+                if (M2AnimatorBuilder.AddSleepStates(controller, modelPath))
+                    controllers++;
+                else if (controller.parameters.All(parameter => parameter.name != "Asleep"))
+                    without++;
+            }
+
+            Debug.Log($"[NpcSpawner] Added sleep states to {controllers} animator controller(s)" +
+                      (without > 0 ? $"; {without} model(s) have no Sleep or SitGround clip and will stand at night." : "."));
         }
 
         static float MeasureHeight(GameObject instance)

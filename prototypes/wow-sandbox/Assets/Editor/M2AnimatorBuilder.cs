@@ -71,10 +71,84 @@ namespace WowSandbox.EditorTools
 
             AddDeath(controller, death, modelPath);
             AddHit(controller, locomotion, hit, modelPath);
+            AddSleepStates(controller, modelPath);
 
             EditorUtility.SetDirty(controller);
             AssetDatabase.SaveAssets();
             return controller;
+        }
+
+        /// <summary>
+        /// For sleeping at night (WanderingNpc, Vendor), driven by Asleep (bool): lie down
+        /// (SleepDown), sleep (Sleep, looping), get up (SleepUp) and back to locomotion — or,
+        /// for a model without Sleep, the same with SitGround. Edits in place, so NPCs already in
+        /// the scene keep their controller; does nothing if it's there already or the model has
+        /// neither. Returns whether anything was added.
+        /// </summary>
+        public static bool AddSleepStates(AnimatorController controller, string modelPath)
+        {
+            if (controller.parameters.Any(parameter => parameter.name == "Asleep"))
+                return false;
+
+            var clips = AssetDatabase.LoadAllAssetRepresentationsAtPath(modelPath)
+                                     .OfType<AnimationClip>()
+                                     .ToArray();
+            string family = Find(clips, "Sleep") != null ? "Sleep" : Find(clips, "SitGround") != null ? "SitGround" : null;
+            if (family == null)
+            {
+                Debug.Log($"[M2AnimatorBuilder] No Sleep or SitGround clip in {Path.GetFileName(modelPath)} — " +
+                          "it'll stand still at night instead.");
+                return false;
+            }
+
+            string outputDir = Path.GetDirectoryName(AssetDatabase.GetAssetPath(controller))?.Replace('\\', '/');
+            var loop = CopyLooping(Find(clips, family), "Sleep", outputDir);
+            var downClip = Find(clips, family + "Down");
+            var upClip = Find(clips, family + "Up");
+
+            controller.AddParameter("Asleep", AnimatorControllerParameterType.Bool);
+            var stateMachine = controller.layers[0].stateMachine;
+            var locomotion = stateMachine.defaultState;
+
+            var sleep = stateMachine.AddState("Sleep");
+            sleep.motion = loop;
+            AnimatorState lieDown = sleep;
+            if (downClip != null)
+            {
+                lieDown = stateMachine.AddState("LieDown");
+                lieDown.motion = CopyOnce(downClip, "LieDown", outputDir);
+                var settle = lieDown.AddTransition(sleep);
+                settle.hasExitTime = true;
+                settle.exitTime = 0.9f;
+                settle.duration = 0.1f;
+            }
+            var down = locomotion.AddTransition(lieDown);
+            down.AddCondition(AnimatorConditionMode.If, 0f, "Asleep");
+            down.hasExitTime = false;
+            down.duration = 0.25f;
+
+            AnimatorState getUp = locomotion;
+            if (upClip != null)
+            {
+                getUp = stateMachine.AddState("GetUp");
+                getUp.motion = CopyOnce(upClip, "GetUp", outputDir);
+                var back = getUp.AddTransition(locomotion);
+                back.hasExitTime = true;
+                back.exitTime = 0.85f;
+                back.duration = 0.15f;
+            }
+            // From lying down too, so a sleeper woken mid-way gets straight back up.
+            foreach (var state in lieDown == sleep ? new[] { sleep } : new[] { lieDown, sleep })
+            {
+                var up = state.AddTransition(getUp);
+                up.AddCondition(AnimatorConditionMode.IfNot, 0f, "Asleep");
+                up.hasExitTime = false;
+                up.duration = 0.15f;
+            }
+
+            EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+            return true;
         }
 
         /// <summary>
