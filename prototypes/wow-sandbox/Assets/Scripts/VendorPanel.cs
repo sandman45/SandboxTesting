@@ -84,9 +84,10 @@ namespace WowSandbox
                 Hud.Error("You are too far away.");
                 return;
             }
-            if (vendor.Asleep)
+            if (vendor.Closed)
             {
-                Hud.Info($"{vendor.name} is fast asleep. Come back at dawn.");
+                Hud.Info(vendor.Asleep ? $"{vendor.name} is fast asleep. Come back at dawn."
+                                       : $"{vendor.name} has shut up shop for the night. Come back at dawn.");
                 return;
             }
 
@@ -103,7 +104,7 @@ namespace WowSandbox
         protected override void Update()
         {
             base.Update();
-            if (IsOpen && _vendor != null && _vendor.Asleep)
+            if (IsOpen && _vendor != null && _vendor.Closed)
             {
                 Hud.Info($"{_vendor.name} yawns and shuts up shop for the night.");
                 Close();

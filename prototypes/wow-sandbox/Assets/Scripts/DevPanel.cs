@@ -223,7 +223,8 @@ namespace WowSandbox
 
             row = Buttons(ref y,
                 ("Show Minimap", () => DevOptions.ShowMinimap = !DevOptions.ShowMinimap),
-                ("Enable Map", () => DevOptions.EnableMap = !DevOptions.EnableMap));
+                ("Enable Map", () => DevOptions.EnableMap = !DevOptions.EnableMap),
+                ("All Pages", StoryState.FindAllPages));
             _showMinimap = row[0].GetComponentInChildren<Text>();
             _enableMap = row[1].GetComponentInChildren<Text>();
 

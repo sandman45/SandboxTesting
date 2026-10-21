@@ -56,6 +56,8 @@ namespace WowSandbox
         Tool,
         /// <summary>Light for the dark: torches and lanterns (held in the off hand), and lamp oil.</summary>
         Light,
+        /// <summary>A page of the story (journalPage): taking it adds it to the Journal, never the bags.</summary>
+        JournalPage,
     }
 
     /// <summary>
@@ -104,6 +106,10 @@ namespace WowSandbox
         [Header("Light")]
         [Tooltip("Torch: game hours left on the one burning (0 = none lit yet). Lantern: hours of oil left in it.")]
         public float fuel;
+
+        [Header("Story")]
+        [Tooltip("Journal pages: which page, by its number in JournalPages.")]
+        public int journalPage;
 
         [Header("Stack and value")]
         public int valueCopper;
@@ -498,6 +504,13 @@ namespace WowSandbox
             item.protectionBonus = armorClass;
             return item;
         }
+
+        /// <summary>Journal page <paramref name="number"/> as loot: a chest's or a corpse's, taken to the Journal.</summary>
+        public static Item JournalPage(int number) => new()
+        {
+            name = "Water-stained Page", baseName = "Water-stained Page", kind = ItemKind.JournalPage,
+            glyph = "Pg", iconColor = new Color(0.72f, 0.64f, 0.46f), journalPage = number,
+        };
 
         static Item Trade(string name, string glyph, int value) => new()
         {

@@ -10,8 +10,9 @@ namespace WowSandbox
     /// Open clip, then Opened) and loot it in the loot window, like a corpse. What you leave
     /// stays inside; once it's empty it can't be used again until the next Play. Set the
     /// contents in the Inspector by catalog name ("Longsword", "Potion of Healing",
-    /// "Ashbringer") — unknown names are listed in the Console at Play. WoW Sandbox → Place
-    /// Treasure Chest puts one in the scene.
+    /// "Ashbringer") — unknown names are listed in the Console at Play. A chest can also hold a
+    /// journal page (journalPage), always first in its loot. WoW Sandbox → Place Treasure
+    /// Chest puts one in the scene.
     /// </summary>
     [RequireComponent(typeof(LootDrop))]
     public class TreasureChest : Interactable
@@ -19,7 +20,7 @@ namespace WowSandbox
         [Serializable]
         public class Content
         {
-            [Tooltip("A catalog item's name, e.g. \"Longsword\".")]
+            [Tooltip("A catalog item's name, e.g. \"Longsword\" — or \"Journal Page 3\" for a journal page.")]
             public string item;
             [Min(1)] public int count = 1;
         }
@@ -31,6 +32,9 @@ namespace WowSandbox
         [Tooltip("Random treasure added on top of the contents, rolled each Play: Rare 35%, epic 18%, " +
                  "Legendary 7%, else Uncommon. 0 is just the hand-picked contents.")]
         [Min(0)] public int bonusTreasure;
+        [Tooltip("A journal page inside, by its number in JournalPages: always there, listed first in the " +
+                 "loot. 0 for none.")]
+        [Min(0)] public int journalPage;
 
         static readonly int OpenHash = Animator.StringToHash("Open");
 
@@ -47,10 +51,26 @@ namespace WowSandbox
             _animator = GetComponentInChildren<Animator>();
 
             var items = new List<Item>();
+            if (journalPage > 0)
+            {
+                if (JournalPages.TryFind(journalPage, out _))
+                    items.Add(ItemCatalog.JournalPage(journalPage));
+                else
+                    Debug.LogWarning($"[TreasureChest] {name}: there's no journal page {journalPage} — left out.", this);
+            }
             foreach (var content in contents)
             {
                 if (string.IsNullOrWhiteSpace(content.item))
                     continue;
+                if (JournalPages.IsPageName(content.item, out int number))
+                {
+                    if (JournalPages.TryFind(number, out _))
+                        items.Add(ItemCatalog.JournalPage(number));
+                    else
+                        Debug.LogWarning($"[TreasureChest] {name}: \"{content.item}\" — say which page, e.g. " +
+                                         $"\"Journal Page 3\" (1–{JournalPages.All.Length}). Left out.", this);
+                    continue;
+                }
                 if (!ItemCatalog.TryFind(content.item.Trim(), out _))
                 {
                     Debug.LogWarning($"[TreasureChest] {name}: no item called \"{content.item}\" in the catalog — left out.", this);

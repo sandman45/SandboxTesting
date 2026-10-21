@@ -176,6 +176,10 @@ namespace WowSandbox
                     lines.Add($"<color=#{good}>Fills a lantern for {ItemCatalog.OilHours:0} hours of light</color>");
                     break;
 
+                case ItemKind.JournalPage:
+                    lines.Add($"<color=#{good}>A page of a journal. Take it to read it (J)</color>");
+                    break;
+
                 case ItemKind.Consumable when item.IsPotion:
                     lines.Add($"<color=#{good}>Use: Restores {Dice.Format(item.healDieCount, item.healDieSides, item.healBonus)} health</color>");
                     break;
@@ -213,6 +217,7 @@ namespace WowSandbox
             ItemKind.TradeGood => "Trade Good",
             ItemKind.Consumable => "Potion",
             ItemKind.Tool => "Tool",
+            ItemKind.JournalPage => "Journal Page",
             ItemKind.Light => item.slot == EquipSlot.OffHand ? "Held In Off Hand" : "Lamp Oil",
             _ => item.slot.ToString(),
         };
