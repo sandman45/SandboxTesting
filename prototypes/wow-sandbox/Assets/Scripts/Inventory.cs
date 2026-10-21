@@ -178,6 +178,9 @@ namespace WowSandbox
         /// <summary>Whether all of <paramref name="item"/> would fit, stacks included.</summary>
         public bool CanAdd(Item item)
         {
+            // Pages go to the Journal, so they always fit.
+            if (item.kind == ItemKind.JournalPage)
+                return true;
             if (!item.Stackable)
                 return FirstEmpty() >= 0;
 
@@ -192,6 +195,11 @@ namespace WowSandbox
         {
             if (item == null || !CanAdd(item))
                 return false;
+            if (item.kind == ItemKind.JournalPage)
+            {
+                StoryState.FindPage(item.journalPage);
+                return true;
+            }
 
             if (item.Stackable)
             {

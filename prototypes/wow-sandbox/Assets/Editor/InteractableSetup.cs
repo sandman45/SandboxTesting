@@ -297,15 +297,18 @@ namespace WowSandbox.EditorTools
 
         // --- Ground items --------------------------------------------------------------------
 
-        enum PickupKind { Weapon, Armor, Shield, Clothing, Jewelry, Potion, TradeGood, Tool, Coin, Map, Light }
+        enum PickupKind { Weapon, Armor, Shield, Clothing, Jewelry, Potion, TradeGood, Tool, Coin, Map, Light, Page }
 
         // The dropdown's entry for the map (MapPickup), which isn't a catalog item.
         const string MapChoice = "<Map>";
+        // ...and for a journal page (JournalPagePickup), whose number is picked below it.
+        const string PageChoice = "<Journal Page>";
 
         [SerializeField] string itemName = "Longsword";
         [SerializeField] int count = 1;
         [SerializeField] int copper;
         [SerializeField] float size = 0.8f;
+        [SerializeField] int journalPage = 1;
         Vector2 _scroll;
 
         [MenuItem("WoW Sandbox/Place Ground Item")]
@@ -365,6 +368,9 @@ namespace WowSandbox.EditorTools
                 names.Add(MapChoice);
                 labels.Add("Map (unlocks the minimap and M)");
             }
+            // Always listed: without a model of its own it borrows the map's, or a paper stand-in.
+            names.Add(PageChoice);
+            labels.Add("Journal Page (story)");
             // Lights are always listed: without a model of their own they get a stand-in (StandInLight).
             foreach (var (group, items) in groups)
                 foreach (var item in items.Where(item => HasModel(item, library) || item.kind == ItemKind.Light))
@@ -396,6 +402,14 @@ namespace WowSandbox.EditorTools
                 EditorGUILayout.HelpBox("No items have a model yet. Run Harvest Gear, or set a model for a kind below.",
                                         MessageType.Warning);
             }
+            if (itemName == PageChoice)
+            {
+                string[] pageLabels = JournalPages.All.Select(p => $"{p.number}. {p.title} ({JournalPages.HandName(p.hand)})").ToArray();
+                int pageIndex = Mathf.Max(0, System.Array.FindIndex(JournalPages.All, p => p.number == journalPage));
+                pageIndex = EditorGUILayout.Popup(new GUIContent("Page", "Which journal page, as numbered in docs/LORE.md."),
+                                                  pageIndex, pageLabels);
+                journalPage = JournalPages.All[pageIndex].number;
+            }
             count = Mathf.Max(1, EditorGUILayout.IntField("Count", count));
             copper = Mathf.Max(0, EditorGUILayout.IntField(new GUIContent("Coin (copper)", "100 = 1 silver, 10,000 = 1 gold."), copper));
             size = EditorGUILayout.FloatField(new GUIContent("Size", "Its longest side, in world units. 0 keeps the model's own size."), size);
@@ -423,13 +437,14 @@ namespace WowSandbox.EditorTools
         void PlaceGroundItem()
         {
             bool map = itemName == MapChoice;
+            bool page = itemName == PageChoice;
             Item catalogItem = null;
-            if (!map && !string.IsNullOrWhiteSpace(itemName) && !ItemCatalog.TryFind(itemName.Trim(), out catalogItem))
+            if (!map && !page && !string.IsNullOrWhiteSpace(itemName) && !ItemCatalog.TryFind(itemName.Trim(), out catalogItem))
             {
                 Debug.LogWarning($"[Interactables] No item called \"{itemName}\".");
                 return;
             }
-            if (!map && catalogItem == null && copper <= 0)
+            if (!map && !page && catalogItem == null && copper <= 0)
             {
                 Debug.LogWarning("[Interactables] Give it an item or some coin.");
                 return;
@@ -437,9 +452,11 @@ namespace WowSandbox.EditorTools
             if (!Ground(out var point, out var facing))
                 return;
 
-            var kind = map ? PickupKind.Map : KindOf(catalogItem);
+            var kind = map ? PickupKind.Map : page ? PickupKind.Page : KindOf(catalogItem);
             var model = AssetDatabase.LoadAssetAtPath<GameObject>(EditorPrefs.GetString(ModelKey(kind), ""));
-            string label = map ? "Tattered Map" : catalogItem != null ? catalogItem.name : "Coin";
+            if (page && model == null)
+                model = AssetDatabase.LoadAssetAtPath<GameObject>(EditorPrefs.GetString(ModelKey(PickupKind.Map), ""));
+            string label = map ? "Tattered Map" : page ? "Water-stained Page" : catalogItem != null ? catalogItem.name : "Coin";
 
             var root = new GameObject(label);
             Undo.RegisterCreatedObjectUndo(root, "Place Ground Item");
@@ -454,6 +471,21 @@ namespace WowSandbox.EditorTools
             else if (look == null && catalogItem is { kind: ItemKind.Light })
             {
                 look = StandInLight(catalogItem, root.transform);
+            }
+            else if (look == null && page)
+            {
+                // Until a model is set for pages (or the map): a flat sheet of old paper.
+                look = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                Object.DestroyImmediate(look.GetComponent<Collider>());
+                look.transform.SetParent(root.transform, false);
+                look.transform.localScale = new Vector3(0.75f, 0.01f, 1f);
+                var renderer = look.GetComponent<Renderer>();
+                // Its own copy, saved in the scene, like the stand-in torch's.
+                var paper = new Material(renderer.sharedMaterial) { name = "Journal Page (stand-in)" };
+                paper.color = new Color(0.84f, 0.77f, 0.62f);
+                if (paper.HasProperty("_BaseColor"))
+                    paper.SetColor("_BaseColor", new Color(0.84f, 0.77f, 0.62f));
+                renderer.sharedMaterial = paper;
             }
             else if (look == null)
             {
@@ -479,6 +511,16 @@ namespace WowSandbox.EditorTools
             look.transform.position += Vector3.up * (point.y - bounds.min.y);
 
             AddBoxCollider(root, trigger: true, minSize: 0.5f);
+            if (page)
+            {
+                var pickup = root.AddComponent<JournalPagePickup>();
+                pickup.displayName = label;
+                pickup.page = journalPage;
+                root.name = $"Journal Page {journalPage}";
+                Selection.activeGameObject = root;
+                EditorSceneManager.MarkSceneDirty(root.scene);
+                return;
+            }
             if (map)
             {
                 root.AddComponent<MapPickup>().displayName = label;
