@@ -166,6 +166,9 @@ namespace WowSandbox
                 v => Clock(c => c.SetHour(v)), v => DayNightCycle.Active != null ? DayNightCycle.Active.ClockText : "—");
             SliderRow("Time speed", ref y, 0f, 30f, () => DayNightCycle.Active != null ? DayNightCycle.Active.timeSpeed : 0f,
                 v => Clock(c => c.timeSpeed = v), v => $"{v:0.0}×");
+            // Saved, unlike the clock: for finding how dark the night should be.
+            SliderRow("Night brightness", ref y, 0f, 2f, () => DevOptions.NightBrightness,
+                v => DevOptions.NightBrightness = Mathf.Round(v * 20f) / 20f, v => $"{Mathf.Round(v * 20f) * 5f:0}%");
             Buttons(ref y,
                 ("Dawn", () => Clock(c => c.SetHour(DayNightCycle.Sunrise + 0.25f))),
                 ("Noon", () => Clock(c => c.SetHour(12f))),

@@ -238,19 +238,21 @@ namespace WowSandbox
             }
             else
             {
-                sky.sunIntensity = scene.sunIntensity * moonlight * Smooth(0f, 0.15f, -s);
+                sky.sunIntensity = scene.sunIntensity * moonlight * NightBrightness * Smooth(0f, 0.15f, -s);
                 sky.sunColor = moonColor;
                 sky.sunShadowStrength = scene.sunShadowStrength * 0.6f;
             }
 
             sky.ambient = Scale(scene.ambient, tint);
+            // The sky reflection can't be tinted, only dimmed: by the tint's brightness.
+            sky.reflections = scene.reflections * tint.grayscale;
             sky.fogColor = scene.fogColor * tint;
             // The procedural sky draws its own sunrise and sunset from where the light is. Once
             // the sun's down (the light has become the moon) it's recoloured as well as dimmed,
             // or its daytime horizon shows as a warm glow; and the half below the horizon
             // goes to the night fog, so the sea fades into it rather than into brown.
             float night = Smooth(0f, 0.15f, -s);
-            sky.skyExposure = scene.skyExposure * Mathf.Lerp(nightSkyExposure, 1f, day);
+            sky.skyExposure = scene.skyExposure * Mathf.Lerp(nightSkyExposure * NightBrightness, 1f, day);
             sky.skyTint = Color.Lerp(scene.skyTint, nightSkyTint, night);
             sky.skyAtmosphere = Mathf.Lerp(scene.skyAtmosphere, nightAtmosphere, night);
             sky.skyGround = Color.Lerp(scene.skyGround * tint, sky.fogColor, night);
@@ -321,8 +323,17 @@ namespace WowSandbox
             // Warmest with the sun just on the horizon; gone a little way up, and once it's
             // well down.
             float dusk = s >= 0f ? 1f - Smooth(0.02f, 0.3f, s) : Smooth(-0.14f, 0f, s);
-            return Color.Lerp(nightTint, Color.white, DaylightAt(s)) * Color.Lerp(Color.white, duskTint, dusk);
+            return Color.Lerp(nightTint * NightBrightness, Color.white, DaylightAt(s)) * Color.Lerp(Color.white, duskTint, dusk);
         }
+
+        /// <summary>
+        /// How much of the night colours above the night really gets: 10%, which is properly dark
+        /// once the sky's reflection is dimmed too. The Developer panel's Night brightness
+        /// overrides it.
+        /// </summary>
+        public const float DefaultNightBrightness = 0.1f;
+
+        static float NightBrightness => DevOptions.Enabled ? DevOptions.NightBrightness : DefaultNightBrightness;
 
         static float Smooth(float from, float to, float value) =>
             Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(from, to, value));
