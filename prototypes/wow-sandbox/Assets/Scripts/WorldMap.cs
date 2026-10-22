@@ -186,7 +186,7 @@ namespace WowSandbox
             }
         }
 
-        // StormWeather's camera-centred spheres are "StormOvercastSky" and "StormHorizonFog".
+        // The weather's camera-centred spheres: "StormHorizonFog", "CloudSky", "NightSky".
         static bool InTheWay(Renderer renderer) =>
             renderer is ParticleSystemRenderer or SkinnedMeshRenderer or LineRenderer
             || renderer.GetComponentInParent<SkyDomeFollow>() != null

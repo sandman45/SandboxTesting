@@ -66,8 +66,8 @@ namespace WowSandbox
         }
 
         /// <summary>
-        /// The WoW cloud dome hidden, for a clear look at the sky behind it (stars, the moon,
-        /// the sun's path). Storm overcast still greys the sky. Applied as it's set and at Play.
+        /// The clouds hidden (CloudLayer's, or the old WoW dome's without it), for a clear look at
+        /// the sky behind them (stars, the moon, the sun's path). Applied as it's set and at Play.
         /// </summary>
         public static bool HideClouds
         {
@@ -80,9 +80,10 @@ namespace WowSandbox
         }
 
         /// <summary>
-        /// Shows or hides every sky dome. The whole object, not its renderers: UnderwaterEffect
-        /// turns those back on whenever you surface, which would bring the clouds straight back.
-        /// Play-mode only, so leaving Play puts the scene's dome back as it was.
+        /// Shows or hides every sky dome — always hidden once CloudLayer's clouds are up, which
+        /// replace it (CloudLayer hides its own sphere). The whole object, not its renderers:
+        /// UnderwaterEffect turns those back on whenever you surface, which would bring the
+        /// clouds straight back. Play-mode only, so leaving Play puts the scene's dome back as it was.
         /// </summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void ApplyClouds()
@@ -90,7 +91,7 @@ namespace WowSandbox
             if (!Application.isPlaying)
                 return;
             foreach (var dome in Object.FindObjectsByType<SkyDomeFollow>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-                dome.gameObject.SetActive(!HideClouds);
+                dome.gameObject.SetActive(!HideClouds && CloudLayer.Active == null);
         }
 
         /// <summary>The time-of-day clock in the top-right corner (MinimapHud). On until switched off.</summary>

@@ -1,8 +1,8 @@
 // Stars and the moon, for DayNightCycle.
 //
 // Drawn on an inside-out sphere pinned to the camera, after the procedural skybox and before
-// the storm overcast (Transparent-110) and the WoW cloud dome (Transparent-100), so cloud and
-// overcast cover it the way they'd cover the real thing. Additive: by day it adds nothing.
+// the clouds (Transparent-105), so cloud and overcast cover it the way they'd cover the real
+// thing. Additive: by day it adds nothing.
 //
 // The stars are procedural — a hashed grid over the view direction — so there's no texture
 // to export or keep. The grid is turned with the hour (_StarRotation) so the sky wheels
