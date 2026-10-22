@@ -41,6 +41,14 @@ namespace WowSandbox
         /// <summary>Red with "Interrupted", then fades.</summary>
         public static void Interrupt() => End("Interrupted", HudTheme.HealthLow);
 
+        /// <summary>Just fades, as it is — something paused, not failed (getting up mid-rest).</summary>
+        public static void Fade()
+        {
+            var bar = Get();
+            bar._showing = false;
+            bar._hideAt = Time.time;
+        }
+
         static void End(string label, Color color)
         {
             var bar = Get();

@@ -184,6 +184,9 @@ namespace WowSandbox
         /// <summary>True while on a ship's ladder, or clambering over its rail.</summary>
         public bool IsClimbing => _ladder != null;
 
+        /// <summary>Walking only, no running — too weak (Hunger, until he's eaten and rested).</summary>
+        public bool ForceWalk { get; set; }
+
         /// <summary>The moving deck being ridden (a floating ship's), or null.</summary>
         public Transform Platform => _platform;
 
@@ -348,7 +351,7 @@ namespace WowSandbox
 
             strafe = Mathf.Clamp(strafe, -1f, 1f);
 
-            bool walking = keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed;
+            bool walking = keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed || ForceWalk;
 
             // --- Ladders ----------------------------------------------------
             // Climbing takes over movement entirely: no turning, no gravity, no swimming.

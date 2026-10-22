@@ -6,8 +6,7 @@ namespace WowSandbox
 {
     /// <summary>
     /// Makes going under the surface look like going under the surface: dense green-blue
-    /// fog, a colour grade, a closing vignette, and the sky dome hidden so cloud layers
-    /// don't shine through the water.
+    /// fog, a colour grade and a closing vignette. (CloudLayer hides the clouds under water itself.)
     ///
     /// The tint comes from a runtime Volume rather than a custom ScriptableRendererFeature.
     /// URP's post stack is already in this project, a Volume needs no render-pass plumbing,
@@ -32,7 +31,6 @@ namespace WowSandbox
 
         Volume _volume;
         VolumeProfile _profile;
-        Renderer[] _skyDomeRenderers;
         float _blend;
 
         // The scene's fog, captured before we touch it. Only used when there's no
@@ -44,11 +42,6 @@ namespace WowSandbox
         {
             CacheRenderSettings();
             BuildVolume();
-
-            // Also while it's switched off (the developer panel's Hide Clouds), so turning it back on still hides it under water.
-            var dome = FindFirstObjectByType<SkyDomeFollow>(FindObjectsInactive.Include);
-            if (dome != null)
-                _skyDomeRenderers = dome.GetComponentsInChildren<Renderer>(true);
 
             // A Volume does nothing if the camera isn't running post-processing.
             var cameraData = GetComponent<UniversalAdditionalCameraData>();
@@ -71,7 +64,6 @@ namespace WowSandbox
                 _volume.weight = _blend;
 
             ApplyFog(_blend);
-            SetSkyDomeVisible(_blend < 0.5f);
         }
 
         /// <summary>
@@ -82,7 +74,6 @@ namespace WowSandbox
         void OnDisable()
         {
             RestoreRenderSettings();
-            SetSkyDomeVisible(true);
 
             if (_volume != null)
                 _volume.weight = 0f;
@@ -123,18 +114,6 @@ namespace WowSandbox
             // Darkened with the hour, or the sea glows teal at midnight.
             RenderSettings.fogColor = Color.Lerp(AboveWaterFog().color, underwaterFog * DayNightCycle.Tint, blend);
             RenderSettings.fogDensity = Mathf.Lerp(0f, fogDensity, blend);
-        }
-
-        void SetSkyDomeVisible(bool visible)
-        {
-            if (_skyDomeRenderers == null)
-                return;
-
-            foreach (var renderer in _skyDomeRenderers)
-            {
-                if (renderer != null && renderer.enabled != visible)
-                    renderer.enabled = visible;
-            }
         }
 
         /// <summary>

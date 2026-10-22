@@ -171,8 +171,15 @@ namespace WowSandbox
         public bool ArmorTooHeavy =>
             _gear is { Armor: ArmorCategory.Heavy } gear && Score(Ability.Strength) < gear.StrengthRequirement;
 
-        /// <summary>Movement multiplier: 5e's 30 ft dropping to 20 ft under too-heavy armour.</summary>
-        public float SpeedMultiplier => ArmorTooHeavy ? 2f / 3f : 1f;
+        /// <summary>
+        /// How hunger is treating him (Hunger sets these): a pace multiplier, and damage added to
+        /// every hit — less when starving or sick, more when Well Fed.
+        /// </summary>
+        [NonSerialized] public float conditionSpeed = 1f;
+        [NonSerialized] public int conditionDamage;
+
+        /// <summary>Movement multiplier: 5e's 30 ft dropping to 20 ft under too-heavy armour, and hunger's.</summary>
+        public float SpeedMultiplier => (ArmorTooHeavy ? 2f / 3f : 1f) * conditionSpeed;
         public int SpeedFeet => ArmorTooHeavy ? 20 : 30;
 
         int WeaponDieCount => _gear is { } gear ? (gear.HasWeapon ? gear.WeaponDieCount : 0) : weaponDieCount;
@@ -185,7 +192,7 @@ namespace WowSandbox
         {
             get
             {
-                int flat = Modifier(Ability.Strength) + WeaponBonus;
+                int flat = Modifier(Ability.Strength) + WeaponBonus + conditionDamage;
                 return WeaponDieCount > 0
                     ? Dice.Format(WeaponDieCount, WeaponDieSides, flat)
                     : Mathf.Max(1, 1 + flat).ToString();
@@ -198,7 +205,7 @@ namespace WowSandbox
         /// </summary>
         public int RollDamage(bool critical)
         {
-            int flat = Modifier(Ability.Strength) + WeaponBonus;
+            int flat = Modifier(Ability.Strength) + WeaponBonus + conditionDamage;
             int dice = WeaponDieCount > 0
                 ? Dice.Roll(WeaponDieCount * (critical ? 2 : 1), WeaponDieSides)
                 : 1;

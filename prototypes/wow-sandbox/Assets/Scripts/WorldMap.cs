@@ -13,7 +13,7 @@ namespace WowSandbox
     /// are measured across.
     ///
     /// For that one frame the capture hides what would get in the way from above: the
-    /// sky dome and the storm's overcast and horizon spheres (they follow the main camera,
+    /// weather's cloud, night-sky and horizon spheres (they follow the main camera,
     /// so they sit over the island), particles (rain), lightning, skinned characters, and
     /// fog itself. Everything is restored straight after.
     /// </summary>
@@ -189,7 +189,6 @@ namespace WowSandbox
         // The weather's camera-centred spheres: "StormHorizonFog", "CloudSky", "NightSky".
         static bool InTheWay(Renderer renderer) =>
             renderer is ParticleSystemRenderer or SkinnedMeshRenderer or LineRenderer
-            || renderer.GetComponentInParent<SkyDomeFollow>() != null
             // It sails off; MapMarkers draws it where it is instead.
             || renderer.GetComponentInParent<ShipSailing>() != null
             || renderer.name.Contains("Sky")

@@ -26,6 +26,9 @@ namespace WowSandbox
         static readonly int LootDownHash = Animator.StringToHash("LootDown");
         bool _kneeling;
 
+        /// <summary>Something else wants him knelt down too, standing still — cooking at a fire.</summary>
+        public bool HeldDown { get; set; }
+
         Inventory _inventory;
         CharacterStats _stats;
         WowCharacterController _movement;
@@ -78,7 +81,7 @@ namespace WowSandbox
             var velocity = _body != null ? _body.velocity : Vector3.zero;
             velocity.y = 0f;
             bool still = velocity.sqrMagnitude < 0.25f && (_movement == null || !_movement.IsSwimming);
-            bool kneel = IsOpen && still;
+            bool kneel = (IsOpen || HeldDown) && still;
             if (kneel && !_kneeling && HasParameter(animator, LootDownHash))
                 animator.SetTrigger(LootDownHash);
             _kneeling = kneel;

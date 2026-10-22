@@ -42,6 +42,8 @@ namespace WowSandbox
         HealthController _health;
         CharacterStats _stats;
         Inventory _inventory;
+        // Looked up when it's wanted: it's added at Play like this, in no set order.
+        Hunger Stomach => _player.GetComponent<Hunger>();
 
         // The scene's own things, by an id made before any of them has moved.
         readonly Dictionary<string, Interactable> _pickups = new();
@@ -260,10 +262,18 @@ namespace WowSandbox
             data.player = new PlayerData
             {
                 spot = CurrentSpot(),
+                respawn = _health != null ? new Spot
+                {
+                    position = _health.SpawnPosition,
+                    yaw = _health.SpawnRotation.eulerAngles.y,
+                } : default,
                 level = _stats.level,
                 experience = _stats.experience,
                 health = _health != null ? _health.Current : 0f,
                 copper = _inventory.copper,
+                fullness = Stomach != null ? Stomach.Fullness : 0f,
+                wellFedHours = Stomach != null ? Stomach.WellFedHoursLeft : 0f,
+                sickHours = Stomach != null ? Stomach.SickHoursLeft : 0f,
                 bag = Enumerable.Range(0, _inventory.BagSize)
                     .Where(i => _inventory.BagItem(i) != null)
                     .Select(i => new SlotData { index = i, item = _inventory.BagItem(i) }).ToArray(),
@@ -274,6 +284,18 @@ namespace WowSandbox
 
             data.taken = _pickups.Where(pair => pair.Value == null || !pair.Value.gameObject.activeSelf)
                 .Select(pair => pair.Key).ToArray();
+            data.returning = _pickups.Where(pair => pair.Value is GroundItem { Gone: true })
+                .Select(pair => new ReturningData { id = pair.Key, hours = ((GroundItem)pair.Value).ReturnsIn }).ToArray();
+            var fire = Campfire.Current;
+            if (fire != null)
+                data.campfire = new FireData
+                {
+                    exists = true,
+                    lit = fire.IsLit,
+                    position = fire.transform.position,
+                    yaw = fire.transform.eulerAngles.y,
+                    hours = fire.HoursLeft,
+                };
             data.chests = _chests.Where(pair => pair.Value != null).Select(pair =>
             {
                 var loot = pair.Value.GetComponent<LootDrop>();
@@ -381,11 +403,26 @@ namespace WowSandbox
                 player.equipped.Select(slot => ((EquipSlot)slot.index, slot.item)), player.copper);
             // After the gear, whose Constitution can change how much health there is to have.
             _health?.SetCurrent(player.health);
+            if (Stomach != null)
+                Stomach.Restore(player.fullness, player.wellFedHours, player.sickHours);
 
             var taken = new HashSet<string>(data.taken);
+            var returning = data.returning.ToDictionary(entry => entry.id, entry => entry.hours);
             foreach (var (id, pickup) in _pickups)
-                if (pickup != null)
-                    pickup.gameObject.SetActive(!taken.Contains(id));
+            {
+                if (pickup == null)
+                    continue;
+                pickup.gameObject.SetActive(!taken.Contains(id));
+                if (pickup is GroundItem item)
+                    item.ReturnIn(returning.TryGetValue(id, out float hours) ? hours : 0f);
+            }
+
+            if (data.campfire is { exists: true } fire)
+                Campfire.Place(fire.position, fire.yaw, fire.hours, fire.lit && fire.hours > 0f);
+            else if (Campfire.Current != null)
+                Destroy(Campfire.Current.gameObject);
+            if (_health != null && player.respawn.position != Vector3.zero)
+                _health.SetSpawn(player.respawn.position, Quaternion.Euler(0f, player.respawn.yaw, 0f));
             foreach (var chest in data.chests)
                 if (_chests.TryGetValue(chest.id, out var found) && found != null)
                     found.Restore(chest.opened, chest.items, chest.copper);
@@ -457,6 +494,8 @@ namespace WowSandbox
             public bool mapFound;
             public PlayerData player;
             public string[] taken = Array.Empty<string>();
+            public ReturningData[] returning = Array.Empty<ReturningData>();
+            public FireData campfire;
             public ChestData[] chests = Array.Empty<ChestData>();
             public string[] dead = Array.Empty<string>();
             public ShipData[] ships = Array.Empty<ShipData>();
@@ -475,10 +514,15 @@ namespace WowSandbox
         public class PlayerData
         {
             public Spot spot;
+            [Tooltip("Where he respawns: beside the last campfire he built, else where the scene stood him.")]
+            public Spot respawn;
             public int level = 1;
             public int experience;
             public float health;
             public int copper;
+            public float fullness;
+            public float wellFedHours;
+            public float sickHours;
             public SlotData[] bag = Array.Empty<SlotData>();
             public SlotData[] equipped = Array.Empty<SlotData>();
         }
@@ -488,6 +532,24 @@ namespace WowSandbox
         {
             public int index;
             public Item item;
+        }
+
+        [Serializable]
+        public class ReturningData
+        {
+            public string id;
+            public float hours;
+        }
+
+        [Serializable]
+        public class FireData
+        {
+            // JsonUtility always writes a FireData, so this says whether there's a fire at all.
+            public bool exists;
+            public bool lit;
+            public Vector3 position;
+            public float yaw;
+            public float hours;
         }
 
         [Serializable]

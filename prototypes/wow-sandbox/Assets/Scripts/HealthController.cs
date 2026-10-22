@@ -162,6 +162,17 @@ namespace WowSandbox
             _health = Mathf.Min(maxHealth, _health + amount);
         }
 
+        /// <summary>Where Respawn puts him: where the scene stood him, until a campfire's built.</summary>
+        public Vector3 SpawnPosition => _spawnPosition;
+        public Quaternion SpawnRotation => _spawnRotation;
+
+        /// <summary>Respawn here from now on — beside the last campfire he built.</summary>
+        public void SetSpawn(Vector3 position, Quaternion rotation)
+        {
+            _spawnPosition = position;
+            _spawnRotation = rotation;
+        }
+
         /// <summary>Health set straight to a saved value (at least 1) — SaveGame.</summary>
         public void SetCurrent(float value)
         {

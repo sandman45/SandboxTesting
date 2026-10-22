@@ -35,6 +35,8 @@ namespace WowSandbox
         /// <summary>Carried: lit when <see cref="Lit"/> says, not by the time of day.</summary>
         [System.NonSerialized] public bool held;
         [System.NonSerialized] public bool Lit;
+        /// <summary>How bright it burns while held and lit, 0-1 — a campfire dying down.</summary>
+        [System.NonSerialized] public float heldLevel = 1f;
 
         Light _light;
         ParticleSystem _flame;
@@ -274,7 +276,7 @@ namespace WowSandbox
             if (_light == null)
                 return;
 
-            float level = held ? (Lit ? 1f : 0f) : Darkness;
+            float level = held ? (Lit ? heldLevel : 0f) : Darkness;
             bool lit = level > 0.01f;
             if (_light.enabled != lit)
                 _light.enabled = lit;

@@ -85,9 +85,6 @@ namespace WowSandbox
         public float windDirection = 30f;
         [Tooltip("Horizontal wind speed at full storm, world units per second.")]
         public float stormWindSpeed = 9f;
-        [Tooltip("How much faster the old WoW dome's clouds scroll at full storm (CloudLayer's " +
-                 "storm clouds have their own wind, CloudSettings.Storm).")]
-        public float stormCloudSpeed = 6f;
 
         [Header("Clouds and light")]
         public Color overcastColor = new Color(0.20f, 0.22f, 0.25f);
@@ -175,7 +172,6 @@ namespace WowSandbox
         // Runtime state.
         ClearSky _clear;        // this hour's fine weather: the scene's, through DayNightCycle
         Material _sky;
-        float _cloudOffset;
         WaterWaves _waves;
         Camera _camera;
         FogState _aboveWaterFog;
@@ -202,7 +198,6 @@ namespace WowSandbox
         static readonly int OvercastColorId = Shader.PropertyToID("_WeatherOvercastColor");
         static readonly int OvercastId = Shader.PropertyToID("_WeatherOvercast");
         static readonly int FlashId = Shader.PropertyToID("_WeatherFlash");
-        static readonly int CloudOffsetId = Shader.PropertyToID("_WeatherCloudOffset");
         static readonly int DayNightTintId = Shader.PropertyToID("_DayNightTint");
 
         /// <summary>
@@ -378,7 +373,6 @@ namespace WowSandbox
 
             Shader.SetGlobalFloat(OvercastId, 0f);
             Shader.SetGlobalFloat(FlashId, 0f);
-            Shader.SetGlobalFloat(CloudOffsetId, 0f);
 
             DestroyRuntime(_horizonBand != null ? _horizonBand.gameObject : null);
             DestroyRuntime(_horizonMaterial);
@@ -461,9 +455,6 @@ namespace WowSandbox
             Shader.SetGlobalFloat(OvercastId, overcast);
             Shader.SetGlobalFloat(FlashId, flash);
 
-            // Accumulated, not multiplied — see _WeatherCloudOffset in SkyDome.shader.
-            _cloudOffset += (Mathf.Lerp(1f, stormCloudSpeed, wind) - 1f) * Time.deltaTime;
-            Shader.SetGlobalFloat(CloudOffsetId, _cloudOffset);
 
             if (_sky != null)
             {

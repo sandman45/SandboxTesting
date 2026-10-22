@@ -14,6 +14,11 @@ namespace WowSandbox
     /// as WoW mobs do when they leash — once you leave the water, die, or drag it too far
     /// from home. Standing on the beach is safe.
     ///
+    /// Hostile ones feed, too: every feedEveryHours game hours one goes after the nearest fish
+    /// school (AmbientSwimmer) round its patch, which bolts as it closes in. Caught, the school's
+    /// eaten (with a splash, near the surface) and reforms a few game hours later. A swimming
+    /// player comes first; a hunt it can't reach, or that drags on, it gives up.
+    ///
     /// Root forward is the creature's facing (the spawner turns the model child to match),
     /// and the root sits at the body's centre.
     /// </summary>
@@ -46,7 +51,14 @@ namespace WowSandbox
         public float biteReach = 1.5f;
         public float attackInterval = 2f;
 
-        enum Mode { Cruise, Pause, Chase, Return }
+        [Header("Feeding")]
+        // Not serialized, so these tuned values reach the sharks already in the scene.
+        [System.NonSerialized] public Vector2 feedEveryHours = new(3f, 6f);
+        [System.NonSerialized] public Vector2 schoolReturnHours = new(3f, 6f);
+        [System.NonSerialized] public float feedRange = 45f;
+        const float FeedGiveUpSeconds = 30f;
+
+        enum Mode { Cruise, Pause, Chase, Return, Feed }
 
         static readonly int SpeedHash = Animator.StringToHash("Speed");
         static readonly int AttackHash = Animator.StringToHash("Attack");
@@ -69,6 +81,9 @@ namespace WowSandbox
         float _pauseUntil;
         float _nextAttack;
         bool _provoked;
+        float _hoursToFeed;
+        AmbientSwimmer _prey;
+        float _feedStarted;
 
         void Awake()
         {
@@ -89,7 +104,12 @@ namespace WowSandbox
                 _health.Damaged -= OnDamaged;
         }
 
-        void Start() => PickGoal();
+        void Start()
+        {
+            PickGoal();
+            // Not every shark hungry at once.
+            _hoursToFeed = Random.Range(0.5f, feedEveryHours.y);
+        }
 
         void OnDamaged(float amount) => _provoked = true;
 
@@ -118,6 +138,7 @@ namespace WowSandbox
             float targetSpeed = _mode switch
             {
                 Mode.Chase => chaseSpeed,
+                Mode.Feed => chaseSpeed * 0.85f,
                 Mode.Return => chaseSpeed * 0.7f,
                 Mode.Cruise => cruiseSpeed,
                 _ => 0f,
@@ -127,6 +148,7 @@ namespace WowSandbox
             Vector3 destination = _mode switch
             {
                 Mode.Chase => KeepInWater(PlayerChest()),
+                Mode.Feed => KeepInWater(_prey.transform.position),
                 Mode.Return => _home,
                 _ => _goal,
             };
@@ -136,6 +158,8 @@ namespace WowSandbox
 
             if (_mode == Mode.Chase)
                 TryBite();
+            else if (_mode == Mode.Feed)
+                TryEat();
             else if (_mode == Mode.Return)
                 _health.Heal(_health.maxHealth * 0.1f * Time.deltaTime);
 
@@ -149,8 +173,23 @@ namespace WowSandbox
                                   _playerMovement.IsSwimming &&
                                   Vector3.Distance(_player.transform.position, _home) <= leashRange;
 
+            if (_health.reaction == Reaction.Hostile && _mode != Mode.Feed && _mode != Mode.Chase)
+                _hoursToFeed -= DayNightCycle.HoursThisFrame;
+
             switch (_mode)
             {
+                case Mode.Feed:
+                    // The player swims by: that's better eating.
+                    if (canHunt && playerHuntable && Vector3.Distance(transform.position, PlayerChest()) <= aggroRange)
+                    {
+                        _mode = Mode.Chase;
+                        _prey = null;
+                    }
+                    else if (_prey == null || _prey.Eaten || Time.time - _feedStarted > FeedGiveUpSeconds ||
+                             Vector3.Distance(_prey.transform.position, _home) > roamRadius + feedRange)
+                        GiveUpFeeding();
+                    return;
+
                 case Mode.Chase:
                     if (!playerHuntable)
                     {
@@ -174,6 +213,9 @@ namespace WowSandbox
                 _mode = Mode.Chase;
                 return;
             }
+
+            if (_hoursToFeed <= 0f && _health.reaction == Reaction.Hostile && StartFeeding())
+                return;
 
             if (_mode == Mode.Pause && Time.time >= _pauseUntil)
             {
@@ -223,6 +265,8 @@ namespace WowSandbox
                 _speed = 0f;
                 if (_mode == Mode.Cruise)
                     PickGoal();
+                else if (_mode == Mode.Feed)
+                    GiveUpFeeding();
                 return;
             }
 
@@ -245,6 +289,74 @@ namespace WowSandbox
             if (_hasAttack)
                 _animator.SetTrigger(AttackHash);
             Combat.AttackPlayer(_stats, _player);
+        }
+
+        /// <summary>Hungry now: off after a school as soon as it's free — the Developer panel.</summary>
+        public void GetHungry() => _hoursToFeed = 0f;
+
+        /// <summary>Goes after the nearest uneaten school round its patch. False if there's none.</summary>
+        bool StartFeeding()
+        {
+            AmbientSwimmer nearest = null;
+            float best = feedRange;
+            foreach (var school in AmbientSwimmer.All)
+            {
+                if (school == null || school.Eaten ||
+                    Vector3.Distance(school.transform.position, _home) > roamRadius + feedRange)
+                    continue;
+                float distance = Vector3.Distance(school.transform.position, transform.position);
+                if (distance < best)
+                {
+                    best = distance;
+                    nearest = school;
+                }
+            }
+            if (nearest == null)
+            {
+                // Nothing about: look again in a while.
+                _hoursToFeed = 0.5f;
+                return false;
+            }
+            _prey = nearest;
+            _feedStarted = Time.time;
+            _mode = Mode.Feed;
+            return true;
+        }
+
+        void GiveUpFeeding()
+        {
+            _prey = null;
+            _hoursToFeed = 0.5f;
+            _mode = Mode.Cruise;
+            PickGoal();
+        }
+
+        /// <summary>Close enough to the school, the jaws close: it's eaten.</summary>
+        void TryEat()
+        {
+            if (_prey == null)
+                return;
+            float distance = Vector3.Distance(transform.position, _prey.transform.position);
+            if (distance < 10f)
+                _prey.Scare(transform.position);
+            if (distance > BodyLength() * 0.5f + 1.2f)
+                return;
+
+            if (_hasAttack)
+                _animator.SetTrigger(AttackHash);
+            var water = WaterVolume.Containing(_prey.transform.position);
+            if (water != null)
+            {
+                var spot = _prey.transform.position;
+                float surface = water.SurfaceHeightAt(spot);
+                if (surface - spot.y < 2.5f)
+                    WaterSplash.Play(new Vector3(spot.x, surface, spot.z), 0.6f);
+            }
+            _prey.Eat(Random.Range(schoolReturnHours.x, schoolReturnHours.y));
+            _prey = null;
+            _hoursToFeed = Random.Range(feedEveryHours.x, feedEveryHours.y);
+            _mode = Mode.Pause;
+            _pauseUntil = Time.time + 1.5f;
         }
 
         void PickGoal()

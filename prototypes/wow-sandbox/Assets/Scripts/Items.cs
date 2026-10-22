@@ -107,6 +107,12 @@ namespace WowSandbox
         [Tooltip("Torch: game hours left on the one burning (0 = none lit yet). Lantern: hours of oil left in it.")]
         public float fuel;
 
+        [Header("Food")]
+        [Tooltip("How much of an empty stomach eating it fills, 0-1. 0 isn't food.")]
+        public float nourish;
+        [Tooltip("Cooked at a fire: ends the opening's starving, and leaves you Well Fed. Raw food makes you sick.")]
+        public bool cooked;
+
         [Header("Story")]
         [Tooltip("Journal pages: which page, by its number in JournalPages.")]
         public int journalPage;
@@ -118,6 +124,7 @@ namespace WowSandbox
 
         public bool IsEquippable => slot != EquipSlot.None;
         public bool IsPotion => kind == ItemKind.Consumable && healDieCount > 0;
+        public bool IsFood => nourish > 0f;
         public bool IsFishingPole => kind == ItemKind.Tool && baseName != null && baseName.EndsWith("Fishing Pole");
         public bool IsTorch => kind == ItemKind.Light && baseName == "Torch";
         public bool IsLantern => kind == ItemKind.Light && baseName != null && baseName.EndsWith("Lantern");
@@ -250,16 +257,18 @@ namespace WowSandbox
         public static readonly Item[] TradeGoods =
         {
             Trade("Chicken Feather", "Fe", 1),
-            Trade("Raw Chicken", "Mt", 5),
+            Raw(Trade("Raw Chicken", "Mt", 5)),
             Trade("Frayed Rope", "Rp", 1 * Money.Silver),
             Trade("Loaded Dice", "Di", 1 * Money.Silver),
             Trade("Bent Lockpick", "Lp", 2 * Money.Silver),
             Trade("Stolen Trinket", "Tr", 5 * Money.Silver),
             Trade("Silver Earring", "Er", 2 * Money.Gold),
-            Trade("Raw Fish", "Fi", 5),
+            Raw(Trade("Raw Fish", "Fi", 5)),
             Trade("Shark Tooth", "Th", 5 * Money.Silver),
             Trade("Shark Fin", "Fn", 1 * Money.Gold),
             Trade("Giant Shark Tooth", "GT", 5 * Money.Gold),
+            // Washed up on the beach: what a campfire's built from.
+            Trade("Driftwood", "Dw", 1),
         };
 
         /// <summary>
@@ -293,6 +302,8 @@ namespace WowSandbox
         {
             Tool("Twig Fishing Pole", "TP", 2 * Money.Silver),
             Tool("Fishing Pole", "FP", 1 * Money.Gold),
+            // 5e's tinderbox, by another name: with three Driftwood, a campfire (Campfire).
+            Tool("Flint & Steel", "Fl", 5 * Money.Silver),
         };
 
         /// <summary>
@@ -315,6 +326,13 @@ namespace WowSandbox
         public const float TorchHours = 4f;
         public const float OilHours = 8f;
 
+        /// <summary>Cooked at a campfire: what ends the opening's hunger and leaves you Well Fed.</summary>
+        public static readonly Item[] Meals =
+        {
+            Meal("Grilled Fish", "GF", 0.35f, 2 * Money.Silver),
+            Meal("Roast Chicken", "RC", 0.45f, 3 * Money.Silver),
+        };
+
         public static readonly Item[] Potions =
         {
             Potion("Potion of Healing", 2, 4, 2, 50 * Money.Gold),
@@ -331,7 +349,7 @@ namespace WowSandbox
         };
 
         static IEnumerable<Item> Equippable => Weapons.Concat(Armors).Append(Shield).Concat(Clothing).Concat(Jewelry);
-        static IEnumerable<Item> All => Equippable.Concat(LootOnly).Concat(Tools).Concat(Lights).Concat(TradeGoods).Concat(Fish.Skip(1)).Concat(NightFish.Where(fish => fish != null)).Concat(Potions).Concat(Legendaries);
+        static IEnumerable<Item> All => Equippable.Concat(LootOnly).Concat(Tools).Concat(Lights).Concat(TradeGoods).Concat(Fish.Skip(1)).Concat(NightFish.Where(fish => fish != null)).Concat(Meals).Concat(Potions).Concat(Legendaries);
 
         /// <summary>A merchant's shelves: every mundane piece of gear, the tools and lights, then the potions — fresh copies.</summary>
         public static Item[] VendorStock() => Equippable.Concat(Tools).Concat(Lights).Concat(Potions).Select(item => item.Clone()).ToArray();
@@ -520,10 +538,26 @@ namespace WowSandbox
 
         static Item Catch(string name, string glyph, ItemRarity rarity, int value)
         {
-            var item = Trade(name, glyph, value);
+            var item = Raw(Trade(name, glyph, value));
             item.rarity = rarity;
             return item;
         }
+
+        /// <summary>Edible as it is, but raw: a little food, and a bad stomach.</summary>
+        static Item Raw(Item item)
+        {
+            item.nourish = RawNourish;
+            return item;
+        }
+
+        const float RawNourish = 0.15f;
+
+        static Item Meal(string name, string glyph, float nourish, int value) => new()
+        {
+            name = name, baseName = name, kind = ItemKind.Consumable, glyph = glyph,
+            iconColor = new Color(0.62f, 0.4f, 0.2f), valueCopper = value, maxStack = 20,
+            nourish = nourish, cooked = true,
+        };
 
         static Item Tool(string name, string glyph, int value) => new()
         {

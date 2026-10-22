@@ -6,7 +6,8 @@ namespace WowSandbox
     /// An item lying in the world — a sword in the sand, a pouch of coin: click it from close by
     /// to reach down (the looting reach) and put it in your bags. A full bag leaves it where it
     /// is. Its look is whatever model it was placed with (WoW Sandbox → Place Ground Item picks
-    /// one by the item's kind). Gone for good once taken, until the next Play.
+    /// one by the item's kind). Gone for good once taken — unless it has respawnHours, when
+    /// another turns up in its place that many game hours later (driftwood washing up again).
     /// </summary>
     public class GroundItem : Interactable
     {
@@ -15,6 +16,44 @@ namespace WowSandbox
         [Min(1)] public int count = 1;
         [Tooltip("Coin, in copper, picked up with it (or alone).")]
         [Min(0)] public int copper;
+        [Tooltip("Game hours till another turns up where this was taken. 0 is gone for good.")]
+        [Min(0f)] public float respawnHours;
+        [Tooltip("Only for someone without one: carrying it already, it's left lying (one of several flint).")]
+        public bool unique;
+
+        float _returnsIn;
+
+        /// <summary>Taken, and not back yet (only one that respawns stays in the scene while it's gone).</summary>
+        public bool Gone => _returnsIn > 0f;
+        public float ReturnsIn => _returnsIn;
+
+        public override bool CanInteract => !Gone;
+
+        void Update()
+        {
+            if (!Gone)
+                return;
+            _returnsIn -= DayNightCycle.HoursThisFrame;
+            if (_returnsIn <= 0f)
+                Show(true);
+        }
+
+        /// <summary>Gone for <paramref name="hours"/> more game hours (0: here now) — taking it, or SaveGame.</summary>
+        public void ReturnIn(float hours)
+        {
+            _returnsIn = Mathf.Max(0f, hours);
+            Show(!Gone);
+        }
+
+        void Show(bool shown)
+        {
+            if (shown)
+                _returnsIn = 0f;
+            foreach (var renderer in GetComponentsInChildren<Renderer>(true))
+                renderer.enabled = shown;
+            foreach (var collider in GetComponentsInChildren<Collider>(true))
+                collider.enabled = shown;
+        }
 
         static readonly int LootGrabHash = Animator.StringToHash("LootGrab");
 
@@ -24,12 +63,19 @@ namespace WowSandbox
 
         public override void Interact(GameObject player)
         {
+            if (Gone)
+                return;
             var inventory = player.GetComponent<Inventory>();
             if (inventory == null)
                 return;
 
             if (!string.IsNullOrWhiteSpace(item))
             {
+                if (unique && inventory.BestInBags(carried => carried.baseName == item.Trim()) != null)
+                {
+                    Hud.Error($"You already have {item.Trim()}.");
+                    return;
+                }
                 if (!ItemCatalog.TryFind(item.Trim(), out _))
                 {
                     Debug.LogWarning($"[GroundItem] {name}: no item called \"{item}\" in the catalog.", this);
@@ -56,7 +102,10 @@ namespace WowSandbox
                     if (parameter.nameHash == LootGrabHash)
                         animator.SetTrigger(LootGrabHash);
 
-            gameObject.SetActive(false);
+            if (respawnHours > 0f)
+                ReturnIn(respawnHours);
+            else
+                gameObject.SetActive(false);
         }
     }
 }

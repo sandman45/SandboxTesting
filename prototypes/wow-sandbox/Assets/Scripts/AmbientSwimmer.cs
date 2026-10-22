@@ -8,6 +8,9 @@ namespace WowSandbox
     /// it just cruises between random points near home, under the waves and over the
     /// seabed, and never strays out past the shallows into the open sea.
     ///
+    /// The sharks hunt them (SwimmingCreature): a shark closing in sends the school bolting
+    /// (Scare), and one that's caught is gone (Eat) until it reforms at home some game hours on.
+    ///
     /// Root forward is the facing (the spawner turns the model child to match), and the
     /// root sits at the body's centre.
     /// </summary>
@@ -30,8 +33,15 @@ namespace WowSandbox
 
         static readonly int SpeedHash = Animator.StringToHash("Speed");
 
+        /// <summary>Every school in the sea, eaten ones included — what the sharks look through.</summary>
+        public static readonly System.Collections.Generic.List<AmbientSwimmer> All = new();
+
         Animator _animator;
         bool _hasSpeed;
+        Renderer[] _renderers;
+        float _returnIn;
+        float _fleeUntil = -1f;
+        Vector3 _fleeFrom;
         Vector3 _home;
         Vector3 _goal;
         float _speed;
@@ -49,12 +59,68 @@ namespace WowSandbox
                     _hasSpeed |= parameter.nameHash == SpeedHash;
             }
             _home = transform.position;
+            _renderers = GetComponentsInChildren<Renderer>(true);
         }
+
+        void OnEnable() => All.Add(this);
+        void OnDisable() => All.Remove(this);
 
         void Start() => PickGoal();
 
+        /// <summary>Eaten by a shark: gone for now, reforming at home in a few game hours.</summary>
+        public bool Eaten => _returnIn > 0f;
+
+        /// <summary>Caught: gone, back at home in <paramref name="hours"/> game hours.</summary>
+        public void Eat(float hours)
+        {
+            _returnIn = Mathf.Max(0.01f, hours);
+            Show(false);
+        }
+
+        /// <summary>A shark closing in from <paramref name="from"/>: it bolts the other way for a moment.</summary>
+        public void Scare(Vector3 from)
+        {
+            _fleeUntil = Time.time + 0.6f;
+            _fleeFrom = from;
+        }
+
+        void Show(bool shown)
+        {
+            foreach (var renderer in _renderers)
+                if (renderer != null)
+                    renderer.enabled = shown;
+            if (_animator != null)
+                _animator.enabled = shown;
+        }
+
         void Update()
         {
+            if (Eaten)
+            {
+                _returnIn -= DayNightCycle.HoursThisFrame;
+                if (_returnIn > 0f)
+                    return;
+                // Reformed, back where it lives.
+                _returnIn = 0f;
+                transform.position = _home;
+                _speed = 0f;
+                PickGoal();
+                Show(true);
+            }
+
+            if (Time.time < _fleeUntil)
+            {
+                // Straight away from the shark, if there's water that way.
+                var away = transform.position - _fleeFrom;
+                if (away.sqrMagnitude > 0.01f)
+                {
+                    var bolt = transform.position + away.normalized * 6f;
+                    if (IsOpenWater(bolt))
+                        _goal = bolt;
+                }
+                _paused = false;
+            }
+
             if (_paused)
             {
                 if (Time.time >= _pauseUntil)
@@ -69,7 +135,9 @@ namespace WowSandbox
                 _pauseUntil = Time.time + Random.Range(pauseSeconds.x, pauseSeconds.y);
             }
 
-            _speed = Mathf.MoveTowards(_speed, _paused ? 0f : cruiseSpeed, cruiseSpeed * Time.deltaTime);
+            bool fleeing = Time.time < _fleeUntil;
+            float wanted = _paused ? 0f : fleeing ? cruiseSpeed * 3f : cruiseSpeed;
+            _speed = Mathf.MoveTowards(_speed, wanted, cruiseSpeed * (fleeing ? 6f : 1f) * Time.deltaTime);
             Steer(_goal);
             Move();
 

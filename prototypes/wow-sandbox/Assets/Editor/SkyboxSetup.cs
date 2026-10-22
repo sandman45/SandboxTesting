@@ -124,9 +124,8 @@ namespace WowSandbox.EditorTools
         /// <summary>
         /// Assigning RenderSettings.skybox isn't enough on its own: a camera set to clear to a
         /// solid colour never draws the skybox at all, so a perfectly good sky material still
-        /// renders as flat black behind the cloud dome. The two halves live in different
-        /// places — lighting settings and the camera — so this tool owns both rather than
-        /// leaving half the job to Setup Sky Dome.
+        /// renders as flat black behind the clouds. The two halves live in different
+        /// places — lighting settings and the camera — so this tool owns both.
         /// </summary>
         static void EnsureCameraShowsSky()
         {

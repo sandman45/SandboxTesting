@@ -151,7 +151,7 @@ namespace WowSandbox
                     lines.Add($"<color=#{dim}>Trade good — worth selling</color>");
                     break;
 
-                case ItemKind.Tool:
+                case ItemKind.Tool when item.IsFishingPole:
                     lines.Add($"<color=#{good}>Carry it to fish at a fishing spot</color>");
                     break;
 
@@ -185,6 +185,16 @@ namespace WowSandbox
                     break;
             }
 
+            if (item.baseName == Campfire.FlintName)
+                lines.Add($"<color=#{good}>Use: Builds a campfire from {Campfire.WoodNeeded} {Campfire.WoodName}</color>");
+            else if (item.baseName == Campfire.WoodName)
+                lines.Add($"<color=#{dim}>Dry enough to burn. {Campfire.WoodNeeded} make a campfire</color>");
+
+            if (item.IsFood)
+                lines.Add(item.cooked
+                    ? $"<color=#{good}>Use: Eat it. Leaves you Well Fed</color>"
+                    : $"<color=#{bad}>Raw. Eating it like this will turn your stomach</color>");
+
             if (item.protectionBonus > 0)
                 lines.Add($"<color=#{good}>+{item.protectionBonus} Armor Class</color>");
             for (int i = 0; i < 6; i++)
@@ -215,7 +225,7 @@ namespace WowSandbox
             ItemKind.Armor => $"{item.armorCategory} Armor",
             ItemKind.Shield => "Off Hand Shield",
             ItemKind.TradeGood => "Trade Good",
-            ItemKind.Consumable => "Potion",
+            ItemKind.Consumable => item.IsFood ? "Food" : "Potion",
             ItemKind.Tool => "Tool",
             ItemKind.JournalPage => "Journal Page",
             ItemKind.Light => item.slot == EquipSlot.OffHand ? "Held In Off Hand" : "Lamp Oil",

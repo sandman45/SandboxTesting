@@ -4,7 +4,7 @@ namespace WowSandbox
 {
     /// <summary>
     /// The sky's clouds: a raymarched layer (WowSandbox/Clouds) on an inside-out sphere pinned to
-    /// the camera, in place of the exported WoW sky dome, which is hidden while it runs. Fine
+    /// the camera. Fine
     /// weather looks like CloudSettings.Current (the Developer panel's Clouds window); as a storm
     /// gathers, the sky blends toward CloudSettings.Storm — and greys over behind the clouds.
     ///
@@ -70,7 +70,7 @@ namespace WowSandbox
             var shader = Shader.Find("WowSandbox/Clouds");
             if (shader == null)
             {
-                Debug.LogWarning("[CloudLayer] WowSandbox/Clouds shader not found — keeping the old sky dome.", this);
+                Debug.LogWarning("[CloudLayer] WowSandbox/Clouds shader not found — no clouds.", this);
                 enabled = false;
                 return;
             }
@@ -84,14 +84,6 @@ namespace WowSandbox
             _sphere = StormWeather.BuildSkySphere("CloudSky", _material);
             _sphere.GetComponent<MeshRenderer>().lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
             Active = this;
-            HideSkyDomes();
-        }
-
-        /// <summary>The WoW dome's cloud layers are retired: hidden for the length of Play.</summary>
-        static void HideSkyDomes()
-        {
-            foreach (var dome in FindObjectsByType<SkyDomeFollow>(FindObjectsInactive.Include))
-                dome.gameObject.SetActive(false);
         }
 
         void OnDestroy()

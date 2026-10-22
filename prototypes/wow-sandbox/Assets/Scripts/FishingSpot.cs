@@ -62,6 +62,8 @@ namespace WowSandbox
 
         /// <summary>The spot you're fishing right now, if any — you can only fish one at a time.</summary>
         static FishingSpot _casting;
+        /// <summary>The spot under the mouse, showing its tooltip.</summary>
+        static FishingSpot _hovered;
         float _backAt;
         int _catchesLeft;
 
@@ -91,12 +93,14 @@ namespace WowSandbox
 
             if (Scattered)
             {
+                Hover(false);
                 if (Time.time >= _backAt)
                     SetScattered(false);
                 return;
             }
 
             var mouse = Mouse.current;
+            Hover(mouse != null && !Hud.PointerOverUi && !TitleScreen.Showing && ClickedOn(mouse));
             if (mouse != null && mouse.leftButton.wasPressedThisFrame && !Hud.PointerOverUi && ClickedOn(mouse))
                 StartCast();
         }
@@ -315,6 +319,46 @@ namespace WowSandbox
                 _backAt = Time.time + respawnSeconds;
             else
                 _catchesLeft = Random.Range(catchesBeforeScatter.x, catchesBeforeScatter.y + 1);
+        }
+
+        /// <summary>
+        /// The tooltip while the mouse is on it, as items have: what it is, what fishing it takes,
+        /// whether you're close enough, and the night fish after dark.
+        /// </summary>
+        void Hover(bool over)
+        {
+            if (!over)
+            {
+                if (_hovered == this)
+                {
+                    _hovered = null;
+                    HudTooltip.Hide();
+                }
+                return;
+            }
+            _hovered = this;
+
+            // Its own lookup: StartCast fills in _player along with the rest of him.
+            var player = _player != null ? _player : FindAnyObjectByType<Inventory>();
+            string good = HudTheme.Hex(HudTheme.Friendly);
+            string bad = HudTheme.Hex(HudTheme.Hostile);
+            string dim = HudTheme.Hex(HudTheme.TextDim);
+            var lines = new System.Collections.Generic.List<string>
+            {
+                "<size=16><b>School of Fish</b></size>",
+                $"<color=#{dim}>Fishing Spot</color>",
+            };
+            bool hasPole = player != null && player.BestInBags(item => item.IsFishingPole) != null;
+            lines.Add(hasPole
+                ? $"<color=#{good}>Fish here with your fishing pole</color>"
+                : $"<color=#{bad}>Requires a fishing pole</color>");
+            if (player != null && Vector3.Distance(player.transform.position, transform.position) > useRange)
+                lines.Add($"<color=#{bad}>Too far away — come within {useRange:0} yards</color>");
+            if (DayNightCycle.Active != null && DayNightCycle.Active.IsNight)
+                lines.Add($"<color=#{good}>Night fish are biting</color>");
+            lines.Add($"<color=#{dim}>The fish scatter after a few catches, and come back later</color>");
+            lines.Add($"<color=#{dim}><i>Click to fish</i></color>");
+            HudTooltip.Show(string.Join("\n", lines));
         }
 
         /// <summary>Did the click land on the swirl, rather than on something solid in front of it?</summary>
