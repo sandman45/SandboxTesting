@@ -11,10 +11,14 @@ namespace WowSandbox
     /// Clicking anywhere else (or Enter/Space) swoops the camera in behind the warrior and
     /// hands over the controls and the HUD.
     ///
+    /// With a saved game there's Continue and New Game instead: Continue fades to black, puts
+    /// the save back (SaveGame.Load — no shipwreck opening) and fades in where the Captain left
+    /// off; New Game asks first, then wipes the save and starts at the wreck as above.
+    ///
     /// While it's up the world is calm and safe: the storm cycle waits (StormWeather checks
     /// Showing), nothing aggros (NpcCombat), and the controls are locked. Created in every
     /// scene with a player, like the settings menu; the developer panel's Skip Title goes
-    /// straight in.
+    /// straight in (into the save, if there is one).
     /// </summary>
     [DefaultExecutionOrder(1000)] // after WowOrbitCamera, so the swoop can blend from its pose
     public class TitleScreen : MonoBehaviour
@@ -41,6 +45,13 @@ namespace WowSandbox
 
         CanvasGroup _group;
         Text _prompt;
+
+        // The saved game on offer, or null; and Continue's black-out.
+        SaveGame.SaveData _save;
+        RectTransform _confirm;
+        Image _fade;
+        bool _continuing;
+        bool _orbitDone;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void CreateInScene()
@@ -72,17 +83,20 @@ namespace WowSandbox
             _angle = _player.transform.eulerAngles.y;
 
             SetHudVisible(false);
+            _save = SaveGame.Peek();
             Build();
         }
 
         void OnDestroy()
         {
             Showing = false;
+            if (_fade != null)
+                Destroy(_fade.gameObject);
         }
 
         void Update()
         {
-            if (_swoopStart >= 0f)
+            if (_swoopStart >= 0f || _continuing)
                 return;
 
             // Pulse the prompt.
@@ -91,13 +105,18 @@ namespace WowSandbox
 
             var keyboard = Keyboard.current;
             if (keyboard != null && (keyboard.enterKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame) &&
-                !HudPanel.AnyOpen)
-                BeginGame();
+                !HudPanel.AnyOpen && (_confirm == null || !_confirm.gameObject.activeSelf))
+            {
+                if (_save != null)
+                    StartCoroutine(ContinueGame());
+                else
+                    BeginGame();
+            }
         }
 
         void LateUpdate()
         {
-            if (_camera == null)
+            if (_camera == null || _orbitDone)
                 return;
 
             if (_swoopStart < 0f)
@@ -156,6 +175,79 @@ namespace WowSandbox
                 StormWeather.Active.BeginPlay();
         }
 
+        /// <summary>
+        /// Continue: to black, the saved game put back, the controls handed over, and back in —
+        /// no swoop, since he's no longer where the title was circling.
+        /// </summary>
+        System.Collections.IEnumerator ContinueGame()
+        {
+            if (_continuing || _swoopStart >= 0f)
+                yield break;
+            _continuing = true;
+            _group.interactable = false;
+
+            yield return Fade(0f, 1f, 0.5f);
+            _group.gameObject.SetActive(false);
+            if (!SaveGame.Load())
+                Hud.Error("The saved game couldn't be loaded.");
+            _orbitDone = true;
+            Showing = false;
+            if (_orbitCamera != null)
+                _orbitCamera.enabled = true;
+            if (_targeting != null)
+                _targeting.enabled = true;
+            _player.SetLocked(false);
+            SetHudVisible(true);
+
+            // A moment in the dark for the camera to settle behind him.
+            yield return new WaitForSecondsRealtime(0.25f);
+            yield return Fade(1f, 0f, 0.8f);
+            Destroy(gameObject);
+        }
+
+        System.Collections.IEnumerator Fade(float from, float to, float seconds)
+        {
+            if (_fade == null)
+            {
+                var rect = Hud.Stretch("Fade", Hud.Layer(HudLayer.Overlay));
+                _fade = rect.gameObject.AddComponent<Image>();
+                _fade.raycastTarget = false;
+            }
+            for (float t = 0f; t < seconds; t += Time.unscaledDeltaTime)
+            {
+                _fade.color = new Color(0f, 0f, 0f, Mathf.Lerp(from, to, t / seconds));
+                yield return null;
+            }
+            _fade.color = new Color(0f, 0f, 0f, to);
+        }
+
+        void NewGame()
+        {
+            if (_save == null)
+            {
+                BeginGame();
+                return;
+            }
+            _confirm.gameObject.SetActive(true);
+        }
+
+        void ConfirmNewGame()
+        {
+            SaveGame.Delete();
+            _save = null;
+            _confirm.gameObject.SetActive(false);
+            BeginGame();
+        }
+
+        /// <summary>"Level 3 Fighter · 14:20 on the isle · saved 2026-10-21 18:05".</summary>
+        string SaveSummary()
+        {
+            int minutes = Mathf.FloorToInt(Mathf.Repeat(_save.hour, 24f) * 60f);
+            var stats = _player.GetComponent<CharacterStats>();
+            string who = $"Level {(_save.player != null ? _save.player.level : 1)} {(stats != null ? stats.className : "")}".Trim();
+            return $"{who}  ·  {minutes / 60:00}:{minutes % 60:00} on the isle  ·  saved {_save.savedAt}";
+        }
+
         static void SetHudVisible(bool visible)
         {
             foreach (var layer in new[] { HudLayer.Nameplates, HudLayer.CombatText, HudLayer.Frames })
@@ -173,9 +265,10 @@ namespace WowSandbox
             var catcher = root.gameObject.AddComponent<Image>();
             catcher.color = new Color(0f, 0f, 0f, 0f);
             catcher.raycastTarget = true;
+            // With a save to continue, it's the buttons that choose.
             root.gameObject.AddComponent<Button>().onClick.AddListener(() =>
             {
-                if (!HudPanel.AnyOpen)
+                if (!HudPanel.AnyOpen && _save == null)
                     BeginGame();
             });
 
@@ -192,6 +285,21 @@ namespace WowSandbox
                 24, TextAnchor.MiddleCenter, HudTheme.Text, FontStyle.Bold);
             _prompt.text = "Click to Start";
 
+            if (_save != null)
+            {
+                _prompt.gameObject.SetActive(false);
+                var low = new Vector2(0.5f, 0.14f);
+                var size = new Vector2(190f, 44f);
+                var continueButton = Hud.TextButton("Continue", root, low, new Vector2(-105f, 18f), size,
+                    () => StartCoroutine(ContinueGame()));
+                continueButton.GetComponentInChildren<Text>().fontSize = 20;
+                var newButton = Hud.TextButton("New Game", root, low, new Vector2(105f, 18f), size, NewGame);
+                newButton.GetComponentInChildren<Text>().fontSize = 20;
+                Hud.Label("Saved", root, low, new Vector2(0f, -32f), new Vector2(800f, 24f),
+                    15, TextAnchor.MiddleCenter, HudTheme.TextDim).text = SaveSummary();
+                BuildConfirm(root);
+            }
+
             var corner = new Vector2(1f, 0f);
             Hud.TextButton("Settings", root, corner, new Vector2(-136f, 24f), new Vector2(110f, 32f), () =>
             {
@@ -200,6 +308,24 @@ namespace WowSandbox
                     settings.Open();
             });
             Hud.TextButton("Quit", root, corner, new Vector2(-18f, 24f), new Vector2(110f, 32f), Quit);
+        }
+
+        /// <summary>New Game's "are you sure", hidden till it's asked.</summary>
+        void BuildConfirm(Transform root)
+        {
+            var centre = new Vector2(0.5f, 0.5f);
+            _confirm = Hud.Rect("Confirm New Game", root, centre, Vector2.zero, new Vector2(480f, 150f));
+            Hud.Panel(_confirm);
+            // Soaks up clicks, so one on the box doesn't reach the screen behind it.
+            _confirm.GetComponent<Image>().raycastTarget = true;
+            var text = Hud.Label("Question", _confirm, new Vector2(0.5f, 1f), new Vector2(0f, -22f), new Vector2(440f, 56f),
+                17, TextAnchor.MiddleCenter, HudTheme.Text);
+            text.text = "Start a new game?\nYour saved game will be lost.";
+            var bottom = new Vector2(0.5f, 0f);
+            Hud.TextButton("New Game", _confirm, bottom, new Vector2(-75f, 20f), new Vector2(130f, 34f), ConfirmNewGame);
+            Hud.TextButton("Cancel", _confirm, bottom, new Vector2(75f, 20f), new Vector2(130f, 34f),
+                () => _confirm.gameObject.SetActive(false));
+            _confirm.gameObject.SetActive(false);
         }
 
         static void Shade(Transform parent, Vector2 anchorMin, Vector2 anchorMax, float alpha)

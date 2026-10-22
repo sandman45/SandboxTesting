@@ -200,6 +200,20 @@ namespace WowSandbox
             }
         }
 
+        /// <summary>The sky to save: where it's mostly got to, and overcast while a storm's on.</summary>
+        public Sky SavedSky => _weather != null && _weather.StormRunning ? Sky.Overcast : _blend >= 0.5f ? _to : _from;
+
+        /// <summary>Back to a saved sky this instant, with its front still <paramref name="hoursLeft"/> off.</summary>
+        public void Restore(Sky sky, float hoursLeft)
+        {
+            if (sky == Sky.Storm)
+                sky = Sky.Overcast;
+            _from = _to = sky;
+            _blend = 1f;
+            _waitingOutStorm = false;
+            _hoursLeft = hoursLeft > 0f ? hoursLeft : NextHold();
+        }
+
         float NextHold() => Random.Range(HoldHours.x, HoldHours.y) / Mathf.Max(Pace, 0.1f);
 
         /// <summary>Each sky's clouds, with a wind to suit it: still when it's clear, fresher as it clouds over.</summary>

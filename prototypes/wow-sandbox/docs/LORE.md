@@ -369,10 +369,10 @@ leans on them.
 - 🆕 **Story state.** One place that knows which pages you've found, who you've rescued,
   which act you're in, and flags like "Briggs confessed" or "carrying the Heart". Every
   trigger, dialogue line and gate reads from it.
-- 🆕 **Saving the whole game.** Nothing saves between Plays yet (only settings and dev
-  options, in PlayerPrefs). Save story state plus inventory, gear, gold, position, time of
-  day, the Grey Gull's position, and which chests, pickups and pages are used up. Load from the
-  title screen ("Continue" / "New Game").
+- ✅ **Saving the whole game** (`SaveGame`): one save, autosaved at story moments, every 5
+  minutes and on quit, plus Esc → Save Game. It holds the story, inventory, gear, gold,
+  position (on a ship's deck too), time of day and sky, the ships, chests, pickups and pages
+  used up, and dead enemies. The title screen offers Continue / New Game.
 - ✅ **Journal panel** (`JournalPanel`, J): an open book, with pages grouped by hand on the
   left ("? ? ?" for unfound ones) and the page on parchment on the right, in each writer's ink.
   Picking up a page says "A memory returns: …" and opens it.
@@ -493,7 +493,7 @@ leans on them.
 
 1. ✅ Story state + Journal panel + page pickups, with pages 1–3 (Act I). *(Polish later: font and art.)*
 2. ✅ Dialogue panel + Briggs stages 0–1, plus the Captain's thoughts.
-3. Saving (once there's progress worth keeping).
+3. ✅ Saving: the whole game, with Continue / New Game.
 4. Act II, in pieces: lantern-only page and troll carving → thieves' leader and camp →
    survivors → Sprocket (sails, diving lamp, compass parts) → Grey Gull gate.
 5. Act III: confession → drowned cave → Tide-Heart and whispers.

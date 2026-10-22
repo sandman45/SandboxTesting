@@ -130,6 +130,18 @@ namespace WowSandbox
             return Vector2.Distance(flat, nearest);
         }
 
+        /// <summary>Gone this instant if it's up — a saved game continuing in fine weather.</summary>
+        public void HideNow()
+        {
+            StopAllCoroutines();
+            if (_weather != null)
+                _weather.StrikeFocus = null;
+            if (_up && _leviathan != null)
+                _leviathan.Hide();
+            _up = false;
+            _armed = true;
+        }
+
         [ContextMenu("Raise Leviathan Now (60s)")]
         public void RaiseNow()
         {
