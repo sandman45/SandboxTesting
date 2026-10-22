@@ -193,23 +193,7 @@ namespace WowSandbox
             }
         }
 
-        /// <summary>
-        /// Moves the far plane, and scales the sky dome with it — along with its height offset,
-        /// so the sky looks exactly the same (it's centred on the camera; see ViewDistanceSetup).
-        /// </summary>
-        static void ApplyViewDistance(Camera camera, float distance)
-        {
-            float ratio = distance / Mathf.Max(camera.farClipPlane, 1f);
-            if (Mathf.Abs(ratio - 1f) < 0.001f)
-                return;
-
-            camera.farClipPlane = distance;
-            var dome = UnityEngine.Object.FindAnyObjectByType<SkyDomeFollow>();
-            if (dome != null)
-            {
-                dome.transform.localScale *= ratio;
-                dome.heightOffset *= ratio;
-            }
-        }
+        /// <summary>Moves the far plane. The weather's sky spheres size themselves to it.</summary>
+        static void ApplyViewDistance(Camera camera, float distance) => camera.farClipPlane = distance;
     }
 }

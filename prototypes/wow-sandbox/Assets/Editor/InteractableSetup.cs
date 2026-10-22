@@ -161,7 +161,7 @@ namespace WowSandbox.EditorTools
         /// WoW's light shafts and glows (the chest's golden beam) import as opaque sheets: give
         /// them an additive, unlit, two-sided copy of their texture so they glow instead.
         /// </summary>
-        static void Glow(GameObject root)
+        internal static void Glow(GameObject root)
         {
             foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
             {
@@ -190,7 +190,7 @@ namespace WowSandbox.EditorTools
         /// see-through: wow.export doesn't mark them, so they'd cover the chest as opaque sheets.
         /// They get a cut-out copy. A texture only slightly see-through (a shine mask) stays solid.
         /// </summary>
-        static void Cutouts(GameObject root)
+        internal static void Cutouts(GameObject root)
         {
             foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
             {
@@ -670,7 +670,7 @@ namespace WowSandbox.EditorTools
         }
 
         /// <summary>A box around the renderers (light shafts left out), in the root's space.</summary>
-        static void AddBoxCollider(GameObject root, bool trigger, float minSize)
+        internal static void AddBoxCollider(GameObject root, bool trigger, float minSize)
         {
             var renderers = root.GetComponentsInChildren<Renderer>(true)
                 .Where(r => r.sharedMaterials.All(m => m == null || !m.name.EndsWith("_Glow"))).ToArray();

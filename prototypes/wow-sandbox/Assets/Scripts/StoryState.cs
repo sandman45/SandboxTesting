@@ -74,6 +74,13 @@ namespace WowSandbox
             return true;
         }
 
+        /// <summary>Un-happens <paramref name="flag"/> — for the Developer panel's resets.</summary>
+        public static void Clear(string flag)
+        {
+            if (_flags.Remove(flag))
+                Version++;
+        }
+
         /// <summary>Everything found and everything that's happened, for SaveGame.</summary>
         public static void Snapshot(out int[] pages, out string[] flags)
         {

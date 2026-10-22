@@ -89,8 +89,6 @@ namespace WowSandbox.EditorTools
         {
             if (root.GetComponentInChildren<WaterVolume>(true) != null)
                 return false;
-            if (root.GetComponentInChildren<SkyDomeFollow>(true) != null)
-                return false;
             if (root.GetComponentInChildren<CharacterController>(true) != null)
                 return false;
             if (root.GetComponentInChildren<NavMeshAgent>(true) != null)

@@ -93,8 +93,10 @@ namespace WowSandbox
             }
 
             string error = null;
-            if (slot.Item.IsPotion)
+            if (slot.Item.IsPotion || slot.Item.IsFood)
                 _inventory.Use(slot.Ref.Index, out error);
+            else if (slot.Item.baseName == Campfire.FlintName)
+                Campfire.StartBuilding(_inventory);
             else if (slot.Item.IsEquippable)
                 _inventory.EquipFromBag(slot.Ref.Index, out error);
             if (error != null)
@@ -113,6 +115,10 @@ namespace WowSandbox
             }
             if (item != null && item.IsPotion)
                 return "Right-click to drink (or press 6) · drag to move";
+            if (item != null && item.IsFood)
+                return "Right-click to eat · drag to move";
+            if (item != null && item.baseName == Campfire.FlintName)
+                return "Right-click to build a campfire · drag to move";
             return "Right-click to equip · drag to move";
         }
 

@@ -129,13 +129,23 @@ namespace WowSandbox
             return item;
         }
 
-        /// <summary>Uses the item in bag slot <paramref name="index"/> — drinks a potion, one from the stack.</summary>
+        /// <summary>Uses the item in bag slot <paramref name="index"/> — drinks a potion or eats food, one from the stack.</summary>
         public bool Use(int index, out string error)
         {
             error = null;
             var item = Bag[index];
             if (item == null)
                 return false;
+            if (item.IsFood)
+            {
+                var hunger = GetComponent<Hunger>();
+                if (hunger == null || !hunger.Eat(item, out error))
+                    return false;
+                if (--item.count <= 0)
+                    Bag[index] = null;
+                Changed?.Invoke();
+                return true;
+            }
             if (!item.IsPotion)
             {
                 error = "You can't use that.";

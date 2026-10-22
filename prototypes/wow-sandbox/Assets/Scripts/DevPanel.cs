@@ -198,7 +198,12 @@ namespace WowSandbox
             Buttons(ref y,
                 ("Sharks", () => Player<DeepSeaDanger>(d => d.DebugSharks())),
                 ("Leviathan Grab", () => Player<DeepSeaDanger>(d => d.DebugLeviathan())),
-                ("Storm Leviathan", () => Weather(w => w.GetComponent<StormLeviathan>()?.RaiseNow())));
+                ("Storm Leviathan", () => Weather(w => w.GetComponent<StormLeviathan>()?.RaiseNow())),
+                ("Hungry Sharks", () =>
+                {
+                    foreach (var shark in FindObjectsByType<SwimmingCreature>(FindObjectsSortMode.None))
+                        shark.GetHungry();
+                }));
 
             float left = y;
             y = top;
@@ -247,6 +252,23 @@ namespace WowSandbox
                 ("All Pages", StoryState.FindAllPages));
             _showMinimap = row[0].GetComponentInChildren<Text>();
             _enableMap = row[1].GetComponentInChildren<Text>();
+            Buttons(ref y,
+                ("Feed", () => Player<Inventory>(i => i.Add(ItemCatalog.Create("Grilled Fish", 3)))),
+                ("Starve", () => Player<Hunger>(h => h.StarveAgain())),
+                ("Rest at Fire", () => Player<Hunger>(h => h.Rest(h.restSeconds))),
+                ("Raw Fish", () => Player<Inventory>(i => i.Add(ItemCatalog.Create("Raw Fish", 3)))));
+            Buttons(ref y,
+                ("Fire Kit", () => Player<Inventory>(i =>
+                {
+                    if (i.BestInBags(item => item.baseName == Campfire.FlintName) == null)
+                        i.Give(Campfire.FlintName);
+                    i.Add(ItemCatalog.Create(Campfire.WoodName, Campfire.WoodNeeded));
+                })),
+                ("Put Out Fire", () =>
+                {
+                    if (Campfire.Current != null)
+                        Campfire.Current.Extinguish();
+                }));
             Buttons(ref y,
                 ("Save Now", SaveGame.SaveNow),
                 ("Load Save", () =>

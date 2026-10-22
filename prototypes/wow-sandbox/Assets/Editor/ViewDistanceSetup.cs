@@ -5,18 +5,14 @@ using UnityEngine;
 namespace WowSandbox.EditorTools
 {
     /// <summary>
-    /// Sets the camera's view distance, matching fog, and the sky dome's scale together.
+    /// Sets the camera's view distance and matching fog together.
     ///
-    /// These three can't be set independently. The sky dome has to sit inside the far
-    /// clip plane or it gets clipped away, and shortening the view distance without fog
-    /// just gives you a hard edge where the terrain stops. WoW leans on fog heavily for
-    /// exactly this reason.
+    /// Shortening the view distance without fog just gives you a hard edge where the terrain
+    /// stops. WoW leans on fog heavily for exactly this reason. (The weather's sky spheres size
+    /// themselves to the far plane.)
     /// </summary>
     public class ViewDistanceSetup : EditorWindow
     {
-        /// <summary>Radius of the sky dome models at scale 1, from their glTF bounds.</summary>
-        const float DomeRadiusAtUnitScale = 43f;
-
         // Defaults for a scene with no camera or fog yet; otherwise the window opens on what
         // the scene has now. The edge of the sea is hidden by StormWeather's edge fog, which
         // closes in only as you near it, so the clear-day view can reach a long way.
@@ -67,8 +63,7 @@ namespace WowSandbox.EditorTools
 
             EditorGUILayout.Space();
             EditorGUILayout.HelpBox(
-                "Also rescales the sky dome to sit just inside the far plane. Match the fog " +
-                "colour to your sky near the horizon or the join will show.",
+                "Match the fog colour to your sky near the horizon or the join will show.",
                 MessageType.Info);
         }
 
@@ -97,8 +92,6 @@ namespace WowSandbox.EditorTools
                 RenderSettings.fog = false;
             }
 
-            RescaleSkyDome();
-
             // Camera and RenderSettings edits don't mark the scene dirty by themselves, so
             // without this they're quietly lost when the scene reloads. (They also revert
             // outright if applied during Play mode — apply this in Edit mode.)
@@ -113,26 +106,6 @@ namespace WowSandbox.EditorTools
                       (_enableFog
                           ? $", fog {RenderSettings.fogStartDistance:F0}-{RenderSettings.fogEndDistance:F0}."
                           : ", fog off."));
-        }
-
-        /// <summary>
-        /// Keeps the dome comfortably inside the far plane. Its apparent size doesn't change
-        /// with scale — it's centred on the camera — so this is purely about not being clipped.
-        /// </summary>
-        void RescaleSkyDome()
-        {
-            var dome = Object.FindFirstObjectByType<SkyDomeFollow>();
-            if (dome == null)
-                return;
-
-            float scale = _viewDistance * 0.85f / DomeRadiusAtUnitScale;
-            Undo.RecordObject(dome.transform, "Rescale Sky Dome");
-            dome.transform.localScale = Vector3.one * scale;
-
-            // The dome's height offset is in world units, so it has to track the scale or
-            // the horizon drifts every time the view distance changes.
-            Debug.Log($"[ViewDistanceSetup] Sky dome rescaled to {scale:F1}. " +
-                      "Re-check its Height Offset — that value is in world units.");
         }
     }
 }

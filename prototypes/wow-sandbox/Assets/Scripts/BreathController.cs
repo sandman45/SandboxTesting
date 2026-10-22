@@ -44,6 +44,12 @@ namespace WowSandbox
         /// <summary>True while the head is under the surface, as of this frame's Update.</summary>
         public bool IsSubmerged { get; private set; }
 
+        /// <summary>
+        /// Too weak to keep his head up (Hunger, while starving in the water): breath runs out
+        /// at the surface too, as if he were under.
+        /// </summary>
+        public bool Exhausted { get; set; }
+
         void Awake()
         {
             _controller = GetComponent<CharacterController>();
@@ -57,7 +63,7 @@ namespace WowSandbox
         {
             IsSubmerged = IsHeadSubmerged();
 
-            if (IsSubmerged)
+            if (IsSubmerged || Exhausted)
             {
                 _breath -= Time.deltaTime;
                 if (_breath <= 0f)

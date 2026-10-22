@@ -80,18 +80,19 @@ namespace WowSandbox.EditorTools
             bool combat = AddCombatStates(controller, clips);
             bool loot = AddLootStates(controller, clips);
             bool washedUp = AddWashedUpStates(controller, clips);
+            bool sit = AddSitStates(controller, clips);
             // The abilities that play the new states, on the player already in the scene.
             foreach (var player in Object.FindObjectsByType<WowCharacterController>())
             {
                 if (player.GetComponent<WarriorAbilities>() == null)
                     Undo.AddComponent<WarriorAbilities>(player.gameObject);
             }
-            if (fishing || hit || combat || loot || washedUp)
+            if (fishing || hit || combat || loot || washedUp || sit)
             {
                 EditorUtility.SetDirty(controller);
                 AssetDatabase.SaveAssets();
                 Debug.Log("[WarriorSetup] Warrior controller updated:" + (fishing ? " fishing" : "") +
-                          (hit ? " hit reaction" : "") + (combat ? " combat" : "") + (loot ? " looting" : "") + (washedUp ? " washed up" : "") + ".", controller);
+                          (hit ? " hit reaction" : "") + (combat ? " combat" : "") + (loot ? " looting" : "") + (washedUp ? " washed up" : "") + (sit ? " sitting" : "") + ".", controller);
             }
         }
 
@@ -309,6 +310,75 @@ namespace WowSandbox.EditorTools
                 back.exitTime = 0.7f;
                 back.duration = 0.3f;
                 back.hasFixedDuration = true;
+            }
+            return true;
+        }
+
+        static readonly string[] SitStates = { "SitDown", "SitLoop", "SitUp" };
+        static readonly string[] SitParameters = { "Sitting", "SitDown" };
+
+        /// <summary>
+        /// Sitting on the ground (PlayerSit, X): SitDown (trigger) sits you down (SitGroundDown)
+        /// and you stay sat (SitGround, looping) while Sitting (bool) is true, then get up
+        /// (SitGroundUp) when it ends. A trigger starts it, not the bool, so staying sat doesn't
+        /// restart the sitting down. Replaces any sitting states already there. False without
+        /// SitGround.
+        /// </summary>
+        static bool AddSitStates(AnimatorController controller, AnimationClip[] clips)
+        {
+            var down = CopyVariation(clips, "SitGroundDown", 0);
+            var sat = CopyVariation(clips, "SitGround", 0, loop: true);
+            var rise = CopyVariation(clips, "SitGroundUp", 0);
+            if (sat == null)
+            {
+                Debug.LogWarning("[WarriorSetup] No SitGround clip — X won't sit you down.");
+                return false;
+            }
+
+            var stateMachine = controller.layers[0].stateMachine;
+            var locomotion = stateMachine.defaultState;
+            foreach (var child in stateMachine.states)
+                if (SitStates.Contains(child.state.name))
+                    stateMachine.RemoveState(child.state);
+            foreach (var parameter in controller.parameters)
+                if (SitParameters.Contains(parameter.name))
+                    controller.RemoveParameter(parameter);
+            controller.AddParameter("Sitting", AnimatorControllerParameterType.Bool);
+            controller.AddParameter("SitDown", AnimatorControllerParameterType.Trigger);
+
+            var loopState = stateMachine.AddState("SitLoop");
+            loopState.motion = sat;
+
+            // Sitting down: its own clip if there is one, else a slow blend straight into sitting.
+            AnimatorState first = loopState;
+            if (down != null)
+            {
+                first = stateMachine.AddState("SitDown");
+                first.motion = down;
+                var settle = first.AddTransition(loopState);
+                settle.hasExitTime = true;
+                settle.exitTime = 0.95f;
+                settle.duration = 0.1f;
+            }
+            var toSit = stateMachine.AddAnyStateTransition(first);
+            toSit.AddCondition(AnimatorConditionMode.If, 0f, "SitDown");
+            toSit.hasExitTime = false;
+            toSit.duration = down != null ? 0.15f : 0.5f;
+            toSit.canTransitionToSelf = false;
+
+            AnimatorState up = locomotion;
+            if (rise != null)
+            {
+                up = stateMachine.AddState("SitUp");
+                up.motion = rise;
+                PlayThrough(up, locomotion, 0.85f);
+            }
+            foreach (var state in first == loopState ? new[] { loopState } : new[] { first, loopState })
+            {
+                var stand = state.AddTransition(up);
+                stand.AddCondition(AnimatorConditionMode.IfNot, 0f, "Sitting");
+                stand.hasExitTime = false;
+                stand.duration = 0.15f;
             }
             return true;
         }

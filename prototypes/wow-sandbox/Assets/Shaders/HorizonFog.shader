@@ -1,7 +1,7 @@
 // A fog-coloured band around the horizon, for weather.
 //
-// Neither the procedural skybox nor the WoW sky dome takes fog, and the dome doesn't reach
-// down to the horizon. So when storm fog closes in, the hills fade to grey while a strip of
+// Neither the procedural skybox nor the clouds take fog, and the clouds don't reach down
+// to the horizon. So when storm fog closes in, the hills fade to grey while a strip of
 // clear bright sky stays lit all the way round below the clouds. This paints that strip in
 // the current fog colour: solid at and below the horizon, fading out a little way up.
 //
@@ -23,8 +23,8 @@ Shader "WowSandbox/HorizonFog"
         {
             "RenderPipeline" = "UniversalPipeline"
             "RenderType" = "Transparent"
-            // After the skybox and after the sky dome (Transparent-100), so it covers the
-            // dome's lower edge too; before the water (Transparent), which fogs itself.
+            // After the skybox and after the clouds (Transparent-105), so it covers their
+            // lower edge too; before the water (Transparent), which fogs itself.
             "Queue" = "Transparent-90"
             "IgnoreProjector" = "True"
         }
