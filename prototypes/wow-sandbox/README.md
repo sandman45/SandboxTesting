@@ -225,19 +225,25 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
   - **The shot:** Play opens on the warrior where the game begins, with the camera slowly circling them, **Tidegrave Isle** in gold, a pulsing **Click to Start**, and Settings and Quit buttons.
   - **While it's up:** the world is calm and safe. The storm cycle waits (`StormWeather.BeginPlay`), nothing aggros, and the HUD and controls are held back.
   - **Starting:** clicking, Enter or Space swoops the camera in behind the warrior.
+  - **With a saved game:** **Continue** and **New Game** buttons, with a line saying the level, the time on the isle and when it was saved. Continue (or Enter/Space) fades to black and back in where the Captain left off, with no shipwreck opening. New Game asks first, then wipes the save.
+- **Saving (`SaveGame`):**
+  - **One save:** `save.json` in `Application.persistentDataPath` (in the editor, `%USERPROFILE%\AppData\LocalLow\DefaultCompany\wow-sandbox`).
+  - **What's in it:** where the Captain stands (a spot on a ship's deck if he's aboard), level, experience, health, coin, bags and gear; journal pages, story flags and the map; the time and the sky; things picked up, each chest (opened or not, and what's left), dead enemies, and where the ships are and whether they're anchored.
+  - **When:** a couple of seconds after anything happens in the story, every 5 minutes, and on quitting (Play stopping included), with "Game saved" fading in the corner. Esc → **Save Game** saves now. Not on the title screen, while he's lying in the sand, dead or talking; the timed saves wait out a fight.
+  - **Where he comes back:** saved swimming, climbing or mid-jump, he's put back on the last ground or deck he stood on. A storm that was on comes back as an overcast sky.
 - **Settings (`SettingsPanel`, Esc):**
   - **Opening:** Esc closes any open window first, then opens the menu.
   - **Settings:** view distance (the sky dome scales with it), fog density, master/music/sound-effects volume, mouse sensitivity, and the camera's max zoom-out (2–20), zoom speed (per scroll notch) and field of view. The zoom settings apply to following the player; the helm keeps its own ship-sized range.
   - **Applying:** changes take effect as you drag and are remembered between sessions (`GameSettings`, PlayerPrefs). Anything never changed follows the scene's own values, and **Defaults** returns to them.
-  - **Buttons:** Quit Game and Developer.
+  - **Buttons:** Defaults, Save Game, Quit Game, Developer and Close.
 - **Developer (`DevPanel`, from Settings):**
   - **Weather:** storm Start/Roll In/Clear Up/Stop/Lightning, a live intensity readout, and the build-up, full-storm and clearing lengths.
-  - **Toggles:** Storm on Play, Skip Title, Clouds (hides the WoW sky dome) and, under Time of day, Clock.
+  - **Toggles:** Storm on Play, Skip Title (which goes straight into the saved game if there is one; Delete Save to start fresh), Clouds (hides the WoW sky dome) and, under Time of day, Clock.
   - **Time of day:** a time slider, time speed (0 pauses the clock, up to 30×), and Dawn / Noon / Dusk / Midnight.
   - **Sea:** summon sharks or the Leviathan.
   - **Spawn:** an enemy or a chicken in front of you, copied from ones in the scene at Play start.
   - **Chests:** one button per exported chest model, dropping it 3 units in front of you with random test loot: a treasure roll, a 1 in 4 chance of a second, a potion 30% of the time, and 2–12 gold. They're prefabs the editor builds on Play into `_Generated/Resources/DevChests/` (`DevChestBuilder`), since models can't be loaded by path at Play.
-  - **Player:** God Mode, Heal, +10 Gold, Rare, Very Rare and Legendary items, the Pirate Hat and linen outfit, a Light Kit (3 torches, both lanterns, 2 flasks of oil), max zoom-out over the full 0–100, and game speed.
+  - **Player:** God Mode, Heal, +10 Gold, Rare, Very Rare and Legendary items, the Pirate Hat and linen outfit, a Light Kit (3 torches, both lanterns, 2 flasks of oil), max zoom-out over the full 0–100, and game speed. Save Now, Load Save and Delete Save.
   - **What's remembered:** the storm settings, Skip Title, Clouds and Clock (`DevOptions`; Clouds hides the WoW sky dome, Clock the time-of-day dial); the rest lasts until Play ends.
   - **Layout:** two columns (weather, time and sea on the left; spawning and the player on the right), sized to the taller one.
   - **Hiding it:** set `DevOptions.Enabled` to `false` to hide all of it for players.

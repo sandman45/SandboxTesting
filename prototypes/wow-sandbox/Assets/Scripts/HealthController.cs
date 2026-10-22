@@ -162,6 +162,14 @@ namespace WowSandbox
             _health = Mathf.Min(maxHealth, _health + amount);
         }
 
+        /// <summary>Health set straight to a saved value (at least 1) — SaveGame.</summary>
+        public void SetCurrent(float value)
+        {
+            if (IsDead)
+                return;
+            _health = Mathf.Clamp(value, 1f, maxHealth);
+        }
+
         void Die(DeathCause cause, string killer)
         {
             IsDead = true;

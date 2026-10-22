@@ -184,6 +184,9 @@ namespace WowSandbox
         /// <summary>True while on a ship's ladder, or clambering over its rail.</summary>
         public bool IsClimbing => _ladder != null;
 
+        /// <summary>The moving deck being ridden (a floating ship's), or null.</summary>
+        public Transform Platform => _platform;
+
         /// <summary>True while something else — the ship's helm — holds the character in place.</summary>
         public bool IsLocked { get; private set; }
 

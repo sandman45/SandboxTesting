@@ -255,6 +255,14 @@ namespace WowSandbox
             Changed?.Invoke();
         }
 
+        /// <summary>Back to a saved level and experience — SaveGame.</summary>
+        public void Restore(int savedLevel, int savedExperience)
+        {
+            level = Mathf.Clamp(savedLevel, 1, MaxLevel);
+            experience = Mathf.Max(0, savedExperience);
+            Changed?.Invoke();
+        }
+
         void OnValidate()
         {
             level = Mathf.Clamp(level, 1, MaxLevel);

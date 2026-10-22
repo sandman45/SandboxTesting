@@ -88,6 +88,27 @@ namespace WowSandbox
             _loot.Fill(items, copper);
         }
 
+        /// <summary>Whether it's been opened.</summary>
+        public bool Opened => _opened;
+
+        /// <summary>
+        /// Back as it was saved: open (lid already up) or shut, holding what was left in it.
+        /// </summary>
+        public void Restore(bool opened, IEnumerable<Item> items, int coin)
+        {
+            _loot.Fill(items, coin);
+            _opened = opened;
+            if (opened && _animator != null && _animator.runtimeAnimatorController != null)
+            {
+                int state = _animator.HasState(0, OpenedStateHash) ? OpenedStateHash : OpenStateHash;
+                if (_animator.HasState(0, state))
+                    _animator.Play(state, 0, 1f);
+            }
+        }
+
+        static readonly int OpenedStateHash = Animator.StringToHash("Opened");
+        static readonly int OpenStateHash = Animator.StringToHash("Open");
+
         /// <summary>Replaces what's inside — the Developer panel's test loot.</summary>
         public void Restock(IEnumerable<Item> items, int coin)
         {

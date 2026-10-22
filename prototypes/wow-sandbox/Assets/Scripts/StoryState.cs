@@ -7,7 +7,7 @@ namespace WowSandbox
     /// <summary>
     /// Where the player is in the story: which journal pages they've found, and flags for what's
     /// happened ("briggs.met"). Everything that reveals or gates story reads and writes it here.
-    /// It starts empty every Play until saving exists.
+    /// It starts empty every Play; SaveGame keeps it between sessions.
     /// </summary>
     public static class StoryState
     {
@@ -72,6 +72,27 @@ namespace WowSandbox
                 PageFound?.Invoke(number);
             }
             return true;
+        }
+
+        /// <summary>Everything found and everything that's happened, for SaveGame.</summary>
+        public static void Snapshot(out int[] pages, out string[] flags)
+        {
+            pages = new int[_pages.Count];
+            _pages.CopyTo(pages);
+            flags = new string[_flags.Count];
+            _flags.CopyTo(flags);
+        }
+
+        /// <summary>Back to a saved story, quietly: replaces what's been found and what's happened.</summary>
+        public static void Restore(int[] pages, string[] flags)
+        {
+            _pages.Clear();
+            _flags.Clear();
+            if (pages != null)
+                _pages.UnionWith(pages);
+            if (flags != null)
+                _flags.UnionWith(flags);
+            Version++;
         }
 
         /// <summary>Every page at once, quietly — the Developer panel's All Pages.</summary>

@@ -374,6 +374,22 @@ namespace WowSandbox
             return true;
         }
 
+        /// <summary>Bags, gear and coin replaced with a saved game's — SaveGame.</summary>
+        public void Restore(IEnumerable<(int index, Item item)> bag, IEnumerable<(EquipSlot slot, Item item)> equipped,
+                            int coin)
+        {
+            Array.Clear(Bag, 0, Bag.Length);
+            Array.Clear(_equipped, 0, _equipped.Length);
+            foreach (var (index, item) in bag)
+                if (item != null && index >= 0 && index < Bag.Length)
+                    Bag[index] = item;
+            foreach (var (slot, item) in equipped)
+                if (item != null && slot != EquipSlot.None)
+                    _equipped[(int)slot] = item;
+            copper = Mathf.Max(0, coin);
+            EquipmentChanged();
+        }
+
         int FirstEmpty() => Array.IndexOf(Bag, null);
 
         int EmptyCount()

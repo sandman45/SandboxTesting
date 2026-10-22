@@ -107,18 +107,27 @@ namespace WowSandbox
                 () => GameSettings.FieldOfView, v => GameSettings.FieldOfView = v, v => $"{v:0}°");
 
             var bottom = new Vector2(0.5f, 0f);
-            var size = new Vector2(88f, 30f);
-            Hud.TextButton("Defaults", Root, bottom, new Vector2(-144f, 20f), size, GameSettings.ResetToDefaults);
-            Hud.TextButton("Quit Game", Root, bottom, new Vector2(-48f, 20f), size, Quit);
+            var size = new Vector2(74f, 30f);
+            Hud.TextButton("Defaults", Root, bottom, new Vector2(-160f, 20f), size, GameSettings.ResetToDefaults);
+            Hud.TextButton("Save Game", Root, bottom, new Vector2(-80f, 20f), size, () =>
+            {
+                Close();
+                SaveGame.SaveNow();
+            });
+            Hud.TextButton("Quit Game", Root, bottom, new Vector2(0f, 20f), size, Quit);
             if (DevOptions.Enabled)
             {
-                Hud.TextButton("Developer", Root, bottom, new Vector2(48f, 20f), size, () =>
+                Hud.TextButton("Developer", Root, bottom, new Vector2(80f, 20f), size, () =>
                 {
                     Close();
                     GetComponent<DevPanel>()?.Open();
                 });
             }
-            Hud.TextButton("Close", Root, bottom, new Vector2(144f, 20f), size, Close);
+            Hud.TextButton("Close", Root, bottom, new Vector2(160f, 20f), size, Close);
+            // Five to a row: the smaller type fits "Save Game" and "Quit Game".
+            foreach (var button in Root.GetComponentsInChildren<Button>())
+                if (button.transform.parent == Root)
+                    button.GetComponentInChildren<Text>().fontSize = 13;
 
             GameSettings.Changed += RefreshValues;
         }

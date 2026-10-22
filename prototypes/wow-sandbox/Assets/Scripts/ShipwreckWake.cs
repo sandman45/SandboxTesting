@@ -77,6 +77,27 @@ namespace WowSandbox
             ReleaseStorm();
         }
 
+        /// <summary>
+        /// No opening at all — a saved game continuing: on his feet this instant, and the storm
+        /// let go without clearing (the save sets the weather).
+        /// </summary>
+        public static void SkipOpening()
+        {
+            Lying = StormHeld = false;
+            var wake = FindAnyObjectByType<ShipwreckWake>();
+            if (wake == null)
+                return;
+            if (wake._animator != null)
+            {
+                // Straight back to the default state, out of the washed-up ones.
+                wake._animator.SetInteger(WashedUpHash, 0);
+                wake._animator.Rebind();
+            }
+            if (wake._locked && !TitleScreen.Showing)
+                wake._player.SetLocked(false);
+            Destroy(wake);
+        }
+
         /// <summary>Lets the wreck's storm start clearing, if it's still being held.</summary>
         public static void ReleaseStorm()
         {

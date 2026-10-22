@@ -247,6 +247,18 @@ namespace WowSandbox
                 ("All Pages", StoryState.FindAllPages));
             _showMinimap = row[0].GetComponentInChildren<Text>();
             _enableMap = row[1].GetComponentInChildren<Text>();
+            Buttons(ref y,
+                ("Save Now", SaveGame.SaveNow),
+                ("Load Save", () =>
+                {
+                    if (!SaveGame.Load())
+                        Hud.Error("There's no saved game.");
+                }),
+                ("Delete Save", () =>
+                {
+                    SaveGame.Delete();
+                    Hud.Info("Saved game deleted.");
+                }));
 
             y -= 4f;
             SliderRow("Max zoom out", ref y, GameSettings.MinZoom, GameSettings.MaxZoom,
