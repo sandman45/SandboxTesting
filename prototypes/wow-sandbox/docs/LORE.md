@@ -366,9 +366,10 @@ leans on them.
 
 ### Foundations (shared by every act)
 
-- 🆕 **Story state.** One place that knows which pages you've found, who you've rescued,
-  which act you're in, and flags like "Briggs confessed" or "carrying the Heart". Every
-  trigger, dialogue line and gate reads from it.
+- ✅ **Story state** (`StoryState`). One place that knows which pages you've found and flags
+  like "briggs.met" or "survival.fed" (later: who you've rescued, which act you're in, "Briggs
+  confessed", "carrying the Heart"). Every trigger, dialogue line and gate reads from it, and
+  it's saved.
 - ✅ **Saving the whole game** (`SaveGame`): one save, autosaved at story moments, every 5
   minutes and on quit, plus Esc → Save Game. It holds the story, inventory, gear, gold,
   position (on a ship's deck too), time of day and sky, the ships, chests, pickups and pages
@@ -409,6 +410,12 @@ leans on them.
   first time you come near, then talks about the ship, the isle and the crew, and about the
   orders once pages 1–3 are found. He's evasive about why the Captain was chosen.
 - ✅ **The wreck's storm** stays at full for 2 minutes after you click Start, then clears.
+- ✅ **The survival start** (`Hunger`, `Campfire`, `CookingPanel`, `PlayerSit`). He wakes
+  starving: walking only, too weak to swim, and held to the beach within 60 m of the wreck.
+  He gathers driftwood on the beach and flint round the wreckage, builds a campfire, catches
+  and cooks a fish, eats it, then sits by the fire (`X`) to rest and get his strength back for
+  good. After that a gentle hunger bar, Well Fed from cooked food and Sick from raw. The last
+  campfire is his respawn point.
 - 🆕 Small touches: the wreck's nameplate or tooltip reads *the Stormbreaker*.
 
 ### Act II — The Castaways' Trail
@@ -494,6 +501,7 @@ leans on them.
 1. ✅ Story state + Journal panel + page pickups, with pages 1–3 (Act I). *(Polish later: font and art.)*
 2. ✅ Dialogue panel + Briggs stages 0–1, plus the Captain's thoughts.
 3. ✅ Saving: the whole game, with Continue / New Game.
+   ✅ The survival start (added before Act II): hunger, campfires, cooking and resting.
 4. Act II, in pieces: lantern-only page and troll carving → thieves' leader and camp →
    survivors → Sprocket (sails, diving lamp, compass parts) → Grey Gull gate.
 5. Act III: confession → drowned cave → Tide-Heart and whispers.
