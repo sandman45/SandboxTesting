@@ -76,9 +76,15 @@ namespace WowSandbox
         void OnClicked(Health clicked)
         {
             var vendor = clicked.GetComponent<Vendor>();
-            if (vendor == null || clicked.IsDead)
+            // Someone with something to say talks first; their dialogue's Trade opens the shop.
+            if (vendor == null || clicked.IsDead || clicked.GetComponent<Speaker>() != null)
                 return;
+            OpenShop(vendor);
+        }
 
+        /// <summary>Opens <paramref name="vendor"/>'s shop, and your bags beside it, if you're near and they're open.</summary>
+        public void OpenShop(Vendor vendor)
+        {
             if (Vector3.Distance(transform.position, vendor.transform.position) > vendor.interactRange)
             {
                 Hud.Error("You are too far away.");

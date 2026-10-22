@@ -49,6 +49,9 @@ namespace WowSandbox
         bool _eventRunning;
         float _safeSince;
 
+        /// <summary>True while swimming out in the dangerous waters past the island's shelf.</summary>
+        public bool InDanger => _inDanger;
+
         CanvasGroup _barGroup;
         HudBar _bar;
         Image _fade;

@@ -386,9 +386,14 @@ leans on them.
   texture with worn edges, a binding down the middle, ink blots and water stains, and page-turn
   feedback. Fonts must be free to use in a public repo (e.g. Google Fonts), imported as TMP or
   legacy Font assets.
-- 🆕 **Dialogue panel.** Talk to an NPC and get lines chosen by story state, with a reply or
-  two. It's used by Briggs, Sprocket and the survivors. Briggs keeps his shop as a "Trade"
-  option.
+- ✅ **Dialogue panel** (`DialoguePanel`, `Dialogue.cs`, `Speaker`): a box along the bottom
+  of the screen with a live 3D portrait, the line typed out, and replies by click or 1–5.
+  You stand still while talking. Lines are written in C# per NPC (a `Conversation`), chosen by
+  StoryState pages and flags. A "Trade" reply opens a vendor's shop. Speakers call out in
+  **speech bubbles** (`SpeechBubble`) and say goodbye the same way.
+- ✅ **The Captain's thoughts** (`Thoughts`, `ThoughtTriggers`): italic subtitles at waking,
+  the map, the first page in each hand, the first dusk, storm and Leviathan, the first fight,
+  and on danger (deep sea, air, low health). Each plays once, and danger lines repeat on a cooldown.
 - 🆕 **Quest items.** A new `ItemKind` for things you can't sell or drop: compass parts, the
   sealed orders, the Tide-Heart.
 - ✅ Interactables and hover hints, HudMessages, HudPanel, chests, ground items, the vendor,
@@ -398,10 +403,12 @@ leans on them.
 
 - ✅ Storm on the title screen, waking in the wreck (`ShipwreckWake`), the map in the wreck
   (`MapPickup`), and Briggs's stall.
-- 🆕 **Pages 1–3:** beside the map in the wreck, washed up on the beach, and in a chest near
-  the wreck. That needs a way to put a fixed page into a `TreasureChest`.
-- 🆕 **Briggs, stages 0–1.** He calls out "Captain!" the first time you come near, then
-  talks to you about the orders once pages 1–3 are found.
+- ✅ **Pages 1–3:** beside the map in the wreck, washed up on the beach, and in a chest near
+  the wreck.
+- ✅ **Briggs, stages 0–1** (`BriggsConversation`). He calls out "Captain! Over here!" the
+  first time you come near, then talks about the ship, the isle and the crew, and about the
+  orders once pages 1–3 are found. He's evasive about why the Captain was chosen.
+- ✅ **The wreck's storm** stays at full for 2 minutes after you click Start, then clears.
 - 🆕 Small touches: the wreck's nameplate or tooltip reads *the Stormbreaker*.
 
 ### Act II — The Castaways' Trail
@@ -485,7 +492,7 @@ leans on them.
 ### Suggested build order
 
 1. ✅ Story state + Journal panel + page pickups, with pages 1–3 (Act I). *(Polish later: font and art.)*
-2. Dialogue panel + Briggs stages 0–1.
+2. ✅ Dialogue panel + Briggs stages 0–1, plus the Captain's thoughts.
 3. Saving (once there's progress worth keeping).
 4. Act II, in pieces: lantern-only page and troll carving → thieves' leader and camp →
    survivors → Sprocket (sails, diving lamp, compass parts) → Grey Gull gate.

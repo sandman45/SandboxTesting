@@ -112,7 +112,11 @@ namespace WowSandbox
             HudTooltip.Hide();
             if (Root != null)
                 Root.gameObject.SetActive(false);
+            Closed();
         }
+
+        /// <summary>After it closes, by whatever means: its key, Esc, the X, or Close().</summary>
+        protected virtual void Closed() { }
 
         protected virtual void OnDisable() => Close();
     }

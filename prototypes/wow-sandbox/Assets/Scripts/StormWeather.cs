@@ -45,6 +45,11 @@ namespace WowSandbox
             public float sunIntensity;
             public float sunShadowStrength;
             public UnityEngine.Rendering.SphericalHarmonicsL2 ambient;
+            /// <summary>
+            /// RenderSettings.reflectionIntensity: how much of the sky lit materials reflect. The
+            /// reflection is a cubemap of the daytime sky, so left alone it lights models at night.
+            /// </summary>
+            public float reflections;
             public Color skyTint;
             public Color skyGround;
             public float skyExposure;
@@ -317,10 +322,10 @@ namespace WowSandbox
         {
             // The developer panel's saved storm settings, if any.
             DevOptions.Configure(this);
-            // Washed up on the beach: the storm that wrecked you, at its height, until you wake
-            // (ShipwreckWake calls ClearAfterWreck). Otherwise fine weather behind the title
-            // screen; it calls BeginPlay when you start.
-            if (ShipwreckWake.Lying && buildsOnPlay)
+            // Washed up on the beach: the storm that wrecked you, at its height, until it's let
+            // go after you wake (ShipwreckWake.ReleaseStorm calls ClearAfterWreck). Otherwise
+            // fine weather behind the title screen; it calls BeginPlay when you start.
+            if (ShipwreckWake.StormHeld && buildsOnPlay)
                 TransitionTo(1f, 0f);
             else if (TitleScreen.Showing)
                 intensity = 0f;
@@ -333,8 +338,8 @@ namespace WowSandbox
         /// <summary>Starts Play's storm cycle, if it builds on Play — as Play starts, or once the title screen goes.</summary>
         public void BeginPlay()
         {
-            // The wreck's storm is already raging; waking up clears it instead.
-            if (!buildsOnPlay || ShipwreckWake.Lying)
+            // The wreck's storm is already raging; it clears once it's let go instead.
+            if (!buildsOnPlay || ShipwreckWake.StormHeld)
                 return;
             intensity = startIntensity;
             TransitionTo(1f, buildUpSeconds);
@@ -469,6 +474,9 @@ namespace WowSandbox
             // at runtime — the probe is what lighting actually reads.
             RenderSettings.ambientProbe =
                 _clear.ambient * (Mathf.Lerp(1f, stormAmbient, overcast) + flash * 1.2f);
+            // The sky reflection is baked from the daytime sky too; dim it the same way.
+            RenderSettings.reflectionIntensity =
+                Mathf.Clamp01(_clear.reflections * (Mathf.Lerp(1f, stormAmbient, overcast) + flash * 1.2f));
         }
 
         // --- Fog -------------------------------------------------------------------------
@@ -1001,6 +1009,7 @@ namespace WowSandbox
             _scene = new ClearSky
             {
                 ambient = RenderSettings.ambientProbe,
+                reflections = RenderSettings.reflectionIntensity,
                 fogColor = _sceneFog.color,
                 skyTint = Color.white,
                 skyGround = Color.gray,
@@ -1061,6 +1070,7 @@ namespace WowSandbox
 
             var sun = weather._sun;
             var probe = RenderSettings.ambientProbe;
+            float reflections = RenderSettings.reflectionIntensity;
             var tint = Shader.GetGlobalColor(DayNightTintId);
             float overcast = Shader.GetGlobalFloat(OvercastId);
             float flash = Shader.GetGlobalFloat(FlashId);
@@ -1078,6 +1088,7 @@ namespace WowSandbox
                     sun.transform.rotation = DayNightCycle.Active.NoonRotation;
             }
             RenderSettings.ambientProbe = weather._scene.ambient;
+            RenderSettings.reflectionIntensity = weather._scene.reflections;
             Shader.SetGlobalColor(DayNightTintId, Color.clear);
             Shader.SetGlobalFloat(OvercastId, 0f);
             Shader.SetGlobalFloat(FlashId, 0f);
@@ -1094,6 +1105,7 @@ namespace WowSandbox
                     sun.intensity = strength;
                 }
                 RenderSettings.ambientProbe = probe;
+                RenderSettings.reflectionIntensity = reflections;
                 Shader.SetGlobalColor(DayNightTintId, tint);
                 Shader.SetGlobalFloat(OvercastId, overcast);
                 Shader.SetGlobalFloat(FlashId, flash);
@@ -1104,6 +1116,7 @@ namespace WowSandbox
         {
             Apply(_sceneFog);
             RenderSettings.ambientProbe = _scene.ambient;
+            RenderSettings.reflectionIntensity = _scene.reflections;
 
             if (_sun != null)
             {

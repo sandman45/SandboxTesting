@@ -30,6 +30,9 @@ namespace WowSandbox
         bool _up;
         float _forcedUntil = -1f;
 
+        /// <summary>True while it's risen out of the storm.</summary>
+        public bool IsUp => _up;
+
         void Start()
         {
             _weather = GetComponent<StormWeather>();

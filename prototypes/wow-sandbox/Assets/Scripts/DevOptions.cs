@@ -21,6 +21,22 @@ namespace WowSandbox
         const string BuildKey = "dev.stormBuildSeconds";
         const string HoldKey = "dev.stormHoldSeconds";
         const string ClearKey = "dev.stormClearSeconds";
+        const string NightBrightnessKey = "dev.nightBrightness";
+
+        static float _nightBrightness = -1f;
+
+        /// <summary>
+        /// How bright the night is, as a share of DayNightCycle's night colours (1): its tint on the
+        /// world, the moonlight and the night sky together. Lower is darker; unset, it's
+        /// DayNightCycle.DefaultNightBrightness. Read every frame, so it's cached rather than
+        /// fetched from PlayerPrefs each time.
+        /// </summary>
+        public static float NightBrightness
+        {
+            get => _nightBrightness >= 0f ? _nightBrightness
+                 : _nightBrightness = PlayerPrefs.GetFloat(NightBrightnessKey, DayNightCycle.DefaultNightBrightness);
+            set => Save(() => PlayerPrefs.SetFloat(NightBrightnessKey, _nightBrightness = Mathf.Max(0f, value)));
+        }
 
         public static bool StormOnPlay
         {
