@@ -202,12 +202,17 @@ namespace WowSandbox
 
             for (int i = 0; i < Abilities.Length; i++)
             {
-                _modifiers[i].text = Signed(_stats.Modifier(Abilities[i].ability));
                 var ability = Abilities[i].ability;
-                bool boosted = _stats.GearAbility(ability) > 0;
-                _scores[i].text = _stats.Score(ability).ToString();
-                _scores[i].color = boosted ? HudTheme.Friendly : HudTheme.TextDim;
-                _modifiers[i].color = boosted ? HudTheme.Friendly : HudTheme.Text;
+                int score = _stats.Score(ability);
+                int gained = score - _stats.BaseScore(ability);
+                int modifier = _stats.Modifier(ability);
+                // Gear adds to the score; the modifier only moves every 2 points, so it's green
+                // only when the gear actually raised it, and the score shows what gear added.
+                bool modifierRaised = modifier > CharacterStats.ModifierFor(_stats.BaseScore(ability));
+                _modifiers[i].text = Signed(modifier);
+                _modifiers[i].color = modifierRaised ? HudTheme.Friendly : HudTheme.Text;
+                _scores[i].text = gained > 0 ? $"{score} (+{gained})" : score.ToString();
+                _scores[i].color = gained > 0 ? HudTheme.Friendly : HudTheme.TextDim;
             }
 
             _armorClass.text = _stats.ArmorClass.ToString();

@@ -63,6 +63,12 @@ namespace WowSandbox
         [Header("Storm")]
         [Range(0f, 1f)] public float intensity;
 
+        /// <summary>How far the sky has clouded over for the storm, 0 clear to 1 solid — what CloudLayer blends by.</summary>
+        public float Overcast => Ramp(intensity, overcastOnset);
+
+        /// <summary>The scene's one directional light: the sun by day, the moon by night.</summary>
+        public Light Sun => _sun;
+
         [Tooltip("On entering Play mode, run the storm cycle: build from Start intensity to a " +
                  "full storm, hold it, then clear back to fine weather. Off = Play uses " +
                  "Intensity as set above.")]
@@ -79,7 +85,8 @@ namespace WowSandbox
         public float windDirection = 30f;
         [Tooltip("Horizontal wind speed at full storm, world units per second.")]
         public float stormWindSpeed = 9f;
-        [Tooltip("How much faster the clouds scroll at full storm.")]
+        [Tooltip("How much faster the old WoW dome's clouds scroll at full storm (CloudLayer's " +
+                 "storm clouds have their own wind, CloudSettings.Storm).")]
         public float stormCloudSpeed = 6f;
 
         [Header("Clouds and light")]
@@ -88,8 +95,8 @@ namespace WowSandbox
         public Vector2 overcastOnset = new Vector2(0f, 0.6f);
         [Range(0f, 1f)] public float stormSunlight = 0.12f;
         [Range(0f, 1f)] public float stormAmbient = 0.45f;
-        [Tooltip("Brightness of the overcast laid over the sky, relative to the clouds' storm " +
-                 "colour. Below 1 the sky reads a shade darker than the clouds in front of it.")]
+        [Tooltip("Brightness of the grey the sky turns behind the clouds (CloudLayer), relative to " +
+                 "the overcast colour. Below 1 the sky reads a shade darker than the clouds in front of it.")]
         [Range(0.3f, 1.5f)] public float overcastSkyBrightness = 0.85f;
         public Color stormSunColor = new Color(0.70f, 0.76f, 0.85f);
         [Tooltip("Procedural sky atmosphere thickness at full overcast. Keep it low — a thick " +
@@ -175,8 +182,6 @@ namespace WowSandbox
 
         Transform _horizonBand;
         Material _horizonMaterial;
-        Transform _overcastSky;
-        Material _overcastMaterial;
 
         ParticleSystem _rain;
         Material _rainMaterial;
@@ -276,6 +281,9 @@ namespace WowSandbox
         }
 
         /// <summary>What the automatic cycle is doing, for the developer panel.</summary>
+        /// <summary>True while a storm is building, raging or clearing — until the sky's fine again.</summary>
+        public bool StormRunning => _phase != CyclePhase.None || intensity > 0.01f;
+
         public string PhaseName => _phase switch
         {
             CyclePhase.Building => "building",
@@ -299,7 +307,6 @@ namespace WowSandbox
                 _waves.windDirection = windDirection;
             }
 
-            BuildOvercastSky();
             BuildHorizonBand();
             BuildRain();
             BuildLightning();
@@ -315,13 +322,26 @@ namespace WowSandbox
             // And the time of day, which tells this what fine weather looks like at this hour.
             if (GetComponent<DayNightCycle>() == null)
                 gameObject.AddComponent<DayNightCycle>();
+            // And the clouds, which this storm gathers and clears.
+            if (GetComponent<CloudLayer>() == null)
+                gameObject.AddComponent<CloudLayer>();
+            // And the sea fog that comes and goes round the island.
+            if (GetComponent<SeaFog>() == null)
+                gameObject.AddComponent<SeaFog>();
+            // And the grass, which waves with the wind.
+            if (GetComponent<GrassWind>() == null)
+                gameObject.AddComponent<GrassWind>();
+            // And the fronts that change the sky every few hours.
+            if (GetComponent<WeatherSystem>() == null)
+                gameObject.AddComponent<WeatherSystem>();
             _aboveWaterFog = _sceneFog;
         }
 
         void Start()
         {
-            // The developer panel's saved storm settings, if any.
+            // The developer panel's saved storm and sea settings, if any.
             DevOptions.Configure(this);
+            WaveSettings.ApplySaved(_waves);
             // Washed up on the beach: the storm that wrecked you, at its height, until it's let
             // go after you wake (ShipwreckWake.ReleaseStorm calls ClearAfterWreck). Otherwise
             // fine weather behind the title screen; it calls BeginPlay when you start.
@@ -362,8 +382,6 @@ namespace WowSandbox
 
             DestroyRuntime(_horizonBand != null ? _horizonBand.gameObject : null);
             DestroyRuntime(_horizonMaterial);
-            DestroyRuntime(_overcastSky != null ? _overcastSky.gameObject : null);
-            DestroyRuntime(_overcastMaterial);
             DestroyRuntime(_rain != null ? _rain.gameObject : null);
             DestroyRuntime(_flashLight != null ? _flashLight.gameObject : null);
             DestroyRuntime(_bolt != null ? _bolt.gameObject : null);
@@ -388,7 +406,8 @@ namespace WowSandbox
                 _camera = Camera.main;
 
             if (_waves != null)
-                _waves.stormIntensity = intensity;
+                // The sea roughens with the storm, or with a stiff wind on a fine day.
+                _waves.stormIntensity = Mathf.Max(intensity, CloudLayer.WindStrength);
 
             _clear = DayNightCycle.Active != null ? DayNightCycle.Active.Evaluate(_scene) : _scene;
 
@@ -406,7 +425,6 @@ namespace WowSandbox
             // don't trail it.
             UpdateRain();
             UpdateHorizonBand();
-            UpdateOvercastSky();
         }
 
         /// <summary>Build, hold at full strength, then clear: one storm, then fine weather.</summary>
@@ -580,20 +598,6 @@ namespace WowSandbox
             return go.transform;
         }
 
-        void BuildOvercastSky()
-        {
-            var shader = Shader.Find("WowSandbox/OvercastSky");
-            if (shader == null)
-            {
-                Debug.LogWarning("[StormWeather] WowSandbox/OvercastSky shader not found — the sky will " +
-                                 "stay blue behind the storm clouds.");
-                return;
-            }
-
-            _overcastMaterial = new Material(shader) { name = "OvercastSky", hideFlags = HideFlags.DontSave };
-            _overcastSky = BuildSkySphere("StormOvercastSky", _overcastMaterial);
-        }
-
         void BuildHorizonBand()
         {
             var shader = Shader.Find("WowSandbox/HorizonFog");
@@ -626,22 +630,6 @@ namespace WowSandbox
             _horizonMaterial.SetFloat("_Strength", strength);
             _horizonMaterial.SetFloat("_FadeEnd", Mathf.Lerp(clearHorizonHeight, horizonBandHeight, closing));
             _horizonBand.gameObject.SetActive(strength > 0.001f);
-        }
-
-        void UpdateOvercastSky()
-        {
-            if (_overcastSky == null || _camera == null)
-                return;
-
-            // Same radius as the horizon band, for the same reason.
-            float radius = _camera.farClipPlane * 0.9f;
-            _overcastSky.position = _camera.transform.position;
-            _overcastSky.localScale = Vector3.one * (radius * 2f);
-
-            // Its strength is the _WeatherOvercast global the clouds use, so the two can't
-            // drift apart; this only decides whether to draw it at all.
-            _overcastMaterial.SetFloat("_Brightness", overcastSkyBrightness);
-            _overcastSky.gameObject.SetActive(Ramp(intensity, overcastOnset) > 0.001f);
         }
 
         // --- Rain ------------------------------------------------------------------------

@@ -156,6 +156,23 @@ namespace WowSandbox
             _stormOnPlay = row[1].GetComponentInChildren<Text>();
             _skipTitle = row[2].GetComponentInChildren<Text>();
             _hideClouds = row[3].GetComponentInChildren<Text>();
+            Buttons(ref y, ("Weather", () =>
+            {
+                Close();
+                GetComponent<WeatherPanel>()?.Open();
+            }), ("Cloud Settings", () =>
+            {
+                Close();
+                GetComponent<CloudPanel>()?.Open();
+            }), ("Fog Settings", () =>
+            {
+                Close();
+                GetComponent<FogPanel>()?.Open();
+            }), ("Wave Settings", () =>
+            {
+                Close();
+                GetComponent<WavePanel>()?.Open();
+            }));
 
             StormLength("Build-up", ref y, DevOptions.BuildSeconds, DevOptions.SetBuildSeconds, 300f);
             StormLength("Full storm", ref y, DevOptions.HoldSeconds, DevOptions.SetHoldSeconds, 600f);

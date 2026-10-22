@@ -5,8 +5,8 @@ namespace WowSandbox
     /// <summary>
     /// Sways a palm in the wind. WoW does this in the doodad shader, so the export carries no
     /// sway at all — one bone and an empty Stand clip. This rocks that bone about the foot of
-    /// the tree instead: a lazy breeze in fine weather, building with StormWeather's intensity
-    /// to a hard lean downwind with gusts, along its wind direction.
+    /// the tree instead: a lazy breeze in fine weather, building with the wind (CloudLayer's,
+    /// or StormWeather's intensity, whichever is more) to a hard lean downwind with gusts.
     ///
     /// The whole tree leans as one piece rather than bending, which reads fine at palm
     /// heights. Only the skinned mesh moves: the colliders (baked from the rest pose, on the
@@ -56,9 +56,11 @@ namespace WowSandbox
 
         void LateUpdate()
         {
+            // The storm, or the wind the clouds drift on, whichever blows harder, and its way.
             var weather = StormWeather.Active;
-            float storm = weather != null ? weather.intensity : 0f;
-            float direction = (weather != null ? weather.windDirection : fallbackWindDirection) * Mathf.Deg2Rad;
+            float storm = Mathf.Max(weather != null ? weather.intensity : 0f, CloudLayer.WindStrength);
+            float direction = (CloudLayer.Active != null ? CloudLayer.WindDirection
+                             : weather != null ? weather.windDirection : fallbackWindDirection) * Mathf.Deg2Rad;
             var downwind = new Vector3(Mathf.Sin(direction), 0f, Mathf.Cos(direction));
 
             // A swell of sway plus slower, uneven gusts — Perlin so they come and go.

@@ -32,7 +32,13 @@ namespace WowSandbox
             var go = new GameObject("Settings");
             go.AddComponent<SettingsPanel>();
             if (DevOptions.Enabled)
+            {
                 go.AddComponent<DevPanel>();
+                go.AddComponent<CloudPanel>();
+                go.AddComponent<FogPanel>();
+                go.AddComponent<WavePanel>();
+                go.AddComponent<WeatherPanel>();
+            }
         }
 
         protected override Vector2 PanelSize => new(Width, 554f);
