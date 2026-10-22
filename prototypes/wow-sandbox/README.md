@@ -68,6 +68,25 @@ As of 2026-10-15:
 - **Looting kneels**, as in WoW.
 - **Treasure chests and items on the ground** to open and pick up, with good odds of rare, epic and legendary loot; the Developer panel spawns any exported chest.
 
+As of 2026-10-20:
+- **A shipwreck opening:** you start washed up and asleep on the beach in the storm that wrecked you, with nothing, and find a map in the wreck.
+- **Day and night:** a 24-minute day with sunrises, sunsets, stars, a moon and a clock on the minimap.
+- **Lanterns and torches** that light up at night, and ones to carry in the off hand.
+
+As of 2026-10-21:
+- **Night life:** NPCs and Briggs sleep, thieves keep a night watch by the lanterns, chickens roost, and night fish bite.
+- **The story begins:** the lore of Tidegrave Isle, a Journal (`J`) of pages found around the island, and a hut and bed for Briggs.
+- **Dialogue:** talk to Briggs in a box with a live portrait, and hear the Captain's own thoughts as subtitles.
+- **Darker nights**, and the wreck's storm held for two minutes after you start.
+- **Weather:** raymarched clouds, sea fog and dawn mist, wind in the trees, grass and sea, and a weather system that changes the sky on its own and sometimes brings a storm.
+- **Saving:** the whole game, autosaved, with Continue and New Game on the title screen.
+
+As of 2026-10-22:
+- **A survival start:** he washes up starving and too weak to leave the beach or swim. Gather driftwood and flint, build a campfire, cook a fish, eat, and sit by the fire (`X`) to get his strength back. Then a gentle hunger bar.
+- **Campfires and cooking** anywhere on open ground, with WoW's burning, cooking and cold campfire models.
+- **Sharks hunt the fish schools**, and fishing spots have tooltips.
+- **The old WoW sky dome is gone**, replaced by the raymarched clouds.
+
 ✅ **Doodad chain verified end-to-end** on `md_pirateship` exported as OBJ: wow.export writes `pirateship_ModelPlacementInformation.csv` plus each doodad's OBJ, and wow.unity rebuilds `pirateship.prefab` with all 36 doodads (cannons, lanterns, hammocks, anchor) in place. Drag the **`.prefab`**, not the `.obj`. The traps on the way are listed under "Export format" below.
 
 ## Playable sandbox
