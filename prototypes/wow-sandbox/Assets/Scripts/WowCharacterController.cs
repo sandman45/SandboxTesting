@@ -193,6 +193,9 @@ namespace WowSandbox
         /// <summary>True while something else — the ship's helm — holds the character in place.</summary>
         public bool IsLocked { get; private set; }
 
+        /// <summary>Puts the weapon away and draws it (Z); set by WeaponSheath when it's added.</summary>
+        public WeaponSheath Sheath { get; set; }
+
         /// <summary>
         /// Hands the character over to something else, which places them each frame (the helm
         /// stands you behind the wheel), or takes them back. Locked, keys don't move or turn
@@ -793,7 +796,8 @@ namespace WowSandbox
 
         /// <summary>
         /// Starts a swing or an ability if the shared cooldown allows, and puts you in your
-        /// fighting stance. False — do nothing — if it's too soon after the last one.
+        /// fighting stance with the weapon drawn. False — do nothing — if it's too soon after the
+        /// last one.
         /// </summary>
         public bool TryBeginAction()
         {
@@ -801,6 +805,8 @@ namespace WowSandbox
                 return false;
             _nextSwing = Time.time + swingInterval;
             _combatUntil = Time.time + combatLinger;
+            if (Sheath != null)
+                Sheath.DrawNow();
             return true;
         }
 
@@ -917,12 +923,12 @@ namespace WowSandbox
 
         /// <summary>
         /// WarriorSetup's WeaponStyle for what's in the main hand: 0 fists, 1 a one-hander,
-        /// 2 a two-hander, 3 a dagger (stabbed, not swung).
+        /// 2 a two-hander, 3 a dagger (stabbed, not swung). Fists while it's put away.
         /// </summary>
         int WeaponStyle()
         {
             var weapon = _inventory != null ? _inventory.Equipped(EquipSlot.MainHand) : null;
-            if (weapon == null)
+            if (weapon == null || Sheath != null && Sheath.Sheathed)
                 return 0;
             if (weapon.baseName == "Dagger")
                 return 3;

@@ -15,6 +15,8 @@ namespace WowSandbox
     /// - spawns separate meshes: helms on their bone, skinned armour bound to the skeleton.
     /// Items without a look leave that part of the body bare. Hold shows a carried tool's look
     /// (the Fishing Pole while fishing) in place of the main-hand weapon until Release.
+    /// SetSheathed puts the weapon and shield away on the library's sheath points, as WoW does:
+    /// a two-hander across the back, a one-hander on the hip, a shield on the back.
     /// </summary>
     [RequireComponent(typeof(Inventory))]
     public class EquipmentVisuals : MonoBehaviour
@@ -35,7 +37,24 @@ namespace WowSandbox
         // The main-hand weapon's meshes, hidden while a tool is held, and the tool's own.
         readonly List<GameObject> _mainHand = new();
         readonly List<GameObject> _held = new();
+        // The shield's meshes, put away with the weapon (a light in the off hand stays in hand).
+        readonly List<GameObject> _shield = new();
+        // Each weapon or shield mesh's pose in hand, and its look's scale, for drawing it again.
+        readonly Dictionary<GameObject, (Transform bone, Vector3 position, Quaternion rotation, Vector3 scale, float lookScale)> _inHand = new();
         Transform _pieceParent;
+
+        /// <summary>Whether the weapon and shield are put away (WeaponSheath, Z).</summary>
+        public bool Sheathed { get; private set; }
+
+        /// <summary>
+        /// How a put-away item sits on each sheath point, in the character's axes: a turn and a
+        /// nudge (WeaponSheath's fits). WoW's points are only a place, and an item keeps the way
+        /// it faces in hand at rest — blade forward, shield face out to the left.
+        /// </summary>
+        public Func<SheathSpot, (Quaternion turn, Vector3 offset)> SheathFit { get; set; }
+
+        /// <summary>Whether a carried tool is in hand (Hold) — the Fishing Pole while fishing.</summary>
+        public bool Holding => _held.Count > 0;
 
         Material _bodyMaterial;
         Texture _bareTexture;
@@ -105,8 +124,48 @@ namespace WowSandbox
                 if (go != null)
                     _held.Add(go);
             }
-            if (_held.Count > 0)
+            // A weapon on the hip or back stays there; one in hand makes way for the tool.
+            if (_held.Count > 0 && !Sheathed)
                 SetActive(_mainHand, false);
+        }
+
+        /// <summary>
+        /// Puts the weapon and shield away on their sheath points, or back in hand. A spot the
+        /// library has no point for (it predates sheathing — re-run Harvest Gear) leaves that
+        /// item in hand.
+        /// </summary>
+        public void SetSheathed(bool sheathed)
+        {
+            Sheathed = sheathed;
+            var weapon = _inventory.Equipped(EquipSlot.MainHand);
+            var spot = weapon is { twoHanded: true } ? SheathSpot.Back : SheathSpot.Hip;
+            foreach (var go in _mainHand)
+                Place(go, sheathed ? spot : null);
+            foreach (var go in _shield)
+                Place(go, sheathed ? SheathSpot.Shield : null);
+            // A tool in hand hides the weapon only while that's in hand too.
+            if (_held.Count > 0)
+                SetActive(_mainHand, sheathed);
+        }
+
+        /// <summary>One weapon or shield mesh onto its sheath point, or (null) back in hand.</summary>
+        void Place(GameObject go, SheathSpot? spot)
+        {
+            if (go == null || !_inHand.TryGetValue(go, out var hand))
+                return;
+            var point = spot is { } at && library != null ? library.Sheath(at) : null;
+            if (point != null && _bones.TryGetValue(point.bone, out var bone))
+            {
+                var (turn, offset) = SheathFit?.Invoke(point.spot) ?? (Quaternion.identity, Vector3.zero);
+                go.transform.SetParent(bone, false);
+                go.transform.SetLocalPositionAndRotation(point.localPosition + point.localRotation * offset,
+                    point.localRotation * turn);
+                go.transform.localScale = point.localScale * hand.lookScale;
+                return;
+            }
+            go.transform.SetParent(hand.bone, false);
+            go.transform.SetLocalPositionAndRotation(hand.position, hand.rotation);
+            go.transform.localScale = hand.scale;
         }
 
         /// <summary>Puts a held tool away and brings the main-hand weapon back.</summary>
@@ -248,8 +307,11 @@ namespace WowSandbox
                     Destroy(spawned);
             _spawned.Clear();
             _mainHand.Clear();
+            _shield.Clear();
+            _inHand.Clear();
 
             var mainHand = library.For(_inventory.Equipped(EquipSlot.MainHand));
+            var shield = _inventory.Equipped(EquipSlot.OffHand) is { kind: ItemKind.Shield } carried ? library.For(carried) : null;
             foreach (var look in looks)
             {
                 var made = new List<GameObject>();
@@ -269,11 +331,24 @@ namespace WowSandbox
                 _spawned.AddRange(made);
                 if (look == mainHand)
                     _mainHand.AddRange(made);
+                if (look == shield)
+                    _shield.AddRange(made);
             }
 
-            // Changing weapons mid-cast keeps the new one put away until the tool is.
-            if (_held.Count > 0)
-                SetActive(_mainHand, false);
+            foreach (var go in _mainHand)
+                RememberHand(go, mainHand);
+            foreach (var go in _shield)
+                RememberHand(go, shield);
+
+            // A new weapon or shield goes where the old one was: in hand, or put away.
+            SetSheathed(Sheathed);
+        }
+
+        void RememberHand(GameObject go, GearLook look)
+        {
+            var t = go.transform;
+            _inHand[go] = (t.parent, t.localPosition, t.localRotation, t.localScale,
+                look.attachedScale > 0f ? look.attachedScale : 1f);
         }
 
         GameObject SpawnSkinned(SkinnedPiece piece)

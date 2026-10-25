@@ -411,12 +411,11 @@ leans on them.
   orders once pages 1–3 are found. He's evasive about why the Captain was chosen.
 - ✅ **The wreck's storm** stays at full for 2 minutes after you click Start, then clears.
 - ✅ **The survival start** (`Hunger`, `Campfire`, `CookingPanel`, `PlayerSit`). He wakes
-  starving: walking only, too weak to swim, and held to the beach within 60 m of the wreck.
+  starving: walking only, too weak to swim, and held to the beach within 25 m of the wreck.
   He gathers driftwood on the beach and flint round the wreckage, builds a campfire, catches
   and cooks a fish, eats it, then sits by the fire (`X`) to rest and get his strength back for
   good. After that a gentle hunger bar, Well Fed from cooked food and Sick from raw. The last
   campfire is his respawn point.
-- 🆕 Small touches: the wreck's nameplate or tooltip reads *the Stormbreaker*.
 
 ### Act II — The Castaways' Trail
 

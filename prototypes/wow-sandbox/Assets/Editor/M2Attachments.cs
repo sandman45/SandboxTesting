@@ -25,6 +25,12 @@ namespace WowSandbox.EditorTools
         public const int ShoulderLeft = 6;
         public const int Helmet = 11;
         public const int Back = 12;
+        // Where weapons and shields go when put away: across the back, and on the hips.
+        public const int SheathMainHand = 26;
+        public const int SheathOffHand = 27;
+        public const int SheathShield = 28;
+        public const int HipWeaponLeft = 32;
+        public const int HipWeaponRight = 33;
 
         public struct Attachment
         {

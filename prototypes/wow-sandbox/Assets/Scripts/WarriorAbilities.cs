@@ -84,6 +84,9 @@ namespace WowSandbox
         /// <summary>A torch in the off hand — Torch Swing needs one (and the action bar shows for it).</summary>
         public bool HasTorch => _inventory != null && _inventory.Equipped(EquipSlot.OffHand) is { IsTorch: true };
 
+        /// <summary>The weapon put away or drawn (Z), or null before it's added.</summary>
+        public WeaponSheath Sheath => _movement.Sheath;
+
         bool CanAct => !_movement.IsLocked && !TitleScreen.Showing && !(_health != null && _health.IsDead);
 
         /// <summary>
@@ -495,8 +498,11 @@ namespace WowSandbox
                 Destroy(gameObject);
                 return;
             }
-            // The helm's own panel sits where the bar does; and no bar until a weapon (or a torch) is in hand.
-            bool hidden = (_helm != null && _helm.IsDriving) || !(_abilities.Armed || _abilities.HasTorch);
+            // The helm's own panel sits where the bar does; no bar until a weapon (or a torch) is in
+            // hand, nor while it's put away (Z).
+            var sheath = _abilities.Sheath;
+            bool hidden = (_helm != null && _helm.IsDriving) || !(_abilities.Armed || _abilities.HasTorch) ||
+                          (sheath != null && sheath.Sheathed);
             _group.alpha = hidden ? 0f : 1f;
             _group.blocksRaycasts = !hidden;
 
