@@ -246,7 +246,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 - **Sheathing (`WeaponSheath`):** **Z** puts the weapon and shield away and draws them again; they stay equipped. `EquipmentVisuals.SetSheathed` moves their meshes onto WoW's sheath attachment points (26 back, 28 shield, 32 left hip), which **Harvest Gear** stores in the `GearLibrary` (re-run it once). A torch or lantern stays in hand. **Update Warrior Animations** adds an upper-body `Sheath` layer (the `Sheath` and `HipSheath` clips, masked from `bone_EXP_C1_Spine2` up) so he can draw on the run; the meshes swap halfway through the clip. Saved.
 - **Sitting (`PlayerSit`):** **X** sits him on the ground (in the water X still dives). Moving, jumping, X or a blow stands him up. Needs **Update Warrior Animations** for the `SitGroundDown`/`SitGround`/`SitGroundUp` states.
 - **Starting outfit:** none. The player starts with empty hands, empty bags and no coin; gear is found, looted or bought. The action bar stays hidden (and abilities 2–5 refuse) until a weapon is in the main hand. The vendor also sells two-handers like the Maul (2d6, 10 gp) and Claymore (2d6, 50 gp), shoulders: Leather Spaulders (5 sp, cosmetic) and Iron Pauldrons (2 gp, +1 AC), and legs: Leather Leggings (5 sp, cosmetic) and Iron Legguards (2 gp, +1 AC). The two iron pieces are the only non-magic AC outside chest armour and shields. The body armours are chest-only exports, so they don't cover the legs; the shorts or leggings show below them. The Pirate Hat is loot only; the Developer panel has **Pirate Hat** and **Linen Outfit** buttons.
-- **Slots:** Head, Shoulders, Back, Chest, Hands, Legs and Feet, then Main, Off, Neck and Ring, in two rows on the character sheet (C).
+- **Slots:** on the character sheet (C), laid out like WoW's: Head, Neck, Shoulders, Back and Chest down the left of his model, Hands, Legs, Feet and Ring down the right, and Main and Off under it. The model is a live copy of him wearing what he wears (weapon drawn or put away); drag on it to turn him round.
 - **Three kinds of gear,** and one item can use several:
   - **Painted on:** cloth shirts, trousers and sandals are drawn into the body texture. Each item's pixels are pasted onto a copy of the bare body.
   - **Body pieces:** WoW swaps parts of the body mesh to match gear. The shirt adds sleeve cuffs (`Wrists2`) and the hat hides the hair (`Hair2`).
@@ -299,7 +299,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | `Q` / `E` | Strafe left / right |
 | `Shift` | Walk (the character runs by default, as in WoW) |
 | Right-drag | Steer the character; camera follows behind |
-| Left-drag | Orbit the camera only; character keeps its facing |
+| Left-drag | Orbit the camera only; character keeps its facing. Let go and it swings back behind him (press right mid-drag to turn him to face that way instead) |
 | Scroll | Zoom |
 | `Space` | Jump (physics only — see below) — swims **up** while in water |
 | `X` | Swim **down** (in water only) |
@@ -311,7 +311,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | `Z` | Put your weapon and shield away (two-handers on the back, one-handers on the hip, shields on the back); `Z` again draws them. The action bar hides while they're away; a swing, an ability or a blow draws them |
 | `Tab` | Target the nearest enemy on screen within 40 units; press again for the next one out (`TargetingController`; neutral creatures only with *Tab Includes Neutral*) |
 | `B` / `I` | Bags (drag an item out of them onto the world to drop it on the ground, after a Drop / Cancel question) |
-| `C` | Character sheet |
+| `C` | Character sheet, with his model in the middle (drag it to turn him) |
 | `M` | World map (scroll over it to zoom) |
 | `Esc` | Close the top window; with none open, Settings |
 

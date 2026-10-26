@@ -25,7 +25,7 @@ namespace WowSandbox
 
         const float CookSeconds = 2.5f;
         const float Reach = 4.5f;
-        const float Width = 340f;
+        const float Width = 420f;
         const float Pad = 14f;
         const float RowHeight = 54f;
 
@@ -109,9 +109,11 @@ namespace WowSandbox
                 slot.Source = () => made;
                 slot.Reader = _stats;
 
-                Hud.Label("Meal", row, topLeft, new Vector2(RowHeight + 2f, -4f), new Vector2(150f, 20f),
+                // Up to just short of the Cook buttons, which take the row's last 130 px.
+                float textWidth = Width - Pad * 2f - (RowHeight + 2f) - 146f;
+                Hud.Label("Meal", row, topLeft, new Vector2(RowHeight + 2f, -4f), new Vector2(textWidth, 20f),
                     15, TextAnchor.MiddleLeft, HudTheme.Text, FontStyle.Bold).text = meal;
-                _counts[i] = Hud.Label("Takes", row, topLeft, new Vector2(RowHeight + 2f, -24f), new Vector2(150f, 18f),
+                _counts[i] = Hud.Label("Takes", row, topLeft, new Vector2(RowHeight + 2f, -24f), new Vector2(textWidth, 18f),
                     12, TextAnchor.MiddleLeft, HudTheme.TextDim);
 
                 var right = new Vector2(1f, 0.5f);
