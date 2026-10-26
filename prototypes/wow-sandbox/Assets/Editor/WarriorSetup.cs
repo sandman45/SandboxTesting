@@ -81,18 +81,20 @@ namespace WowSandbox.EditorTools
             bool loot = AddLootStates(controller, clips);
             bool washedUp = AddWashedUpStates(controller, clips);
             bool sit = AddSitStates(controller, clips);
+            bool sheath = AddSheathLayer(controller, clips);
             // The abilities that play the new states, on the player already in the scene.
             foreach (var player in Object.FindObjectsByType<WowCharacterController>())
             {
                 if (player.GetComponent<WarriorAbilities>() == null)
                     Undo.AddComponent<WarriorAbilities>(player.gameObject);
             }
-            if (fishing || hit || combat || loot || washedUp || sit)
+            if (fishing || hit || combat || loot || washedUp || sit || sheath)
             {
                 EditorUtility.SetDirty(controller);
                 AssetDatabase.SaveAssets();
                 Debug.Log("[WarriorSetup] Warrior controller updated:" + (fishing ? " fishing" : "") +
-                          (hit ? " hit reaction" : "") + (combat ? " combat" : "") + (loot ? " looting" : "") + (washedUp ? " washed up" : "") + (sit ? " sitting" : "") + ".", controller);
+                          (hit ? " hit reaction" : "") + (combat ? " combat" : "") + (loot ? " looting" : "") + (washedUp ? " washed up" : "") + (sit ? " sitting" : "") +
+                          (sheath ? " sheathing" : "") + ".", controller);
             }
         }
 
@@ -310,6 +312,89 @@ namespace WowSandbox.EditorTools
                 back.exitTime = 0.7f;
                 back.duration = 0.3f;
                 back.hasFixedDuration = true;
+            }
+            return true;
+        }
+
+        const string SheathLayer = "Sheath";
+        // The bone the upper body hangs from: the chest, arms and head move, the legs don't.
+        const string UpperBodyBone = "bone_EXP_C1_Spine2";
+        static readonly string[] SheathParameters = { "Sheath", "HipSheath" };
+
+        /// <summary>
+        /// An upper-body layer for putting weapons away and drawing them (WeaponSheath, Z), so he
+        /// can do it on the run: Sheath (trigger) reaches over the shoulder (Sheath clip), and
+        /// HipSheath (trigger) to the hip (HipSheath clip). Each plays once and goes back to an
+        /// empty state. The layer's weight stays 0 except while WeaponSheath plays one. The mask
+        /// comes from the player in the scene: everything from the spine up. Replaces any Sheath
+        /// layer already there. False without the clips or a player.
+        /// </summary>
+        static bool AddSheathLayer(AnimatorController controller, AnimationClip[] clips)
+        {
+            var back = CopyVariation(clips, "Sheath", 0);
+            var hip = CopyVariation(clips, "HipSheath", 0);
+            if (back == null && hip == null)
+            {
+                Debug.LogWarning("[WarriorSetup] No Sheath or HipSheath clips — Z will put weapons away with no animation.");
+                return false;
+            }
+            var player = Object.FindAnyObjectByType<WowCharacterController>();
+            var animator = player != null ? player.GetComponentInChildren<Animator>() : null;
+            var upper = animator != null
+                ? animator.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == UpperBodyBone)
+                : null;
+            if (upper == null)
+            {
+                Debug.LogWarning($"[WarriorSetup] No player with a {UpperBodyBone} bone in the scene — the sheathing layer needs one to mask the upper body.");
+                return false;
+            }
+
+            string maskPath = $"{GeneratedRoot}/UpperBody.mask";
+            AssetDatabase.DeleteAsset(maskPath);
+            var mask = new AvatarMask { name = "UpperBody" };
+            var transforms = animator.GetComponentsInChildren<Transform>(true);
+            mask.transformCount = transforms.Length;
+            for (int i = 0; i < transforms.Length; i++)
+            {
+                mask.SetTransformPath(i, AnimationUtility.CalculateTransformPath(transforms[i], animator.transform));
+                mask.SetTransformActive(i, transforms[i].IsChildOf(upper));
+            }
+            AssetDatabase.CreateAsset(mask, maskPath);
+
+            var layers = controller.layers;
+            for (int i = layers.Length - 1; i > 0; i--)
+                if (layers[i].name == SheathLayer)
+                    controller.RemoveLayer(i);
+            foreach (var parameter in controller.parameters)
+                if (SheathParameters.Contains(parameter.name))
+                    controller.RemoveParameter(parameter);
+
+            controller.AddLayer(SheathLayer);
+            layers = controller.layers;
+            var layer = layers[^1];
+            layer.avatarMask = mask;
+            layer.defaultWeight = 0f;
+            layer.blendingMode = AnimatorLayerBlendingMode.Override;
+            controller.layers = layers;
+
+            var stateMachine = layer.stateMachine;
+            stateMachine.defaultState = stateMachine.AddState("Empty");
+            foreach (var (trigger, clip) in new[] { ("Sheath", back), ("HipSheath", hip ?? back) })
+            {
+                if (clip == null)
+                    continue;
+                controller.AddParameter(trigger, AnimatorControllerParameterType.Trigger);
+                var state = stateMachine.AddState(trigger);
+                state.motion = clip;
+                var start = stateMachine.AddAnyStateTransition(state);
+                start.AddCondition(AnimatorConditionMode.If, 0f, trigger);
+                start.hasExitTime = false;
+                start.duration = 0f;
+                start.canTransitionToSelf = true;
+                var done = state.AddTransition(stateMachine.defaultState);
+                done.hasExitTime = true;
+                done.exitTime = 1f;
+                done.duration = 0f;
             }
             return true;
         }

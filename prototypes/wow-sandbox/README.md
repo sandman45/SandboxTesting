@@ -89,6 +89,21 @@ As of 2026-10-22:
 
 ✅ **Doodad chain verified end-to-end** on `md_pirateship` exported as OBJ: wow.export writes `pirateship_ModelPlacementInformation.csv` plus each doodad's OBJ, and wow.unity rebuilds `pirateship.prefab` with all 36 doodads (cannons, lanterns, hammocks, anchor) in place. Drag the **`.prefab`**, not the `.obj`. The traps on the way are listed under "Export format" below.
 
+## Features we can add
+
+Ideas outside the story's build plan (that lives in [docs/LORE.md](docs/LORE.md), "Build plan by act"). 🎨 means it needs a model export first.
+
+- **Wind audio:** a wind sound that follows the weather system's wind, not only the storm's peak.
+- **Friendly ship crew:** bearded pirates working the wheel, oars and cannon crank (`WABoatWheelStand`, rowing and cannon-crank clips). Overlaps Act IV's crew aboard.
+- **Combat follow-ups:** a dazed animation for stunned enemies (`EmoteStunNoSheathe`), rage for the warrior abilities, and smarter `Tab` targeting that checks facing and line of sight.
+- 🎨 **Ground models for every pickup:** body armour has none yet (sack, pouch or armour stand-ins).
+- **Starting gear placed in the world**, now that he washes up with nothing.
+- **A falling animation** when walking off a ledge (the export's `Fall` clip, ID 40).
+- **Turning in place**, so he doesn't pivot on planted feet (the export has no turn clips).
+- **Cloaks**, if a character model that can wear one turns up.
+- **Save the rest:** breath, a lit torch, vendor stock and loot left on corpses aren't saved yet.
+- **Journal polish:** a font per hand and parchment art (details in LORE.md).
+
 ## Playable sandbox
 
 Two editor menu items rebuild the whole playable scene from scratch, so nothing needs hand-wiring in the Inspector:
@@ -197,7 +212,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
   - **Treasure odds (`ItemCatalog.RandomTreasure`):** never mundane. Uncommon 40%, Rare 35%, Very Rare (epic) 18%, Legendary 7%.
   - **Models:** WoW's chests (`treasurechest01`–`05`) carry Open, Opened, Close and Closed clips. Chests 02, 03 and 05 draw a pile of gold coins as a second layer whose texture is mostly see-through; it gets a cut-out material, or it would cover the chest as a solid sheet. Light shafts, smoke and similar effects get a glowing, see-through material.
   - **Placing:** *Place Treasure Chest* scales the model to the height you give, adds a solid collider, an empty `LootDrop` and a `TreasureChest` holding a potion, 5 gold and one bonus roll.
-- **Ground items (`GroundItem`):** an item, a count and/or coin, lying in the world. Clicking reaches down (`Loot`), puts it in the bags and removes it; a full bag leaves it there. *Place Ground Item* picks the model by the item's kind (Weapon, Armor, Shield, Clothing, Jewelry, Potion, Trade Good, Tool, Coin): set an exported WoW model for each in its window (remembered per machine). A kind without one gets a placeholder lump.
+- **Ground items (`GroundItem`):** an item, a count and/or coin, lying in the world. Clicking reaches down (`Loot`), puts it in the bags and removes it; a full bag leaves it there. *Place Ground Item* picks the model by the item's kind (Weapon, Armor, Shield, Clothing, Jewelry, Potion, Trade Good, Tool, Coin): set an exported WoW model for each in its window (remembered per machine). A kind without one gets a placeholder lump. **Dropping:** drag a bag item off every window and confirm, and `GroundItem.Drop` lays that very item (enchantments, stack and all) just in front of him: its own gear model laid flat if it has one, else a copy of a scene ground item's model for that item or its kind, else a lump. Not in the water, on a deck or on a ladder; equipped gear has to come off first. Dropped items are saved where they lie.
 
 **Your own combat:** the warrior's swings follow what's in hand. *Update Warrior Animations* builds these states.
 - **Swing timer:** one swing a second (`swingInterval` on `WowCharacterController`); pressing `1` sooner does nothing. Abilities share that timer, like WoW's global cooldown.
@@ -224,10 +239,11 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 
 **Gear on the player:** `EquipmentVisuals` dresses the player in whatever's equipped, from the looks *Harvest Gear* builds. Items without a look leave that part of the body bare. Chain mail, for one, shows a bare chest.
 - **Washed up:** the player starts lying asleep on the sand by the wreck (WoW's `Sleep` clip), the storm that wrecked them still at its height, through the title screen and after it. The first key press wakes them: the storm starts clearing (over its Clearing length), they sit up (a slow blend into `SitGround`) and then stand (`SitGroundUp`); they can't move till they're on their feet. `ShipwreckWake`, added at Play (`ShipwreckWake.Lying` holds StormWeather at full and replaces Play's build-up); its `WashedUp` animator states come from **Update Warrior Animations**. With Storm on Play off there's no opening storm.
-- **Starving:** he washes up Starving (`Hunger`): walking only, 2 less damage a hit, too weak to swim (his breath runs out at the surface, and he drowns), and he can't get more than 60 m from where he woke, staggering as he nears the edge. A cooked meal makes him **Weak** (still walking, still on the beach); then 20 s **sat by a lit campfire** (a **Resting** cast bar) gets his strength back for good (story flags `survival.fed`, `survival.strong`).
+- **Starving:** he washes up Starving (`Hunger`): walking only, 2 less damage a hit, too weak to swim (his breath runs out at the surface, and he drowns), and he can't get more than 25 m from where he woke, staggering as he nears the edge. A cooked meal makes him **Weak** (still walking, still on the beach); then 20 s **sat by a lit campfire** (a **Resting** cast bar) gets his strength back for good (story flags `survival.fed`, `survival.strong`).
   - **After that:** a hunger bar under the player frame empties over 48 game hours. Below a quarter he's Hungry (a little slower and weaker), empty he's Starving again (no wall, no drowning). Cooked food fills it and leaves him **Well Fed** (+1 damage, 2 game hours); raw food fills it a little and makes him **Sick** (1 game hour). Right-click food in the bags to eat it.
 - **Campfire (`Campfire`):** right-click **Flint & Steel** with 3 **Driftwood** to kneel and build one (a 3 s cast) in front of him — not in the sea, on a ship, indoors (anything overhead) or on steep ground. It burns 4 game hours, dimming over the last half hour, then leaves cold coals until the next one. One at a time. It lights the night, the spot he built it from becomes his respawn point, and it's saved.
 - **Cooking (`CookingPanel`):** click a lit campfire for a window of recipes (Raw Fish → Grilled Fish, Raw Chicken → Roast Chicken) with Cook and Cook All: 2.5 s each on the cast bar, the skillet over the fire and him knelt beside it. Walking off, the fire going out or a blow stops it.
+- **Sheathing (`WeaponSheath`):** **Z** puts the weapon and shield away and draws them again; they stay equipped. `EquipmentVisuals.SetSheathed` moves their meshes onto WoW's sheath attachment points (26 back, 28 shield, 32 left hip), which **Harvest Gear** stores in the `GearLibrary` (re-run it once). A torch or lantern stays in hand. **Update Warrior Animations** adds an upper-body `Sheath` layer (the `Sheath` and `HipSheath` clips, masked from `bone_EXP_C1_Spine2` up) so he can draw on the run; the meshes swap halfway through the clip. Saved.
 - **Sitting (`PlayerSit`):** **X** sits him on the ground (in the water X still dives). Moving, jumping, X or a blow stands him up. Needs **Update Warrior Animations** for the `SitGroundDown`/`SitGround`/`SitGroundUp` states.
 - **Starting outfit:** none. The player starts with empty hands, empty bags and no coin; gear is found, looted or bought. The action bar stays hidden (and abilities 2–5 refuse) until a weapon is in the main hand. The vendor also sells two-handers like the Maul (2d6, 10 gp) and Claymore (2d6, 50 gp), shoulders: Leather Spaulders (5 sp, cosmetic) and Iron Pauldrons (2 gp, +1 AC), and legs: Leather Leggings (5 sp, cosmetic) and Iron Legguards (2 gp, +1 AC). The two iron pieces are the only non-magic AC outside chest armour and shields. The body armours are chest-only exports, so they don't cover the legs; the shorts or leggings show below them. The Pirate Hat is loot only; the Developer panel has **Pirate Hat** and **Linen Outfit** buttons.
 - **Slots:** Head, Shoulders, Back, Chest, Hands, Legs and Feet, then Main, Off, Neck and Ring, in two rows on the character sheet (C).
@@ -292,8 +308,9 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | `1` | Attack your target (one swing a second) |
 | `2`–`5` | Heroic Strike, Shield Bash, Whirlwind, Charge (or click them on the action bar) |
 | `6` | Drink a healing potion |
+| `Z` | Put your weapon and shield away (two-handers on the back, one-handers on the hip, shields on the back); `Z` again draws them. The action bar hides while they're away; a swing, an ability or a blow draws them |
 | `Tab` | Target the nearest enemy on screen within 40 units; press again for the next one out (`TargetingController`; neutral creatures only with *Tab Includes Neutral*) |
-| `B` / `I` | Bags |
+| `B` / `I` | Bags (drag an item out of them onto the world to drop it on the ground, after a Drop / Cancel question) |
 | `C` | Character sheet |
 | `M` | World map (scroll over it to zoom) |
 | `Esc` | Close the top window; with none open, Settings |

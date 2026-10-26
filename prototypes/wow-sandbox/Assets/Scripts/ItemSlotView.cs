@@ -30,6 +30,8 @@ namespace WowSandbox
         public Action<ItemSlotView> RightClicked;
         /// <summary>Something was dropped here: (where it came from, this slot).</summary>
         public Action<ItemSlotView, ItemSlotView> DroppedOn;
+        /// <summary>This slot's item was dragged off every window and let go over the world.</summary>
+        public Action<ItemSlotView> DroppedOutside;
 
         Image _back;
         Image _tile;
@@ -159,6 +161,9 @@ namespace WowSandbox
             _dragging = null;
             if (_ghost != null)
                 _ghost.gameObject.SetActive(false);
+            // Nothing of the HUD under the pointer: let go over the world.
+            if (eventData.pointerCurrentRaycast.gameObject == null && Item != null)
+                DroppedOutside?.Invoke(this);
             Refresh();
         }
 

@@ -544,41 +544,8 @@ namespace WowSandbox.EditorTools
         /// shoulders). Null when it has none (body armour is painted on or skinned), so the
         /// kind's model is used instead.
         /// </summary>
-        static GameObject GearModel(Item item, Transform parent)
-        {
-            var look = item != null ? GearHarvester.LoadLibrary()?.For(item) : null;
-            var pieces = look != null ? look.attachedPieces.Where(p => p.mesh != null).ToArray() : null;
-            if (pieces == null || pieces.Length == 0)
-                return null;
-
-            var root = new GameObject("Model");
-            root.transform.SetParent(parent, false);
-            float x = 0f;
-            foreach (var piece in pieces)
-            {
-                var child = new GameObject(piece.name);
-                child.transform.SetParent(root.transform, false);
-                child.AddComponent<MeshFilter>().sharedMesh = piece.mesh;
-                child.AddComponent<MeshRenderer>().sharedMaterials = piece.materials;
-
-                // Lie it down along its longest side, then line it up after the last one.
-                var mesh = piece.mesh.bounds;
-                var rotation = mesh.size.y > mesh.size.x && mesh.size.y > mesh.size.z
-                    ? Quaternion.Euler(0f, 0f, 90f) : Quaternion.identity;
-                float minX = float.MaxValue, maxX = float.MinValue;
-                for (int corner = 0; corner < 8; corner++)
-                {
-                    var offset = Vector3.Scale(mesh.extents, new Vector3((corner & 1) == 0 ? -1 : 1, (corner & 2) == 0 ? -1 : 1, (corner & 4) == 0 ? -1 : 1));
-                    float cornerX = (rotation * (mesh.center + offset)).x;
-                    minX = Mathf.Min(minX, cornerX);
-                    maxX = Mathf.Max(maxX, cornerX);
-                }
-                child.transform.localRotation = rotation;
-                child.transform.localPosition = new Vector3(x - minX, 0f, 0f);
-                x += maxX - minX + 0.05f;
-            }
-            return root;
-        }
+        static GameObject GearModel(Item item, Transform parent) =>
+            GroundItem.GearModel(item != null ? GearHarvester.LoadLibrary()?.For(item) : null, parent);
 
         /// <summary>
         /// A light with no model of its own or set for its kind: the exported lantern for the

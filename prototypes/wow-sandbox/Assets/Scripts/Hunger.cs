@@ -22,9 +22,9 @@ namespace WowSandbox
     public class Hunger : MonoBehaviour
     {
         [Tooltip("How far from where he woke he can get while starving, in metres.")]
-        public float beachRadius = 60f;
+        public float beachRadius = 25f;
         [Tooltip("How far inside that edge he starts to stagger.")]
-        public float staggerBand = 12f;
+        public float staggerBand = 5f;
         [Tooltip("Game hours for a full stomach to empty (a game hour is a minute at normal speed).")]
         public float hoursToEmpty = 48f;
         [Tooltip("Game hours of Well Fed after a cooked meal.")]

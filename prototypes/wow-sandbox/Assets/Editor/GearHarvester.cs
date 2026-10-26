@@ -250,6 +250,7 @@ namespace WowSandbox.EditorTools
             library.bodyTextureProperty = baseExport.BodyTextureProperty;
             library.piecePrefix = baseExport.Prefix;
             library.looks = looks.ToArray();
+            library.sheathPoints = SheathPoints(baseExport, attachments, report);
             EditorUtility.SetDirty(library);
             AssetDatabase.SaveAssets();
 
@@ -553,6 +554,12 @@ namespace WowSandbox.EditorTools
         }
 
         static void TryAttach(string slot, Transform space, Transform[] skeleton, Dictionary<int, M2Attachments.Attachment> attachments,
+            out Transform bone, out Vector3 position, out Quaternion rotation, out Vector3 scale, out string how) =>
+            TryAttach(SlotAttachments.FirstOrDefault(entry => entry.slot == slot).attachments, space, skeleton, attachments,
+                out bone, out position, out rotation, out scale, out how);
+
+        /// <summary>TryAttach on the first of <paramref name="ids"/> the model has.</summary>
+        static void TryAttach(int[] ids, Transform space, Transform[] skeleton, Dictionary<int, M2Attachments.Attachment> attachments,
             out Transform bone, out Vector3 position, out Quaternion rotation, out Vector3 scale, out string how)
         {
             bone = null;
@@ -561,7 +568,6 @@ namespace WowSandbox.EditorTools
             scale = Vector3.one;
             how = null;
 
-            var ids = SlotAttachments.FirstOrDefault(entry => entry.slot == slot).attachments;
             foreach (int id in ids ?? System.Array.Empty<int>())
             {
                 if (!attachments.TryGetValue(id, out var point) || skeleton == null ||
@@ -576,6 +582,41 @@ namespace WowSandbox.EditorTools
                 how = $"on attachment {id} ({bone.name})";
                 return;
             }
+        }
+
+        static readonly (SheathSpot spot, int id)[] SheathAttachments =
+        {
+            (SheathSpot.Back, M2Attachments.SheathMainHand),
+            (SheathSpot.Shield, M2Attachments.SheathShield),
+            (SheathSpot.Hip, M2Attachments.HipWeaponLeft),
+        };
+
+        /// <summary>
+        /// The model's sheath points, posed like StandalonePieces poses an item model: in the
+        /// body's space, which is where every item mesh's own space sits.
+        /// </summary>
+        static SheathPoint[] SheathPoints(Export baseExport, Dictionary<int, M2Attachments.Attachment> attachments, List<string> report)
+        {
+            var space = baseExport.BodyRenderer.transform;
+            var skeleton = baseExport.BodyRenderer is SkinnedMeshRenderer body ? body.bones : null;
+            var points = new List<SheathPoint>();
+            foreach (var (spot, id) in SheathAttachments)
+            {
+                TryAttach(new[] { id }, space, skeleton, attachments,
+                    out var bone, out var position, out var rotation, out var scale, out string how);
+                if (bone == null)
+                {
+                    report.Add($"sheath {spot}: no attachment {id} on the model — weapons put away there stay in hand" +
+                               (attachments.Count == 0 ? " (needs the raw export)" : ""));
+                    continue;
+                }
+                points.Add(new SheathPoint
+                {
+                    spot = spot, bone = bone.name, localPosition = position, localRotation = rotation, localScale = scale,
+                });
+                report.Add($"sheath {spot}: {how}");
+            }
+            return points.ToArray();
         }
 
         /// <summary>

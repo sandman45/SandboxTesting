@@ -274,6 +274,7 @@ namespace WowSandbox
                 fullness = Stomach != null ? Stomach.Fullness : 0f,
                 wellFedHours = Stomach != null ? Stomach.WellFedHoursLeft : 0f,
                 sickHours = Stomach != null ? Stomach.SickHoursLeft : 0f,
+                sheathed = _player != null && _player.Sheath != null && _player.Sheath.Sheathed,
                 bag = Enumerable.Range(0, _inventory.BagSize)
                     .Where(i => _inventory.BagItem(i) != null)
                     .Select(i => new SlotData { index = i, item = _inventory.BagItem(i) }).ToArray(),
@@ -286,6 +287,12 @@ namespace WowSandbox
                 .Select(pair => pair.Key).ToArray();
             data.returning = _pickups.Where(pair => pair.Value is GroundItem { Gone: true })
                 .Select(pair => new ReturningData { id = pair.Key, hours = ((GroundItem)pair.Value).ReturnsIn }).ToArray();
+            data.dropped = FindObjectsByType<GroundItem>(FindObjectsInactive.Exclude, FindObjectsSortMode.None)
+                .Where(item => item.Dropped && item.exact != null)
+                .Select(item => new DroppedData
+                {
+                    item = item.exact, position = item.transform.position, yaw = item.transform.eulerAngles.y,
+                }).ToArray();
             var fire = Campfire.Current;
             if (fire != null)
                 data.campfire = new FireData
@@ -405,6 +412,9 @@ namespace WowSandbox
             _health?.SetCurrent(player.health);
             if (Stomach != null)
                 Stomach.Restore(player.fullness, player.wellFedHours, player.sickHours);
+            // After the gear, which it puts away or leaves in hand.
+            if (_player != null && _player.Sheath != null)
+                _player.Sheath.Restore(player.sheathed);
 
             var taken = new HashSet<string>(data.taken);
             var returning = data.returning.ToDictionary(entry => entry.id, entry => entry.hours);
@@ -416,6 +426,12 @@ namespace WowSandbox
                 if (pickup is GroundItem item)
                     item.ReturnIn(returning.TryGetValue(id, out float hours) ? hours : 0f);
             }
+            foreach (var item in FindObjectsByType<GroundItem>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (item.Dropped)
+                    Destroy(item.gameObject);
+            foreach (var dropped in data.dropped)
+                if (dropped.item != null && !string.IsNullOrEmpty(dropped.item.name))
+                    GroundItem.Drop(dropped.item, dropped.position, dropped.yaw);
 
             if (data.campfire is { exists: true } fire)
                 Campfire.Place(fire.position, fire.yaw, fire.hours, fire.lit && fire.hours > 0f);
@@ -495,6 +511,8 @@ namespace WowSandbox
             public PlayerData player;
             public string[] taken = Array.Empty<string>();
             public ReturningData[] returning = Array.Empty<ReturningData>();
+            [Tooltip("Items he dropped from his bags, lying where he left them.")]
+            public DroppedData[] dropped = Array.Empty<DroppedData>();
             public FireData campfire;
             public ChestData[] chests = Array.Empty<ChestData>();
             public string[] dead = Array.Empty<string>();
@@ -523,6 +541,8 @@ namespace WowSandbox
             public float fullness;
             public float wellFedHours;
             public float sickHours;
+            [Tooltip("Whether his weapon and shield were put away (Z).")]
+            public bool sheathed;
             public SlotData[] bag = Array.Empty<SlotData>();
             public SlotData[] equipped = Array.Empty<SlotData>();
         }
@@ -539,6 +559,14 @@ namespace WowSandbox
         {
             public string id;
             public float hours;
+        }
+
+        [Serializable]
+        public class DroppedData
+        {
+            public Item item;
+            public Vector3 position;
+            public float yaw;
         }
 
         [Serializable]

@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
@@ -7,7 +8,8 @@ namespace WowSandbox
     /// <summary>
     /// The bags, toggled with B (or I): a grid of slots and the coin purse. Right-click
     /// equips, drag moves, drops onto the character sheet's equipment slots equip, and
-    /// dragging a loot window item in takes it.
+    /// dragging a loot window item in takes it. Dragging a bag item off every window asks
+    /// "Drop it on the ground?" and lays it at his feet (a GroundItem, to pick up again).
     /// </summary>
     [RequireComponent(typeof(Inventory))]
     public class InventoryPanel : HudPanel
@@ -22,6 +24,12 @@ namespace WowSandbox
         LootPanel _loot;
         ItemSlotView[] _slots;
         Text _money;
+        RectTransform _confirm;
+        Text _confirmText;
+        Action _confirmed;
+
+        // How far in front of him a dropped item lands.
+        const float DropAhead = 0.9f;
 
         int Rows => Mathf.CeilToInt(_inventory.BagSize / (float)Columns);
 
@@ -64,13 +72,29 @@ namespace WowSandbox
                 slot.TooltipHint = "Right-click to equip · drag to move";
                 slot.RightClicked = OnRightClick;
                 slot.DroppedOn = OnDropped;
+                slot.DroppedOutside = OnDroppedOutside;
                 _slots[i] = slot;
             }
 
             _money = Hud.Label("Money", Root, new Vector2(1f, 0f), new Vector2(-Pad, 12f), new Vector2(240f, 24f),
                 16, TextAnchor.MiddleRight, HudTheme.Text, FontStyle.Bold);
             _money.supportRichText = true;
+            BuildConfirm();
         }
+
+        protected override void Update()
+        {
+            // Esc says no to the question before it closes the bags.
+            if (_confirm != null && _confirm.gameObject.activeSelf && Keyboard.current != null &&
+                Keyboard.current.escapeKey.wasPressedThisFrame && !EscapeUsedThisFrame)
+            {
+                UseEscape();
+                HideConfirm();
+            }
+            base.Update();
+        }
+
+        protected override void Closed() => HideConfirm();
 
         protected override void Refresh()
         {
@@ -140,6 +164,102 @@ namespace WowSandbox
 
             if (!_inventory.Move(from.Ref, to.Ref, out var error) && error != null)
                 Hud.Error(error);
+        }
+
+        // --- Dropping on the ground ----------------------------------------------------------
+
+        void OnDroppedOutside(ItemSlotView slot)
+        {
+            if (slot.Ref.Area != SlotArea.Bag)
+                return;
+            var item = slot.Item;
+            int index = slot.Ref.Index;
+            if (!DropSpot(out _, out _))
+            {
+                Hud.Error("You can't drop that here.");
+                return;
+            }
+            string rarity = HudTheme.Hex(HudTheme.RarityColor(item.rarity));
+            string count = item.count > 1 ? $" x{item.count}" : "";
+            Confirm($"Drop <color=#{rarity}>{item.name}</color>{count} on the ground?", () => DropNow(index, item));
+        }
+
+        void DropNow(int index, Item expected)
+        {
+            // The bags may have changed while the question was up, or he may have moved somewhere he can't drop it.
+            if (_inventory.BagItem(index) != expected)
+                return;
+            if (!DropSpot(out var point, out float yaw))
+            {
+                Hud.Error("You can't drop that here.");
+                return;
+            }
+            var item = _inventory.TakeFromBag(index);
+            GroundItem.Drop(item, point, yaw);
+            Hud.Info($"You drop {item.name}{(item.count > 1 ? $" x{item.count}" : "")}.");
+        }
+
+        /// <summary>
+        /// The ground just in front of him, and a turn for the item; false where it can't lie —
+        /// in the water, on a ship's deck, on a ladder.
+        /// </summary>
+        bool DropSpot(out Vector3 point, out float yaw)
+        {
+            // His feet, if there's nothing under the spot in front of him.
+            point = transform.position;
+            yaw = transform.eulerAngles.y + UnityEngine.Random.Range(-40f, 40f);
+            var player = GetComponent<WowCharacterController>();
+            if (player != null && (player.IsSwimming || player.IsClimbing || player.Platform != null))
+                return false;
+
+            var origin = transform.position + transform.forward * DropAhead + Vector3.up * 1.5f;
+            var hits = Physics.RaycastAll(origin, Vector3.down, 4f, ~0, QueryTriggerInteraction.Ignore);
+            float nearest = float.MaxValue;
+            foreach (var hit in hits)
+            {
+                if (hit.collider.transform.IsChildOf(transform) || hit.distance >= nearest)
+                    continue;
+                nearest = hit.distance;
+                point = hit.point;
+            }
+            return true;
+        }
+
+        void BuildConfirm()
+        {
+            _confirm = Hud.Stretch("Confirm", Root, 2f);
+            var shade = Hud.Rounded(_confirm.gameObject, new Color(0f, 0f, 0f, 0.75f), 8f);
+            shade.raycastTarget = true;   // nothing behind it clickable while it's up
+
+            var box = Hud.Rect("Box", _confirm, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(300f, 120f));
+            Hud.Panel(box);
+            _confirmText = Hud.Label("Text", box, new Vector2(0.5f, 1f), new Vector2(0f, -16f), new Vector2(270f, 50f),
+                15, TextAnchor.MiddleCenter, HudTheme.Text);
+            _confirmText.supportRichText = true;
+            _confirmText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            Hud.TextButton("Drop", box, new Vector2(0.5f, 0f), new Vector2(-60f, 16f), new Vector2(100f, 30f), () =>
+            {
+                var action = _confirmed;
+                HideConfirm();
+                action?.Invoke();
+            });
+            Hud.TextButton("Cancel", box, new Vector2(0.5f, 0f), new Vector2(60f, 16f), new Vector2(100f, 30f), HideConfirm);
+            HideConfirm();
+        }
+
+        void Confirm(string question, Action onYes)
+        {
+            _confirmText.text = question;
+            _confirmed = onYes;
+            _confirm.gameObject.SetActive(true);
+            _confirm.SetAsLastSibling();
+        }
+
+        void HideConfirm()
+        {
+            _confirmed = null;
+            if (_confirm != null)
+                _confirm.gameObject.SetActive(false);
         }
     }
 }
