@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEditor.Animations;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace WowSandbox.EditorTools
 {
@@ -297,7 +298,7 @@ namespace WowSandbox.EditorTools
 
         // --- Ground items --------------------------------------------------------------------
 
-        enum PickupKind { Weapon, Armor, Shield, Clothing, Jewelry, Potion, TradeGood, Tool, Coin, Map, Light, Page }
+        enum PickupKind { Weapon, Armor, Shield, Clothing, Jewelry, Potion, TradeGood, Tool, Coin, Map, Light, Page, Quest }
 
         // The dropdown's entry for the map (MapPickup), which isn't a catalog item.
         const string MapChoice = "<Map>";
@@ -355,6 +356,7 @@ namespace WowSandbox.EditorTools
                 ("Trade Goods", ItemCatalog.TradeGoods),
                 ("Fish", ItemCatalog.Fish.Skip(1)),
                 ("Legendaries", ItemCatalog.Legendaries),
+                ("Quest", ItemCatalog.QuestItems),
             };
             var names = new List<string>();
             var labels = new List<string>();
@@ -372,8 +374,9 @@ namespace WowSandbox.EditorTools
             names.Add(PageChoice);
             labels.Add("Journal Page (story)");
             // Lights are always listed: without a model of their own they get a stand-in (StandInLight).
+            // Quest items too: they borrow the trade goods' model, or a lump.
             foreach (var (group, items) in groups)
-                foreach (var item in items.Where(item => HasModel(item, library) || item.kind == ItemKind.Light))
+                foreach (var item in items.Where(item => HasModel(item, library) || item.kind is ItemKind.Light or ItemKind.Quest))
                 {
                     names.Add(item.name);
                     labels.Add(group + "/" + item.name);
@@ -456,6 +459,10 @@ namespace WowSandbox.EditorTools
             var model = AssetDatabase.LoadAssetAtPath<GameObject>(EditorPrefs.GetString(ModelKey(kind), ""));
             if (page && model == null)
                 model = AssetDatabase.LoadAssetAtPath<GameObject>(EditorPrefs.GetString(ModelKey(PickupKind.Map), ""));
+            if (kind == PickupKind.Quest && catalogItem != null && QuestModels.TryGetValue(catalogItem.name, out string questModel))
+                model = AssetDatabase.LoadAssetAtPath<GameObject>(questModel) ?? model;
+            if (kind == PickupKind.Quest && model == null)
+                model = AssetDatabase.LoadAssetAtPath<GameObject>(EditorPrefs.GetString(ModelKey(PickupKind.TradeGood), ""));
             string label = map ? "Tattered Map" : page ? "Water-stained Page" : catalogItem != null ? catalogItem.name : "Coin";
 
             var root = new GameObject(label);
@@ -544,6 +551,69 @@ namespace WowSandbox.EditorTools
         /// shoulders). Null when it has none (body armour is painted on or skinned), so the
         /// kind's model is used instead.
         /// </summary>
+        /// <summary>
+        /// Gives every quest item already lying in the scene its own model (QuestModels): each
+        /// keeps its spot, turn and size, only its look changes. For parts placed before they
+        /// had models of their own.
+        /// </summary>
+        [MenuItem("WoW Sandbox/Refresh Quest Item Models")]
+        static void RefreshQuestModels()
+        {
+            int swapped = 0;
+            foreach (var ground in Object.FindObjectsByType<GroundItem>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (ground.item == null || !QuestModels.TryGetValue(ground.item.Trim(), out string path))
+                    continue;
+                var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (model == null)
+                {
+                    Debug.LogWarning($"[Interactables] No model at {path} for {ground.item} — left as it is.", ground);
+                    continue;
+                }
+
+                var root = ground.gameObject;
+                var old = root.transform.Find("Model");
+                var oldBounds = RendererBounds(root);
+                float longest = Mathf.Max(oldBounds.size.x, oldBounds.size.y, oldBounds.size.z);
+                if (old != null)
+                    Undo.DestroyObjectImmediate(old.gameObject);
+
+                var look = (GameObject)PrefabUtility.InstantiatePrefab(model, root.transform);
+                Undo.RegisterCreatedObjectUndo(look, "Refresh Quest Item Models");
+                look.name = "Model";
+                Glow(look);
+                Cutouts(look);
+                var bounds = RendererBounds(look);
+                if (longest > 0f && bounds.size.sqrMagnitude > 0f)
+                {
+                    look.transform.localScale *= longest / Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
+                    bounds = RendererBounds(look);
+                }
+                look.transform.position += Vector3.up * (oldBounds.min.y - bounds.min.y);
+
+                foreach (var box in root.GetComponents<BoxCollider>())
+                    Undo.DestroyObjectImmediate(box);
+                AddBoxCollider(root, trigger: true, minSize: 0.5f);
+                EditorUtility.SetDirty(root);
+                swapped++;
+            }
+            if (swapped > 0)
+                EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            Debug.Log($"[Interactables] Gave {swapped} quest item(s) their own model. Save the scene.");
+        }
+
+        /// <summary>
+        /// Each of Sprocket's compass parts in a look of its own, ahead of the Quest kind's model:
+        /// the doodads that read as that part, where they're exported.
+        /// </summary>
+        static readonly Dictionary<string, string> QuestModels = new()
+        {
+            ["Brass Gimbal"] = "Assets/WowExports/world/expansion07/doodads/human/8hu_kultiras_compass01.gltf",
+            ["Lodestone Needle"] = "Assets/WowExports/world/expansion05/doodads/human/doodads/6hu_lumbermill_compass01.gltf",
+            ["Cracked Dial Glass"] = "Assets/WowExports/world/expansion07/doodads/human/8hu_kultiras_spyglass01.gltf",
+            ["Clockwork Mainspring"] = "Assets/WowExports/world/generic/passivedoodads/engineering/spring.gltf",
+        };
+
         static GameObject GearModel(Item item, Transform parent) =>
             GroundItem.GearModel(item != null ? GearHarvester.LoadLibrary()?.For(item) : null, parent);
 
@@ -590,6 +660,7 @@ namespace WowSandbox.EditorTools
                 ItemKind.Jewelry => PickupKind.Jewelry,
                 ItemKind.Tool => PickupKind.Tool,
                 ItemKind.Light => PickupKind.Light,
+                ItemKind.Quest => PickupKind.Quest,
                 _ => PickupKind.TradeGood,
             };
         }

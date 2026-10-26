@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace WowSandbox
@@ -213,18 +214,33 @@ namespace WowSandbox
                     .Ask("How long have you been here?", HowLong)
                     .Goodbye("I'll leave you to it.");
 
-            string greeting = StoryState.Has(Notes) ? "Captain! Come in, come in. Don't touch anything. Well, touch that. Not that."
+            string greeting = StoryState.Has(CompassQuest.PartsIn) ? "Captain! Mind the bench, the compass is in bits. On purpose, this time."
+                            : StoryState.Has(CompassQuest.Started) ? "Captain! Any luck with my parts? Tell me you've brought gears."
+                            : StoryState.Has(Notes) ? "Captain! Come in, come in. Don't touch anything. Well, touch that. Not that."
                             : "Back again? Excellent! Hand me that... no, the other... never mind, I've got it.";
             return Topics(new DialogueNode(greeting));
         }
 
-        static DialogueNode Topics(DialogueNode node) => node
-            .Ask("Why don't you leave?", Leave)
-            .AskIf(!StoryState.Has(Notes), "Does your compass work?", Compass)
-            .AskIf(StoryState.Has(Notes), "Any luck with the compass?", CompassLater)
-            .Ask("What do you know about this isle?", Isle)
-            .AskIf(StoryState.Has("briggs.met"), "Have you met my quartermaster, Briggs?", Briggs)
-            .Goodbye("Good luck with it.");
+        static DialogueNode Topics(DialogueNode node)
+        {
+            node.Ask("Why don't you leave?", Leave);
+            if (!StoryState.Has(Notes))
+                node.Ask("Does your compass work?", Compass);
+            else if (!StoryState.Has(CompassQuest.Started))
+                node.Ask("Any luck with the compass?", CompassLater);
+            else if (StoryState.Has(CompassQuest.PartsIn))
+                node.Ask("How's the compass coming?", Building);
+            else if (CompassQuest.Carried(Player).Any())
+                node.Ask("I found something for your compass.", HandIn);
+            else
+                node.Ask("What do you still need for the compass?", StillNeeded);
+            return node
+                .Ask("What do you know about this isle?", Isle)
+                .AskIf(StoryState.Has("briggs.met"), "Have you met my quartermaster, Briggs?", Briggs)
+                .Goodbye("Good luck with it.");
+        }
+
+        static Inventory Player => UnityEngine.Object.FindAnyObjectByType<WowCharacterController>()?.GetComponent<Inventory>();
 
         static DialogueNode Wrecked() => Topics(new DialogueNode(
             "Another one? Oh, dear. That's the fourth ship this decade. I keep a tally on the wall. A storm, was it? " +
@@ -251,9 +267,72 @@ namespace WowSandbox
             return null;
         }
 
-        static DialogueNode CompassLater() => Topics(new DialogueNode(
-            "Not yet! Still points at the island like a dog at a sausage. I'll need parts, proper ones, brass and gears " +
-            "off the wrecks. I'll tell you which when I've drawn it up."));
+        static DialogueNode CompassLater() => new DialogueNode(
+                "Not yet! Still points at the island like a dog at a sausage. I've drawn up a new one, the Mark EIGHT, " +
+                "but I need parts. Proper ones, off the wrecks. Four of them. My legs aren't what they were, and the " +
+                "sharks have opinions about gnomes.")
+            .Ask("I'll find them for you. What do you need?", TakeErrand)
+            .Ask("Maybe later.", () => Topics(new DialogueNode("Later's fine! The island isn't going anywhere. That's rather the problem.")));
+
+        static DialogueNode TakeErrand()
+        {
+            StoryState.Set(CompassQuest.Started);
+            return Needed("Splendid! A brass gimbal, a lodestone needle, a dial glass and a good mainspring. Every wreck " +
+                          "round this isle has something worth having, if you know where to look. Ask me about any of them.");
+        }
+
+        static DialogueNode StillNeeded()
+        {
+            var missing = CompassQuest.Missing.ToList();
+            string list = missing.Count == 1 ? "the " + missing[0]
+                        : string.Join(", ", missing.Take(missing.Count - 1).Select(part => "the " + part)) + " and the " + missing[^1];
+            return Needed($"Still need {list}. Ask me about any of them.");
+        }
+
+        /// <summary>A line, then a reply to ask where each part he still needs is.</summary>
+        static DialogueNode Needed(string text)
+        {
+            var node = new DialogueNode(text);
+            foreach (var part in CompassQuest.Missing)
+            {
+                string asked = part;
+                node.Ask($"Where would I find the {asked}?", () => Where(asked));
+            }
+            return node.Ask("I'll get looking.", () => Topics(new DialogueNode("Off you go! Mind the sharks. And the crabs. And the trees, some of them.")));
+        }
+
+        static DialogueNode Where(string part)
+        {
+            string what = part switch
+            {
+                "Brass Gimbal" => "A ship's compass sits in a gimbal, so it keeps level when she rolls. Your Stormbreaker " +
+                                  "had a fine brass one in her binnacle, I'd wager.",
+                "Lodestone Needle" => "A needle cut from lodestone. The Cogwhistle carried one, my old girl. The isle " +
+                                      "took her, but she's still out there.",
+                "Cracked Dial Glass" => "Any ship's compass has a glass over the dial. Cracked is fine. Cracked is " +
+                                        "practically traditional.",
+                _ => "A good strong mainspring, the clockwork kind. Ship's chronometers have them, and some of these " +
+                     "wrecks are old enough to have proper ones.",
+            };
+            return Needed($"{what} Look {CompassQuest.Where(part)}.");
+        }
+
+        static DialogueNode HandIn()
+        {
+            var handed = CompassQuest.HandIn(Player);
+            int left = CompassQuest.Missing.Count();
+            string got = handed.Count == 1 ? $"The {handed[0]}!" : $"{handed.Count} of them at once!";
+            if (left == 0)
+                return Topics(new DialogueNode(
+                    $"{got} That's all four! Oh, Captain. Give me a day at the bench. Possibly two. Possibly an " +
+                    "explosion, but a small one."));
+            return Topics(new DialogueNode(
+                $"{got} Oh, that's lovely, look at that. {left} more to go." +
+                (left == 1 ? " Just the one!" : "")));
+        }
+
+        static DialogueNode Building() => Topics(new DialogueNode(
+            "Coming along! I've had it apart twice and together three times, which is a record. Give me a little longer."));
 
         static DialogueNode Isle() => Topics(new DialogueNode(
             "Ships come in. Ships don't go out. The fish are odd, the weather's odder, and there's something big in the " +

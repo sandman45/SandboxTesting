@@ -180,6 +180,10 @@ namespace WowSandbox
                     lines.Add($"<color=#{good}>A page of a journal. Take it to read it (J)</color>");
                     break;
 
+                case ItemKind.Quest when CompassQuest.IsPart(item.baseName):
+                    lines.Add($"<color=#{good}>Sprocket wants this for his compass</color>");
+                    break;
+
                 case ItemKind.Consumable when item.IsPotion:
                     lines.Add($"<color=#{good}>Use: Restores {Dice.Format(item.healDieCount, item.healDieSides, item.healBonus)} health</color>");
                     break;
@@ -205,7 +209,8 @@ namespace WowSandbox
 
             if (item.count > 1)
                 lines.Add($"<color=#{dim}>Stack of {item.count}</color>");
-            lines.Add($"Value: {Money.Format(item.valueCopper * item.count, rich: true)}");
+            if (item.kind != ItemKind.Quest)
+                lines.Add($"Value: {Money.Format(item.valueCopper * item.count, rich: true)}");
             if (!string.IsNullOrEmpty(hint))
                 lines.Add($"<color=#{dim}><i>{hint}</i></color>");
 
@@ -228,6 +233,7 @@ namespace WowSandbox
             ItemKind.Consumable => item.IsFood ? "Food" : "Potion",
             ItemKind.Tool => "Tool",
             ItemKind.JournalPage => "Journal Page",
+            ItemKind.Quest => "Quest Item",
             ItemKind.Light => item.slot == EquipSlot.OffHand ? "Held In Off Hand" : "Lamp Oil",
             _ => item.slot.ToString(),
         };

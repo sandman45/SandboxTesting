@@ -305,9 +305,9 @@ a starting point, not final.
 | 1 | Stormbreaker's log | In the wreck, beside the map | "Third day out. Briggs swears the glass is falling faster than he's ever seen. The Admiral's chart ends here. So do the shipping lanes." |
 | 2 | Stormbreaker's log | Washed up on the beach | The crew list, mostly lost. "Briggs, my quartermaster. If I trust anyone aboard, it's him." |
 | 3 | Stormbreaker's log | A chest near the wreck | The orders, as the Captain knew them: chart the isle, find Captain Mareth Kell. "Why me? There are older captains in Boralus." |
-| 4 | Kell's journal | Aboard the Grey Gull, tucked by the helm | "We struck the reef and still she floats. The hull is holed and she does not take water. The isle wants her kept." |
+| 4 | Kell's journal | Aboard the Grey Gull, in the captain's quarters | "We struck the reef and still she floats. The hull is holed and she does not take water. The isle wants her kept." |
 | 5 | Castaway — gnome | The gnome hut (given by Sprocket) | "COMPASS MK VII: Still points at the island. ALWAYS points at the island. Island is the problem. Need a compass that points *away*. Is that a thing? Making it a thing." |
-| 6 | Castaway — troll | A carving near the troll hut | The old warden carved in stone, coiled around a glowing heart. "Da sea keep what it call. Da heart call what it keep." |
+| 6 | Castaway — troll | A troll tablet among large standing stones, near the troll hut | The old warden carved in stone, coiled around a glowing heart. "Da sea keep what it call. Da heart call what it keep." |
 | 7 | Kell's journal | Carried by the thieves' leader | "Four years. I have tried the fog nine times. The beast does not attack. It *turns us back*, like a shepherd. It is old, and it is tired." |
 | 8 | Kell's journal | Only found at night by lantern light | "I think of the child every day. Daelin swore the navy would raise them. I hope they never hear of this place." |
 | 9 | Stormbreaker's log | Briggs, after his confession | The Admiral's sealed orders, in Daelin's hand: the truth about the Captain's parentage, and "the Heart comes home." |
@@ -419,9 +419,9 @@ leans on them.
 
 ### Act II — The Castaways' Trail
 
-- 🆕 **Page 4, aboard the Grey Gull,** tucked by the helm on deck.
-- 🆕 **Page 6, a troll carving.** An Interactable "read the carving" at the troll hut. 🎨 A
-  carved stone or tablet model.
+- ✅ **Page 4, aboard the Grey Gull,** in the captain's quarters.
+- ✅ **Page 6, a troll carving:** a troll tablet set among large standing stones near the troll
+  hut, picked up as a journal page.
 - 🆕 **Page 7, carried by the thieves' leader.** A named Thief Leader (a tougher
   `NpcCombat` humanoid) with a guaranteed drop.
 - 🆕 **Page 8, only by lantern light.** The page is hidden until it's night *and* the player's
@@ -438,9 +438,15 @@ leans on them.
     swimming (✅ swimming, sharks, the deadly open sea) or by ship (✅ sailing).
   - 🎨 Survivor models. The human character exports (bearded pirate, thin human with gear)
     may cover them.
-- 🆕 **Sprocket Wizzlecrank (gnome NPC).** Lives at the gnome hut, with dialogue and page 5.
-  Gives the **fog compass quest**: salvage 3–4 parts from wrecks around the isle (new
-  quest-item pickups). 🎨 A gnome character model.
+- ✅ **Sprocket Wizzlecrank (gnome NPC).** Works at his bench in the gnome hut (`Tinkerer`,
+  WoW Sandbox → Add Sprocket), wearing gnome goggles, with dialogue and page 5 (ask about his
+  compass).
+- 🚧 **The fog compass quest.** Sprocket asks for four parts (Brass Gimbal, Lodestone Needle,
+  Cracked Dial Glass, Clockwork Mainspring), one from each of the isle's wrecks, and says
+  roughly where each lies. They glint where they lie, and he takes them as you find them
+  (`CompassQuest`). Still to come: 🆕 two or three older wrecks round the coast, one sunk in
+  the shallows, and 🆕 the **Compass Mk VIII** he builds from them, whose needle points at the
+  Tide-Heart.
 - 🆕 **Grey Gull locked, then unlocked.** The helm refuses at first ("She won't answer
   the helm. Rotten canvas, and no hands to work her."). Two conditions free her: Sprocket's
   **sail-mending** quest (salvaged canvas from wrecks, as quest items) and **Pell rescued**,
@@ -521,9 +527,11 @@ leans on them.
   Diving Lamp** (salvage + Luminous Squid ink) that lights the way under the sea.
 - **The Grey Gull:** locked at first, unlocked in Act II once Sprocket mends her sails and
   Pell is rescued to crew her with Briggs.
-- **Page 4:** on deck, tucked by the helm.
+- **Page 4:** aboard the Grey Gull, in the captain's quarters.
+- **Page 6:** a troll tablet among standing stones near the troll hut.
 
 ## Open questions
 
-1. **Models.** There's no gnome or troll-carving export yet, only humans. Sprocket, the survivors,
-   the carvings, the Tide-Heart and the cave need exports chosen once we get to them.
+1. **Models.** The gnome (Sprocket), troll tablets (the carvings) and a naga cave WMO
+   (`md_nagacave`, a candidate for the drowned cave) are exported. The survivors and the
+   Tide-Heart still need exports chosen once we get to them.

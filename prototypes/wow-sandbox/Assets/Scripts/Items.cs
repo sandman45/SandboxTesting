@@ -58,6 +58,8 @@ namespace WowSandbox
         Light,
         /// <summary>A page of the story (journalPage): taking it adds it to the Journal, never the bags.</summary>
         JournalPage,
+        /// <summary>Wanted for a story errand — Sprocket's compass parts. Worth nothing to a merchant.</summary>
+        Quest,
     }
 
     /// <summary>
@@ -326,6 +328,18 @@ namespace WowSandbox
         public const float TorchHours = 4f;
         public const float OilHours = 8f;
 
+        /// <summary>
+        /// What Sprocket needs for his compass (CompassQuest), one from each of the isle's wrecks.
+        /// No value, so no merchant buys them.
+        /// </summary>
+        public static readonly Item[] QuestItems =
+        {
+            Quest("Brass Gimbal", "Gb"),
+            Quest("Lodestone Needle", "Nd"),
+            Quest("Cracked Dial Glass", "Dg"),
+            Quest("Clockwork Mainspring", "Ms"),
+        };
+
         /// <summary>Cooked at a campfire: what ends the opening's hunger and leaves you Well Fed.</summary>
         public static readonly Item[] Meals =
         {
@@ -349,7 +363,7 @@ namespace WowSandbox
         };
 
         static IEnumerable<Item> Equippable => Weapons.Concat(Armors).Append(Shield).Concat(Clothing).Concat(Jewelry);
-        static IEnumerable<Item> All => Equippable.Concat(LootOnly).Concat(Tools).Concat(Lights).Concat(TradeGoods).Concat(Fish.Skip(1)).Concat(NightFish.Where(fish => fish != null)).Concat(Meals).Concat(Potions).Concat(Legendaries);
+        static IEnumerable<Item> All => Equippable.Concat(LootOnly).Concat(Tools).Concat(Lights).Concat(TradeGoods).Concat(Fish.Skip(1)).Concat(NightFish.Where(fish => fish != null)).Concat(Meals).Concat(Potions).Concat(Legendaries).Concat(QuestItems);
 
         /// <summary>A merchant's shelves: every mundane piece of gear, the tools and lights, then the potions — fresh copies.</summary>
         public static Item[] VendorStock() => Equippable.Concat(Tools).Concat(Lights).Concat(Potions).Select(item => item.Clone()).ToArray();
@@ -557,6 +571,12 @@ namespace WowSandbox
             name = name, baseName = name, kind = ItemKind.Consumable, glyph = glyph,
             iconColor = new Color(0.62f, 0.4f, 0.2f), valueCopper = value, maxStack = 20,
             nourish = nourish, cooked = true,
+        };
+
+        static Item Quest(string name, string glyph) => new()
+        {
+            name = name, baseName = name, kind = ItemKind.Quest, glyph = glyph,
+            iconColor = new Color(0.72f, 0.56f, 0.2f),
         };
 
         static Item Tool(string name, string glyph, int value) => new()

@@ -39,6 +39,17 @@ namespace WowSandbox.EditorTools
         /// <summary>Same -X facing convention as every other M2; see WarriorSetup.ModelYawOffset.</summary>
         const float ModelYawOffset = 90f;
 
+        const string WorkshopName = "Sprocket's Workshop";
+        const string BenchPath = "Assets/WowExports/world/expansion09/doodads/profession/10pr_engineeringtable03.gltf";
+        const string GearStackPath = "Assets/WowExports/world/expansion07/doodads/gnome/8gn_gnome_gearcogstack01.gltf";
+        static readonly string[] LooseGearPaths =
+        {
+            "Assets/WowExports/world/expansion07/doodads/gnome/8gn_gnome_gearcogsmall01.gltf",
+            "Assets/WowExports/world/expansion07/doodads/gnome/8gn_gnome_gearcogsmall02.gltf",
+        };
+        /// <summary>The gap between Sprocket and his bench's near edge.</summary>
+        const float BenchGap = 0.25f;
+
         [MenuItem("WoW Sandbox/Add Sprocket")]
         static void AddSprocket()
         {
@@ -126,6 +137,114 @@ namespace WowSandbox.EditorTools
             EditorSceneManager.MarkSceneDirty(root.scene);
             Debug.Log($"[SprocketSetup] Placed {NpcName} in the gnome hut. Move him to his bench and turn him to " +
                       "face it, then save the scene.", root);
+        }
+
+        /// <summary>
+        /// Sets out Sprocket's workshop round him as he stands: the engineering table in front of
+        /// him, its long side across his front, the gear stack at its right-hand end and a couple
+        /// of loose cogs on the floor by it. All under one "Sprocket's Workshop" object (in the
+        /// hut, so it moves with it), replaced on each run — move Sprocket, then run it again.
+        /// </summary>
+        [MenuItem("WoW Sandbox/Dress Sprocket's Workshop")]
+        static void DressWorkshop()
+        {
+            var sprocket = Object.FindAnyObjectByType<Tinkerer>();
+            if (sprocket == null)
+            {
+                Debug.LogError("[SprocketSetup] No Sprocket in the scene — run Add Sprocket first.");
+                return;
+            }
+
+            var hut = GameObject.Find(HutName);
+            var old = hut != null ? hut.transform.Find(WorkshopName)?.gameObject : GameObject.Find(WorkshopName);
+            if (old != null)
+                Undo.DestroyObjectImmediate(old);
+            var workshop = new GameObject(WorkshopName);
+            Undo.RegisterCreatedObjectUndo(workshop, "Dress Sprocket's Workshop");
+            if (hut != null)
+                workshop.transform.SetParent(hut.transform, true);
+
+            var him = sprocket.transform;
+            var forward = Vector3.ProjectOnPlane(him.forward, Vector3.up).normalized;
+            var right = Vector3.Cross(Vector3.up, forward);
+            var floors = hut != null ? hut.GetComponentsInChildren<Collider>() : new Collider[0];
+
+            var bench = Place(BenchPath, workshop.transform, him.position, forward, floors, solid: true);
+            if (bench == null)
+            {
+                Debug.LogError($"[SprocketSetup] No bench model at {BenchPath} — export it from wow.export.");
+                return;
+            }
+            // Long side across his front, then pushed out till its near edge is BenchGap away.
+            var flat = InteractableSetup.RendererBounds(bench);
+            if (Mathf.Abs(Vector3.Dot(flat.size, forward)) > Mathf.Abs(Vector3.Dot(flat.size, right)))
+                bench.transform.rotation = Quaternion.AngleAxis(90f, Vector3.up) * bench.transform.rotation;
+            flat = InteractableSetup.RendererBounds(bench);
+            float depth = Mathf.Abs(Vector3.Dot(flat.size, forward));
+            float width = Mathf.Abs(Vector3.Dot(flat.size, right));
+            bench.transform.position += him.position + forward * (BenchGap + depth * 0.5f) - flat.center;
+            Settle(bench, floors);
+            Object.DestroyImmediate(bench.GetComponent<BoxCollider>());
+            InteractableSetup.AddBoxCollider(bench, trigger: false, minSize: 0.1f);
+
+            // At the bench's right-hand end, as he faces it, and level with its middle.
+            var benchMiddle = him.position + forward * (BenchGap + depth * 0.5f);
+            var stack = Place(GearStackPath, workshop.transform, benchMiddle + right * (width * 0.5f + 0.45f),
+                              forward, floors, solid: true);
+            int loose = 0;
+            foreach (var path in LooseGearPaths)
+            {
+                var spot = benchMiddle + right * (width * 0.5f + 0.35f) - forward * (0.45f + 0.3f * loose);
+                var yaw = Quaternion.AngleAxis(Random.Range(0f, 360f), Vector3.up) * forward;
+                if (Place(path, workshop.transform, spot, yaw, floors, solid: false) != null)
+                    loose++;
+            }
+
+            Selection.activeGameObject = workshop;
+            EditorSceneManager.MarkSceneDirty(workshop.scene);
+            Debug.Log($"[SprocketSetup] Set out Sprocket's workshop: the bench{(stack != null ? ", the gear stack" : "")}" +
+                      $"{(loose > 0 ? $" and {loose} loose cog(s)" : "")}. Nudge any of them, then save the scene.", workshop);
+        }
+
+        /// <summary>
+        /// An instance of the model at <paramref name="path"/> at <paramref name="at"/>, facing
+        /// <paramref name="facing"/>, sat on the floor below it; null if it isn't exported.
+        /// </summary>
+        static GameObject Place(string path, Transform parent, Vector3 at, Vector3 facing, Collider[] floors, bool solid)
+        {
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (model == null)
+            {
+                Debug.LogWarning($"[SprocketSetup] No model at {path} — skipped.");
+                return null;
+            }
+            var placed = (GameObject)PrefabUtility.InstantiatePrefab(model, parent);
+            Undo.RegisterCreatedObjectUndo(placed, "Dress Sprocket's Workshop");
+            placed.transform.SetPositionAndRotation(at, Quaternion.LookRotation(facing, Vector3.up));
+            InteractableSetup.Glow(placed);
+            InteractableSetup.Cutouts(placed);
+            Settle(placed, floors);
+            if (solid)
+                InteractableSetup.AddBoxCollider(placed, trigger: false, minSize: 0.1f);
+            return placed;
+        }
+
+        /// <summary>Drops <paramref name="placed"/> so its bottom sits on the hut floor beneath it.</summary>
+        static void Settle(GameObject placed, Collider[] floors)
+        {
+            var bounds = InteractableSetup.RendererBounds(placed);
+            var from = new Vector3(bounds.center.x, bounds.max.y + 1f, bounds.center.z);
+            var hits = Physics.RaycastAll(from, Vector3.down, bounds.size.y + 4f)
+                              .Where(hit => floors.Contains(hit.collider))
+                              .OrderBy(hit => hit.distance);
+            foreach (var hit in hits)
+            {
+                // The first hut surface below the model's own top: the floor (or a rug).
+                if (hit.point.y > bounds.max.y)
+                    continue;
+                placed.transform.position += Vector3.up * (hit.point.y - bounds.min.y);
+                return;
+            }
         }
 
         /// <summary>

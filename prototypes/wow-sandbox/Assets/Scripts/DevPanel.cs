@@ -249,7 +249,13 @@ namespace WowSandbox
             row = Buttons(ref y,
                 ("Show Minimap", () => DevOptions.ShowMinimap = !DevOptions.ShowMinimap),
                 ("Enable Map", () => DevOptions.EnableMap = !DevOptions.EnableMap),
-                ("All Pages", StoryState.FindAllPages));
+                ("All Pages", StoryState.FindAllPages),
+                ("Compass Parts", () => Player<Inventory>(i =>
+                {
+                    foreach (var part in CompassQuest.Missing)
+                        if (i.BestInBags(item => item.baseName == part) == null)
+                            i.Give(part);
+                })));
             _showMinimap = row[0].GetComponentInChildren<Text>();
             _enableMap = row[1].GetComponentInChildren<Text>();
             Buttons(ref y,
