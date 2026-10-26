@@ -95,6 +95,11 @@ As of 2026-10-25:
 - **Healing:** a rest or a cooked meal heals him to full. No eating in combat or while swimming.
 - **The camera** swings back behind him after a left-drag, and X and Z work with the bags or character sheet open.
 
+As of 2026-10-26:
+- **Sprocket Wizzlecrank,** the isle's gnome castaway, tinkering at his bench in the gnome hut in a pair of goggles. He downs tools and turns to you when you come close, and hands over his compass notes (page 5).
+- **Talk gestures:** Briggs and Sprocket gesture as they answer, picked from the line: emphatic for "!", asking for "?", hushed for an aside.
+- **More journal pages:** page 4 in the Grey Gull's captain's quarters, and page 6 on a troll tablet among standing stones near the troll hut.
+
 ✅ **Doodad chain verified end-to-end** on `md_pirateship` exported as OBJ: wow.export writes `pirateship_ModelPlacementInformation.csv` plus each doodad's OBJ, and wow.unity rebuilds `pirateship.prefab` with all 36 doodads (cannons, lanterns, hammocks, anchor) in place. Drag the **`.prefab`**, not the `.obj`. The traps on the way are listed under "Export format" below.
 
 ## Features we can add
@@ -177,6 +182,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | **WoW Sandbox → Add Shipwreck** | Lays the `md_shipwreck` hull and stern half-buried at the waterline, opposite the pirate ship by default (*Bearing*), scaled down (the hull is ~97 units at full size). It adds colliders and re-bakes the NavMesh. Re-running replaces the wreck. |
 | **WoW Sandbox → Place Player at Shipwreck** | Stands the player on the island side of the shipwreck, clear of it and facing it. That's where the game begins: the title screen circles them there, and it's the respawn point. Save the scene after. |
 | **WoW Sandbox → Add Vendor** | Places Quartermaster Briggs (the bearded-pirate export) on the beach nearest the ship and gives the player a `VendorPanel`. |
+| **WoW Sandbox → Add Sprocket** | Places Sprocket Wizzlecrank (the gnome export) on the gnome hut's floor with a `Tinkerer`, a `Speaker` and gnome goggles. Move him to his bench and turn him to face it, then save the scene. Re-running it on the Sprocket in the scene refits his goggles, reframes his portrait and adds any missing talk gestures. |
 | **WoW Sandbox → Place Treasure Chest** | A window: pick a chest model (everything in `world/skillactivated/containers`, plus `creatures/TreasureTracker`) and its height (0.9), and place it where the Scene view is looking (see *Treasure chests and ground items*). |
 | **WoW Sandbox → Place Ground Item** | A window: an item (or coin) to lie on the ground where the Scene view is looking, with a model per kind of item. |
 | **WoW Sandbox → Rebuild Dev Chests** | Rebuilds the chests the Developer panel spawns. They're built by themselves on Play when missing; this is for after changing how chests are set up. |

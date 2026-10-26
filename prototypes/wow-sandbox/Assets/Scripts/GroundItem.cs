@@ -173,6 +173,8 @@ namespace WowSandbox
             ground.count = dropped.count;
             ground.displayName = dropped.name;
             ground.Dropped = true;
+            if (dropped.kind == ItemKind.Quest)
+                root.AddComponent<Glint>();
             return ground;
         }
 
