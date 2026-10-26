@@ -82,7 +82,7 @@ As of 2026-10-21:
 - **Saving:** the whole game, autosaved, with Continue and New Game on the title screen.
 
 As of 2026-10-22:
-- **A survival start:** he washes up starving and too weak to leave the beach or swim. Gather driftwood and flint, build a campfire, cook a fish, eat, and sit by the fire (`X`) to get his strength back. Then a gentle hunger bar.
+- **A survival start:** he washes up starving and too weak to leave the beach or swim. Gather driftwood and flint, build a campfire, cook a fish, eat, and sit by the fire (`X`) to get his strength back. Then a gentle hunger bar. A cooked meal heals him to full health. No eating in combat or while swimming.
 - **Campfires and cooking** anywhere on open ground, with WoW's burning, cooking and cold campfire models.
 - **Sharks hunt the fish schools**, and fishing spots have tooltips.
 - **The old WoW sky dome is gone**, replaced by the raymarched clouds.
@@ -93,7 +93,6 @@ As of 2026-10-22:
 
 Ideas outside the story's build plan (that lives in [docs/LORE.md](docs/LORE.md), "Build plan by act"). 🎨 means it needs a model export first.
 
-- **Wind audio:** a wind sound that follows the weather system's wind, not only the storm's peak.
 - **Friendly ship crew:** bearded pirates working the wheel, oars and cannon crank (`WABoatWheelStand`, rowing and cannon-crank clips). Overlaps Act IV's crew aboard.
 - **Combat follow-ups:** a dazed animation for stunned enemies (`EmoteStunNoSheathe`), rage for the warrior abilities, and smarter `Tab` targeting that checks facing and line of sight.
 - 🎨 **Ground models for every pickup:** body armour has none yet (sack, pouch or armour stand-ins).
@@ -103,6 +102,34 @@ Ideas outside the story's build plan (that lives in [docs/LORE.md](docs/LORE.md)
 - **Cloaks**, if a character model that can wear one turns up.
 - **Save the rest:** breath, a lit torch, vendor stock and loot left on corpses aren't saved yet.
 - **Journal polish:** a font per hand and parchment art (details in LORE.md).
+- 🎨 **A bed aboard the ship:** a bunk or hammock below deck to rest at, opening the same rest window as a campfire (`RestPanel`) without needing a fire. A campfire can't be built on a ship.
+
+### Sound effects and voice lines
+
+All that plays now is the music (`MusicPlayer`) and the storm (`StormAudio`: rain, thunder, the leviathan). WoW's own sounds export from wow.export's Sounds tab and stay gitignored under `Assets/WowExports/sound/`, as the music does.
+
+**Sound effects**
+- [ ] **Wind** that follows the weather system's wind, not only the storm's peak
+- [ ] **Sea and shore:** surf on the beach, waves against the hull, the ship's timbers creaking
+- [ ] **Footsteps** by ground: sand, grass, stone, wooden deck, shallow water; landing from a jump
+- [ ] **Swimming:** strokes, diving in, surfacing, the muffled sound underwater, gasping when out of breath
+- [ ] **Combat:** swings by weapon (fists, dagger, one-hander, two-hander), hits, misses, crits, block, parry, dodge
+- [ ] **Abilities:** each warrior ability's own sound
+- [ ] **Weapons away and out:** sheathing and drawing (Z), by back, hip and shield
+- [ ] **Creatures:** chickens, sharks, the island's wildlife; their hurt and death sounds
+- [ ] **Fishing:** the cast, the bobber's splash, a bite, reeling in
+- [ ] **Camp:** striking flint, the campfire's crackle, cooking, eating and drinking
+- [ ] **World objects:** chests opening, picking things up, climbing ladders, the gate, doors
+- [ ] **Interface:** opening and closing windows, equipping, moving items, coins, buying and selling, loot, the error buzz, level up, journal pages turning
+- [ ] **Day and night:** birds by day, insects and frogs at night, lanterns lighting
+
+**Voice lines**
+- [ ] **The Captain in combat:** grunts as he swings, pain when hit, a death cry
+- [ ] **The Captain's errors**, spoken as WoW's are: "I can't carry any more", "I don't have a weapon", "I can't do that here", "Not yet"
+- [ ] **His thoughts** spoken aloud: waking on the beach, starving, finding a journal page
+- [ ] **NPC greetings and goodbyes:** the vendor, Briggs and anyone else with dialogue
+- [ ] **Dialogue lines** spoken alongside the dialogue window's text
+- [ ] **Enemies:** aggro shouts, and lines from the Thief Leader and Act II's other named foes
 
 ## Playable sandbox
 
@@ -242,11 +269,12 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 - **Starving:** he washes up Starving (`Hunger`): walking only, 2 less damage a hit, too weak to swim (his breath runs out at the surface, and he drowns), and he can't get more than 25 m from where he woke, staggering as he nears the edge. A cooked meal makes him **Weak** (still walking, still on the beach); then 20 s **sat by a lit campfire** (a **Resting** cast bar) gets his strength back for good (story flags `survival.fed`, `survival.strong`).
   - **After that:** a hunger bar under the player frame empties over 48 game hours. Below a quarter he's Hungry (a little slower and weaker), empty he's Starving again (no wall, no drowning). Cooked food fills it and leaves him **Well Fed** (+1 damage, 2 game hours); raw food fills it a little and makes him **Sick** (1 game hour). Right-click food in the bags to eat it.
 - **Campfire (`Campfire`):** right-click **Flint & Steel** with 3 **Driftwood** to kneel and build one (a 3 s cast) in front of him — not in the sea, on a ship, indoors (anything overhead) or on steep ground. It burns 4 game hours, dimming over the last half hour, then leaves cold coals until the next one. One at a time. It lights the night, the spot he built it from becomes his respawn point, and it's saved.
-- **Cooking (`CookingPanel`):** click a lit campfire for a window of recipes (Raw Fish → Grilled Fish, Raw Chicken → Roast Chicken) with Cook and Cook All: 2.5 s each on the cast bar, the skillet over the fire and him knelt beside it. Walking off, the fire going out or a blow stops it.
+- **Resting (`RestPanel`):** sitting down (`X`) by a lit campfire opens a rest window, with the cooking window beside it. The rest window has the time of day on a big copy of the minimap's sun-and-moon dial, a choice of 1, 2, 5, 8, 10 or 12 hours, and when he'll wake. **Rest** dims the screen while the big dial spins round to the waking hour, a few seconds for the lot. The hours really pass (`DayNightCycle.Rush`): the fire burns down and goes out if he sleeps past it, hunger grows, weather changes and taken things come back. A blow, death or `Esc` wakes him early. He wakes at full health (unless a blow woke him), and an hour's rest, once he's eaten, also gets his strength back. Standing up closes the window.
+- **Cooking (`CookingPanel`):** click a lit campfire (it sits him down beside it, opening the cooking and rest windows) for a window of recipes (Raw Fish → Grilled Fish, Raw Chicken → Roast Chicken) with Cook and Cook All: 2.5 s each on the cast bar, the skillet over the fire, and him cooking where he sits (or knelt beside it, if he's on his feet). Walking off, the fire going out or a blow stops it.
 - **Sheathing (`WeaponSheath`):** **Z** puts the weapon and shield away and draws them again; they stay equipped. `EquipmentVisuals.SetSheathed` moves their meshes onto WoW's sheath attachment points (26 back, 28 shield, 32 left hip), which **Harvest Gear** stores in the `GearLibrary` (re-run it once). A torch or lantern stays in hand. **Update Warrior Animations** adds an upper-body `Sheath` layer (the `Sheath` and `HipSheath` clips, masked from `bone_EXP_C1_Spine2` up) so he can draw on the run; the meshes swap halfway through the clip. Saved.
 - **Sitting (`PlayerSit`):** **X** sits him on the ground (in the water X still dives). Moving, jumping, X or a blow stands him up. Needs **Update Warrior Animations** for the `SitGroundDown`/`SitGround`/`SitGroundUp` states.
 - **Starting outfit:** none. The player starts with empty hands, empty bags and no coin; gear is found, looted or bought. The action bar stays hidden (and abilities 2–5 refuse) until a weapon is in the main hand. The vendor also sells two-handers like the Maul (2d6, 10 gp) and Claymore (2d6, 50 gp), shoulders: Leather Spaulders (5 sp, cosmetic) and Iron Pauldrons (2 gp, +1 AC), and legs: Leather Leggings (5 sp, cosmetic) and Iron Legguards (2 gp, +1 AC). The two iron pieces are the only non-magic AC outside chest armour and shields. The body armours are chest-only exports, so they don't cover the legs; the shorts or leggings show below them. The Pirate Hat is loot only; the Developer panel has **Pirate Hat** and **Linen Outfit** buttons.
-- **Slots:** Head, Shoulders, Back, Chest, Hands, Legs and Feet, then Main, Off, Neck and Ring, in two rows on the character sheet (C).
+- **Slots:** on the character sheet (C), laid out like WoW's: Head, Neck, Shoulders, Back and Chest down the left of his model, Hands, Legs, Feet and Ring down the right, and Main and Off under it. The model is a live copy of him wearing what he wears (weapon drawn or put away); drag on it to turn him round.
 - **Three kinds of gear,** and one item can use several:
   - **Painted on:** cloth shirts, trousers and sandals are drawn into the body texture. Each item's pixels are pasted onto a copy of the bare body.
   - **Body pieces:** WoW swaps parts of the body mesh to match gear. The shirt adds sleeve cuffs (`Wrists2`) and the hat hides the hair (`Hair2`).
@@ -299,7 +327,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | `Q` / `E` | Strafe left / right |
 | `Shift` | Walk (the character runs by default, as in WoW) |
 | Right-drag | Steer the character; camera follows behind |
-| Left-drag | Orbit the camera only; character keeps its facing |
+| Left-drag | Orbit the camera only; character keeps its facing. Let go and it swings back behind him (press right mid-drag to turn him to face that way instead) |
 | Scroll | Zoom |
 | `Space` | Jump (physics only — see below) — swims **up** while in water |
 | `X` | Swim **down** (in water only) |
@@ -311,7 +339,7 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | `Z` | Put your weapon and shield away (two-handers on the back, one-handers on the hip, shields on the back); `Z` again draws them. The action bar hides while they're away; a swing, an ability or a blow draws them |
 | `Tab` | Target the nearest enemy on screen within 40 units; press again for the next one out (`TargetingController`; neutral creatures only with *Tab Includes Neutral*) |
 | `B` / `I` | Bags (drag an item out of them onto the world to drop it on the ground, after a Drop / Cancel question) |
-| `C` | Character sheet |
+| `C` | Character sheet, with his model in the middle (drag it to turn him) |
 | `M` | World map (scroll over it to zoom) |
 | `Esc` | Close the top window; with none open, Settings |
 

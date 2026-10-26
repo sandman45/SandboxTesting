@@ -160,6 +160,10 @@ namespace WowSandbox
         /// <summary>The model's Animator (WarriorAbilities plays its ability states on it).</summary>
         public Animator Animator => _animator;
 
+        /// <summary>How modelRoot sits under him standing still, before any swimming lean (the sheet's paper doll).</summary>
+        public Quaternion ModelRestRotation => _modelRestRotation;
+        public Vector3 ModelRestPosition => _modelRestPosition;
+
         // Charge: rushing at a target until in reach, then the arrival callback.
         Health _chargeTarget;
         float _chargeSpeed;

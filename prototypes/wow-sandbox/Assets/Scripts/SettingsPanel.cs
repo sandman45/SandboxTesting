@@ -42,6 +42,7 @@ namespace WowSandbox
         }
 
         protected override Vector2 PanelSize => new(Width, 554f);
+        protected override bool Modal => true;
         protected override Vector2 PanelAnchor => new(0.5f, 0.5f);
         protected override Vector2 PanelPosition => Vector2.zero;
 

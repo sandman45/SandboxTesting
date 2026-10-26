@@ -132,7 +132,7 @@ namespace WowSandbox
             UpdateAnimation();
 
             var keyboard = Keyboard.current;
-            if (keyboard == null || !keyboard.zKey.wasPressedThisFrame || HudPanel.AnyOpen)
+            if (keyboard == null || !keyboard.zKey.wasPressedThisFrame || HudPanel.ModalOpen)
                 return;
             if (_playStart >= 0f || _player.IsLocked || TitleScreen.Showing || ShipwreckWake.Lying ||
                 _health != null && _health.IsDead || _visuals != null && _visuals.Holding)

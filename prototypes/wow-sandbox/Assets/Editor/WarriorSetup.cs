@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -82,6 +83,7 @@ namespace WowSandbox.EditorTools
             bool washedUp = AddWashedUpStates(controller, clips);
             bool sit = AddSitStates(controller, clips);
             bool sheath = AddSheathLayer(controller, clips);
+            int stripped = StripGearBones();
             // The abilities that play the new states, on the player already in the scene.
             foreach (var player in Object.FindObjectsByType<WowCharacterController>())
             {
@@ -96,6 +98,68 @@ namespace WowSandbox.EditorTools
                           (hit ? " hit reaction" : "") + (combat ? " combat" : "") + (loot ? " looting" : "") + (washedUp ? " washed up" : "") + (sit ? " sitting" : "") +
                           (sheath ? " sheathing" : "") + ".", controller);
             }
+            if (stripped > 0)
+                Debug.Log($"[WarriorSetup] Took the gear bones' own movement out of {stripped} clip(s), so weapons, " +
+                          "shields and helms keep their fit in those animations (Walk).");
+        }
+
+        /// <summary>
+        /// The bones gear hangs from — the hand, shield, helm and sheath points Harvest Gear found.
+        /// Empty before Harvest Gear has run.
+        /// </summary>
+        static HashSet<string> GearBones()
+        {
+            var bones = new HashSet<string>();
+            var library = GearHarvester.LoadLibrary();
+            if (library == null)
+                return bones;
+            foreach (var look in library.looks.Where(look => look != null))
+                foreach (var piece in look.attachedPieces)
+                    if (!string.IsNullOrEmpty(piece.bone))
+                        bones.Add(piece.bone);
+            foreach (var point in library.sheathPoints.Where(point => point != null && !string.IsNullOrEmpty(point.bone)))
+                bones.Add(point.bone);
+            return bones;
+        }
+
+        /// <summary>
+        /// Walk, alone of the model's clips, turns and scales the attachment bones themselves; every
+        /// other clip leaves them at rest, which is where the gear's fits (and the sheath turns) were
+        /// set. Their curves come out of the generated copies, so a sword or shield doesn't twist
+        /// off its fit whenever he walks. Returns how many clips changed.
+        /// </summary>
+        static int StripGearBones()
+        {
+            var bones = GearBones();
+            if (bones.Count == 0)
+                return 0;
+            int changed = 0;
+            foreach (string guid in AssetDatabase.FindAssets("t:AnimationClip", new[] { GeneratedRoot }))
+            {
+                var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(AssetDatabase.GUIDToAssetPath(guid));
+                if (clip != null && StripGearBones(clip, bones))
+                {
+                    EditorUtility.SetDirty(clip);
+                    changed++;
+                }
+            }
+            if (changed > 0)
+                AssetDatabase.SaveAssets();
+            return changed;
+        }
+
+        static bool StripGearBones(AnimationClip clip, HashSet<string> bones)
+        {
+            bool changed = false;
+            foreach (var binding in AnimationUtility.GetCurveBindings(clip))
+            {
+                string bone = binding.path.Substring(binding.path.LastIndexOf('/') + 1);
+                if (binding.type != typeof(Transform) || !bones.Contains(bone))
+                    continue;
+                AnimationUtility.SetEditorCurve(clip, binding, null);
+                changed = true;
+            }
+            return changed;
         }
 
         /// <summary>
@@ -1120,12 +1184,14 @@ namespace WowSandbox.EditorTools
                 EditorUtility.CopySerialized(original, existing);
                 existing.name = $"{namePrefix}_v{variation}";
                 SetLoop(existing, loop);
+                StripGearBones(existing, GearBones());
                 return existing;
             }
 
             var copy = Object.Instantiate(original);
             copy.name = $"{namePrefix}_v{variation}";
             SetLoop(copy, loop);
+            StripGearBones(copy, GearBones());
             AssetDatabase.CreateAsset(copy, path);
             return copy;
         }
@@ -1163,6 +1229,7 @@ namespace WowSandbox.EditorTools
             var settings = AnimationUtility.GetAnimationClipSettings(copy);
             settings.loopTime = loop;
             AnimationUtility.SetAnimationClipSettings(copy, settings);
+            StripGearBones(copy, GearBones());
 
             AssetDatabase.CreateAsset(copy, path);
             return copy;

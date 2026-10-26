@@ -4,8 +4,9 @@ using UnityEngine.InputSystem;
 namespace WowSandbox
 {
     /// <summary>
-    /// WoW-style third-person camera. Left-drag orbits the camera alone; right-drag
-    /// steers the character and the camera rides along behind it.
+    /// WoW-style third-person camera. Left-drag orbits the camera alone, and swings back
+    /// behind him when let go; right-drag steers the character and the camera rides along
+    /// behind it.
     ///
     /// The camera's yaw is stored as an offset from the character's facing rather than
     /// as a world angle, which is what makes both behaviours fall out naturally: turning
@@ -35,6 +36,10 @@ namespace WowSandbox
                  "rather than a click. Below this the cursor stays put, so left-clicking to " +
                  "target or attack doesn't warp it to the centre of the screen.")]
         public float leftClickDragThreshold = 4f;
+        [Tooltip("Let go of a left-drag and the camera swings back round behind him, as in WoW.")]
+        public bool returnBehindOnRelease = true;
+        [Tooltip("How quickly it swings back — higher is snappier.")]
+        public float returnSharpness = 6f;
 
         [Header("Collision")]
         public bool avoidGeometry = true;
@@ -189,6 +194,14 @@ namespace WowSandbox
                 // — steering has no click-only meaning of its own to protect.
                 bool orbiting = leftHeld && _leftDragConfirmed;
 
+                // Grabbing the right button mid-orbit turns him to face where the camera looks,
+                // so steering carries on from that view rather than from behind his old facing.
+                if (steering && !_freeOrbit && Mathf.Abs(_yawOffset) > 0.01f)
+                {
+                    target.Rotate(Vector3.up, _yawOffset, Space.World);
+                    _yawOffset = 0f;
+                }
+
                 if (orbiting || steering)
                 {
                     Vector2 delta = rawDelta * mouseSensitivity;
@@ -214,6 +227,16 @@ namespace WowSandbox
                 float scroll = Hud.PointerOverUi ? 0f : mouse.scroll.ReadValue().y;
                 if (Mathf.Abs(scroll) > 0.01f)
                     distance = Mathf.Clamp(distance - Mathf.Sign(scroll) * zoomSpeed, minDistance, maxDistance);
+
+                // Let go and it swings back behind him the short way round. Not at the helm,
+                // where looking about the ship is the point.
+                if (returnBehindOnRelease && !_freeOrbit && !orbiting && !steering && _yawOffset != 0f)
+                {
+                    _yawOffset = Mathf.DeltaAngle(0f, _yawOffset);
+                    _yawOffset = Mathf.LerpAngle(_yawOffset, 0f, 1f - Mathf.Exp(-returnSharpness * Time.deltaTime));
+                    if (Mathf.Abs(_yawOffset) < 0.05f)
+                        _yawOffset = 0f;
+                }
             }
 
             Vector3 pivot = target.position + Vector3.up * targetHeight;

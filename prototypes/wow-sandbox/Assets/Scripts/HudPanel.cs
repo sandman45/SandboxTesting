@@ -27,6 +27,15 @@ namespace WowSandbox
         public static bool AnyOpen => _open.Count > 0;
 
         /// <summary>
+        /// True while a panel that holds the game's keys is open — the settings menu, as WoW's game
+        /// menu does. Bags, the character sheet, the map and the rest leave X (sit) and Z (sheathe) working.
+        /// </summary>
+        public static bool ModalOpen => _open.Exists(panel => panel.Modal);
+
+        /// <summary>Whether this panel, while open, holds the keys (see ModalOpen).</summary>
+        protected virtual bool Modal => false;
+
+        /// <summary>
         /// Whether a panel has already used this frame's Esc (to close itself) — so the
         /// settings menu, which Esc opens, doesn't open in the same keypress.
         /// </summary>

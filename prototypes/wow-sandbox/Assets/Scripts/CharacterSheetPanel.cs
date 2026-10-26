@@ -7,41 +7,54 @@ namespace WowSandbox
     /// <summary>
     /// D&D-style character sheet, toggled with C: name, level and class, experience toward
     /// the next level, the six ability scores (modifier large, score small, as on a paper
-    /// sheet), the combat numbers that derive from them, and — with an Inventory — the
-    /// equipment slots. Scores raised by gear show green. Drag items from the bags onto a
-    /// slot to wear them; right-click a worn item to take it off.
+    /// sheet), the combat numbers that derive from them, and — with an Inventory — WoW's
+    /// paper doll: his model in the middle (drag to turn him), the equipment slots down
+    /// both sides and the weapons under it. Scores raised by gear show green. Drag items
+    /// from the bags onto a slot to wear them; right-click a worn item to take it off.
     /// </summary>
     [RequireComponent(typeof(CharacterStats))]
     public class CharacterSheetPanel : HudPanel
     {
-        const float Width = 440f;
         const float Pad = 18f;
-        const float ColumnWidth = (Width - Pad * 3f) / 2f;
+        const float Top = -96f;
 
-        // Two rows: what you wear, head to toe, then what you hold and the jewellery.
-        static readonly (EquipSlot slot, string label)[][] EquipmentRows =
+        // WoW's paper doll: down the left, down the right, and the weapons along the bottom.
+        static readonly (EquipSlot slot, string label)[] LeftSlots =
         {
-            new[]
-            {
-                (EquipSlot.Head, "Head"),
-                (EquipSlot.Shoulders, "Shldr"),
-                (EquipSlot.Back, "Back"),
-                (EquipSlot.Chest, "Chest"),
-                (EquipSlot.Hands, "Hands"),
-                (EquipSlot.Legs, "Legs"),
-                (EquipSlot.Feet, "Feet"),
-            },
-            new[]
-            {
-                (EquipSlot.MainHand, "Main"),
-                (EquipSlot.OffHand, "Off"),
-                (EquipSlot.Neck, "Neck"),
-                (EquipSlot.Ring, "Ring"),
-            },
+            (EquipSlot.Head, "Head"),
+            (EquipSlot.Neck, "Neck"),
+            (EquipSlot.Shoulders, "Shldr"),
+            (EquipSlot.Back, "Back"),
+            (EquipSlot.Chest, "Chest"),
+        };
+        static readonly (EquipSlot slot, string label)[] RightSlots =
+        {
+            (EquipSlot.Hands, "Hands"),
+            (EquipSlot.Legs, "Legs"),
+            (EquipSlot.Feet, "Feet"),
+            (EquipSlot.Ring, "Ring"),
+        };
+        static readonly (EquipSlot slot, string label)[] WeaponSlots =
+        {
+            (EquipSlot.MainHand, "Main"),
+            (EquipSlot.OffHand, "Off"),
         };
 
         const float SlotSize = 46f;
-        const float SlotRowGap = 8f;
+        const float SlotGap = 8f;
+        const float ModelGap = 10f;
+        const float ModelWidth = 180f;
+        // As tall as the left column of slots.
+        const float ModelHeight = 5 * SlotSize + 4 * SlotGap;
+        const float DollWidth = SlotSize * 2f + ModelGap * 2f + ModelWidth;
+        const float DollBottom = Top - ModelHeight - ModelGap - SlotSize;
+
+        // The stats, to the right of the doll (or alone, with no Inventory).
+        const float StatsWidth = 360f;
+        const float ColumnGap = 12f;
+        const float ColumnWidth = (StatsWidth - ColumnGap) / 2f;
+        float StatsX => _inventory != null ? Pad + DollWidth + Pad : Pad;
+        float Width => StatsX + StatsWidth + Pad;
 
         static readonly (Ability ability, string label)[] Abilities =
         {
@@ -57,6 +70,8 @@ namespace WowSandbox
         HealthController _health;
         Inventory _inventory;
         ItemSlotView[] _equipment;
+        CharacterPreview _preview;
+        bool _previewShown;
 
         Text _name;
         Text _subtitle;
@@ -68,7 +83,7 @@ namespace WowSandbox
         Text _attack, _damage, _hitDice, _perception;
         Text _speed, _armor;
 
-        protected override Vector2 PanelSize => new(Width, _inventory != null ? 470f + SlotSize + SlotRowGap : 384f);
+        protected override Vector2 PanelSize => new(Width, _inventory != null ? -DollBottom + Pad : 384f);
 
         protected override void Awake()
         {
@@ -76,6 +91,34 @@ namespace WowSandbox
             _health = GetComponent<HealthController>();
             _inventory = GetComponent<Inventory>();
             base.Awake();
+        }
+
+        void OnEnable()
+        {
+            if (_inventory != null)
+                _inventory.Changed += OnInventoryChanged;
+        }
+
+        protected override void OnDisable()
+        {
+            if (_inventory != null)
+                _inventory.Changed -= OnInventoryChanged;
+            base.OnDisable();
+        }
+
+        void OnDestroy() => _preview?.Dispose();
+
+        // His gear may have changed: the doll dresses again.
+        void OnInventoryChanged()
+        {
+            if (_previewShown)
+                _preview.MarkDirty();
+        }
+
+        protected override void Closed()
+        {
+            _preview?.Hide();
+            _previewShown = false;
         }
 
         protected override void Build()
@@ -92,14 +135,14 @@ namespace WowSandbox
                 new Vector2(inner, 16f), labelSize: 12);
             _experienceBar.FillColor = HudTheme.Experience;
 
-            Heading("Abilities", -96f);
+            Heading("Abilities", Top);
 
-            const float boxWidth = 62f;
-            float gap = (inner - boxWidth * 6f) / 5f;
+            const float boxWidth = 54f;
+            float gap = (StatsWidth - boxWidth * 6f) / 5f;
             for (int i = 0; i < Abilities.Length; i++)
             {
                 var box = Hud.Rect(Abilities[i].label, Root, topLeft,
-                    new Vector2(Pad + i * (boxWidth + gap), -118f), new Vector2(boxWidth, 74f));
+                    new Vector2(StatsX + i * (boxWidth + gap), Top - 22f), new Vector2(boxWidth, 74f));
                 Hud.Rounded(box.gameObject, HudTheme.SubPanel, 6f);
 
                 Hud.Label("Label", box, topLeft, new Vector2(0f, -4f), new Vector2(boxWidth, 16f),
@@ -111,7 +154,7 @@ namespace WowSandbox
                     14, TextAnchor.MiddleCenter, HudTheme.TextDim);
             }
 
-            Heading("Combat", -208f);
+            Heading("Combat", Top - 112f);
 
             _armorClass = Row(0, 0, "Armor Class");
             _hitPoints = Row(0, 1, "Hit Points");
@@ -130,22 +173,27 @@ namespace WowSandbox
 
         void BuildEquipment()
         {
-            Heading("Equipment", -372f);
-
-            float inner = Width - Pad * 2f;
-            // Spaced to fit the longest row; the shorter one lines up under its left end.
-            int columns = EquipmentRows.Max(row => row.Length);
-            float gap = (inner - SlotSize * columns) / (columns - 1);
-            var slots = EquipmentRows
-                .SelectMany((row, r) => row.Select((entry, c) => (entry.slot, entry.label, r, c)))
+            const float modelX = Pad + SlotSize + ModelGap;
+            const float rightX = modelX + ModelWidth + ModelGap;
+            const float weaponsY = Top - ModelHeight - ModelGap;
+            const float weaponsX = modelX + (ModelWidth - SlotSize * 2f - ModelGap) / 2f;
+            var slots = LeftSlots.Select((entry, i) => (entry.slot, entry.label, position: new Vector2(Pad, Top - i * (SlotSize + SlotGap))))
+                .Concat(RightSlots.Select((entry, i) => (entry.slot, entry.label, position: new Vector2(rightX, Top - i * (SlotSize + SlotGap)))))
+                .Concat(WeaponSlots.Select((entry, i) => (entry.slot, entry.label, position: new Vector2(weaponsX + i * (SlotSize + ModelGap), weaponsY))))
                 .ToArray();
             _equipment = new ItemSlotView[slots.Length];
 
+            // Him, between the two columns.
+            var frame = Hud.Rect("Model", Root, new Vector2(0f, 1f), new Vector2(modelX, Top), new Vector2(ModelWidth, ModelHeight));
+            Hud.Rounded(frame.gameObject, HudTheme.SubPanel, 6f);
+            var picture = Hud.Stretch("Picture", frame, 2f).gameObject.AddComponent<RawImage>();
+            _preview = new CharacterPreview(picture, new Vector2(ModelWidth, ModelHeight),
+                GetComponent<WowCharacterController>(), GetComponent<EquipmentVisuals>());
+
             for (int i = 0; i < slots.Length; i++)
             {
-                var (slot, label, row, column) = slots[i];
-                var view = ItemSlotView.Create(label, Root, new Vector2(0f, 1f),
-                    new Vector2(Pad + column * (SlotSize + gap), -396f - row * (SlotSize + SlotRowGap)), SlotSize, label);
+                var (slot, label, position) = slots[i];
+                var view = ItemSlotView.Create(label, Root, new Vector2(0f, 1f), position, SlotSize, label);
                 view.Source = () => _inventory.Equipped(slot);
                 view.Ref = SlotRef.Equip(slot);
                 view.Reader = _stats;
@@ -168,7 +216,7 @@ namespace WowSandbox
 
         void Heading(string title, float y)
         {
-            var text = Hud.Label(title, Root, new Vector2(0f, 1f), new Vector2(Pad, y), new Vector2(Width - Pad * 2f, 18f),
+            var text = Hud.Label(title, Root, new Vector2(0f, 1f), new Vector2(StatsX, y), new Vector2(StatsWidth, 18f),
                 14, TextAnchor.MiddleLeft, HudTheme.Heading, FontStyle.Bold);
             text.text = title.ToUpperInvariant();
         }
@@ -176,7 +224,7 @@ namespace WowSandbox
         /// <summary>A label-left, value-right line in one of the two combat columns; returns the value.</summary>
         Text Row(int column, int row, string label)
         {
-            var position = new Vector2(Pad + column * (ColumnWidth + Pad), -232f - row * 26f);
+            var position = new Vector2(StatsX + column * (ColumnWidth + ColumnGap), Top - 136f - row * 26f);
             var size = new Vector2(ColumnWidth, 22f);
             var line = Hud.Rect(label, Root, new Vector2(0f, 1f), position, size);
             Hud.Rounded(line.gameObject, HudTheme.SubPanel, 4f);
@@ -233,6 +281,17 @@ namespace WowSandbox
             {
                 foreach (var view in _equipment)
                     view.Refresh();
+            }
+
+            // Shown from the first refresh after opening (Open refreshes straight away).
+            if (_preview != null)
+            {
+                if (!_previewShown)
+                {
+                    _preview.Show();
+                    _previewShown = true;
+                }
+                _preview.Tick();
             }
         }
 

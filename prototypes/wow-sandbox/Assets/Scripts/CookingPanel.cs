@@ -7,11 +7,12 @@ namespace WowSandbox
     /// <summary>
     /// Cooking at a campfire: clicking a lit one opens this, a row per recipe — what it makes,
     /// what it takes and how many he has — with Cook (one) and Cook All. Each takes CookSeconds
-    /// on the cast bar with the skillet over the fire (Campfire.Cooking) and him knelt beside it
-    /// (the looting pose); walking off, the fire going out or a blow stops it. What's cooked goes
-    /// in the bags, the raw food comes out of them.
+    /// on the cast bar with the skillet over the fire (Campfire.Cooking), him sat where he is or,
+    /// on his feet, knelt beside it (the looting pose); walking off, the fire going out or a blow
+    /// stops it. What's cooked goes in the bags, the raw food comes out of them.
     ///
-    /// Added to the player the first time a fire is clicked.
+    /// Opens with the rest window when he sits by a fire (clicking one sits him). Added to the
+    /// player the first time.
     /// </summary>
     [RequireComponent(typeof(Inventory))]
     public class CookingPanel : HudPanel
@@ -25,7 +26,7 @@ namespace WowSandbox
 
         const float CookSeconds = 2.5f;
         const float Reach = 4.5f;
-        const float Width = 340f;
+        const float Width = 420f;
         const float Pad = 14f;
         const float RowHeight = 54f;
 
@@ -45,6 +46,7 @@ namespace WowSandbox
         int _left;
         int _done;
         float _started;
+        bool _kneeling;
 
         protected override Vector2 PanelSize => new(Width, 78f + Recipes.Length * RowHeight + 16f);
         protected override Vector2 PanelAnchor => new(0.5f, 0.5f);
@@ -109,9 +111,11 @@ namespace WowSandbox
                 slot.Source = () => made;
                 slot.Reader = _stats;
 
-                Hud.Label("Meal", row, topLeft, new Vector2(RowHeight + 2f, -4f), new Vector2(150f, 20f),
+                // Up to just short of the Cook buttons, which take the row's last 130 px.
+                float textWidth = Width - Pad * 2f - (RowHeight + 2f) - 146f;
+                Hud.Label("Meal", row, topLeft, new Vector2(RowHeight + 2f, -4f), new Vector2(textWidth, 20f),
                     15, TextAnchor.MiddleLeft, HudTheme.Text, FontStyle.Bold).text = meal;
-                _counts[i] = Hud.Label("Takes", row, topLeft, new Vector2(RowHeight + 2f, -24f), new Vector2(150f, 18f),
+                _counts[i] = Hud.Label("Takes", row, topLeft, new Vector2(RowHeight + 2f, -24f), new Vector2(textWidth, 18f),
                     12, TextAnchor.MiddleLeft, HudTheme.TextDim);
 
                 var right = new Vector2(1f, 0.5f);
@@ -210,10 +214,12 @@ namespace WowSandbox
             _done = 0;
             _started = Time.time;
             _fire.Cooking = true;
-            // Up off the ground first, to kneel over the pan.
-            GetComponent<PlayerSit>()?.Stand();
             Face(_fire.transform);
-            Kneel(true);
+            // Sat by the fire he cooks where he sits; on his feet he kneels over the pan.
+            var sit = GetComponent<PlayerSit>();
+            _kneeling = sit == null || !sit.IsSitting;
+            if (_kneeling)
+                Kneel(true);
             CastBarHud.Show($"Cooking {Recipes[recipe].meal}", 0f, CookSeconds);
         }
 
@@ -223,7 +229,9 @@ namespace WowSandbox
             _left = 0;
             if (_fire != null)
                 _fire.Cooking = false;
-            Kneel(false);
+            if (_kneeling)
+                Kneel(false);
+            _kneeling = false;
             if (interrupted)
                 CastBarHud.Interrupt();
             else
