@@ -84,7 +84,7 @@ namespace WowSandbox
                 return;
             }
 
-            if (keyboard.xKey.wasPressedThisFrame && !HudPanel.AnyOpen)
+            if (keyboard.xKey.wasPressedThisFrame && !HudPanel.ModalOpen)
                 TrySit();
         }
 

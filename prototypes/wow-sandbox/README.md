@@ -93,7 +93,6 @@ As of 2026-10-22:
 
 Ideas outside the story's build plan (that lives in [docs/LORE.md](docs/LORE.md), "Build plan by act"). 🎨 means it needs a model export first.
 
-- **Wind audio:** a wind sound that follows the weather system's wind, not only the storm's peak.
 - **Friendly ship crew:** bearded pirates working the wheel, oars and cannon crank (`WABoatWheelStand`, rowing and cannon-crank clips). Overlaps Act IV's crew aboard.
 - **Combat follow-ups:** a dazed animation for stunned enemies (`EmoteStunNoSheathe`), rage for the warrior abilities, and smarter `Tab` targeting that checks facing and line of sight.
 - 🎨 **Ground models for every pickup:** body armour has none yet (sack, pouch or armour stand-ins).
@@ -103,6 +102,33 @@ Ideas outside the story's build plan (that lives in [docs/LORE.md](docs/LORE.md)
 - **Cloaks**, if a character model that can wear one turns up.
 - **Save the rest:** breath, a lit torch, vendor stock and loot left on corpses aren't saved yet.
 - **Journal polish:** a font per hand and parchment art (details in LORE.md).
+
+### Sound effects and voice lines
+
+All that plays now is the music (`MusicPlayer`) and the storm (`StormAudio`: rain, thunder, the leviathan). WoW's own sounds export from wow.export's Sounds tab and stay gitignored under `Assets/WowExports/sound/`, as the music does.
+
+**Sound effects**
+- [ ] **Wind** that follows the weather system's wind, not only the storm's peak
+- [ ] **Sea and shore:** surf on the beach, waves against the hull, the ship's timbers creaking
+- [ ] **Footsteps** by ground: sand, grass, stone, wooden deck, shallow water; landing from a jump
+- [ ] **Swimming:** strokes, diving in, surfacing, the muffled sound underwater, gasping when out of breath
+- [ ] **Combat:** swings by weapon (fists, dagger, one-hander, two-hander), hits, misses, crits, block, parry, dodge
+- [ ] **Abilities:** each warrior ability's own sound
+- [ ] **Weapons away and out:** sheathing and drawing (Z), by back, hip and shield
+- [ ] **Creatures:** chickens, sharks, the island's wildlife; their hurt and death sounds
+- [ ] **Fishing:** the cast, the bobber's splash, a bite, reeling in
+- [ ] **Camp:** striking flint, the campfire's crackle, cooking, eating and drinking
+- [ ] **World objects:** chests opening, picking things up, climbing ladders, the gate, doors
+- [ ] **Interface:** opening and closing windows, equipping, moving items, coins, buying and selling, loot, the error buzz, level up, journal pages turning
+- [ ] **Day and night:** birds by day, insects and frogs at night, lanterns lighting
+
+**Voice lines**
+- [ ] **The Captain in combat:** grunts as he swings, pain when hit, a death cry
+- [ ] **The Captain's errors**, spoken as WoW's are: "I can't carry any more", "I don't have a weapon", "I can't do that here", "Not yet"
+- [ ] **His thoughts** spoken aloud: waking on the beach, starving, finding a journal page
+- [ ] **NPC greetings and goodbyes:** the vendor, Briggs and anyone else with dialogue
+- [ ] **Dialogue lines** spoken alongside the dialogue window's text
+- [ ] **Enemies:** aggro shouts, and lines from the Thief Leader and Act II's other named foes
 
 ## Playable sandbox
 
