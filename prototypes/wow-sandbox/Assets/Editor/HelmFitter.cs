@@ -101,7 +101,7 @@ namespace WowSandbox.EditorTools
             return true;
         }
 
-        static bool TryHeadBounds(GameObject model, Transform head, Transform space, bool usedVerticesOnly, out Bounds bounds)
+        internal static bool TryHeadBounds(GameObject model, Transform head, Transform space, bool usedVerticesOnly, out Bounds bounds)
         {
             var points = new List<Vector3>();
             foreach (var skinned in model.GetComponentsInChildren<SkinnedMeshRenderer>(true))
@@ -129,7 +129,7 @@ namespace WowSandbox.EditorTools
             (w.boneIndex0 == bone ? w.weight0 : 0f) + (w.boneIndex1 == bone ? w.weight1 : 0f) +
             (w.boneIndex2 == bone ? w.weight2 : 0f) + (w.boneIndex3 == bone ? w.weight3 : 0f);
 
-        static Bounds MeshBounds(IEnumerable<(Mesh mesh, Transform transform)> meshes, Transform space)
+        internal static Bounds MeshBounds(IEnumerable<(Mesh mesh, Transform transform)> meshes, Transform space)
         {
             var points = new List<Vector3>();
             foreach (var (mesh, transform) in meshes)
