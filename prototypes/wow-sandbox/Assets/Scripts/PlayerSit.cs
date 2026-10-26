@@ -75,6 +75,9 @@ namespace WowSandbox
                     SetAnimator(false);
                     return;
                 }
+                // Asleep by the fire: the keys don't get him up (Esc wakes him — RestPanel).
+                if (RestPanel.Resting)
+                    return;
                 if (keyboard.xKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame ||
                     keyboard.wKey.isPressed || keyboard.aKey.isPressed || keyboard.sKey.isPressed ||
                     keyboard.dKey.isPressed || keyboard.qKey.isPressed || keyboard.eKey.isPressed ||
@@ -85,15 +88,18 @@ namespace WowSandbox
             }
 
             if (keyboard.xKey.wasPressedThisFrame && !HudPanel.ModalOpen)
-                TrySit();
+                Sit();
         }
 
-        void TrySit()
+        /// <summary>Sits him down — X, or clicking a campfire. False where he can't (swimming, climbing, busy).</summary>
+        public bool Sit()
         {
+            if (IsSitting)
+                return true;
             if (_standingUntil >= 0f || _player.IsLocked || _player.IsSwimming || _player.IsClimbing ||
                 TitleScreen.Showing || ShipwreckWake.Lying || _health != null && _health.IsDead ||
                 _body != null && !_body.isGrounded)
-                return;
+                return false;
             var animator = _player.Animator;
             if (!HasSitting(animator))
             {
@@ -101,13 +107,14 @@ namespace WowSandbox
                     Debug.LogWarning("[PlayerSit] The player's animator has no Sitting states — run WoW Sandbox → " +
                                      "Update Warrior Animations.", this);
                 _warned = true;
-                return;
+                return false;
             }
 
             _player.SetLocked(true);
             IsSitting = true;
             animator.SetTrigger(SitDownHash);
             SetAnimator(true);
+            return true;
         }
 
         /// <summary>Gets him up — moving, X, a blow, or anything that needs him on his feet.</summary>

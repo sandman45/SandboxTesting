@@ -73,6 +73,8 @@ namespace WowSandbox
 
         float _target = -1f;    // AdvanceTo
         float _advanceRate;     // hours per second
+        float _rushLeft;        // Rush: game hours still to go
+        float _rushRate;        // and how fast, in hours per second
 
         Transform _nightSky;
         Material _nightSkyMaterial;
@@ -101,7 +103,27 @@ namespace WowSandbox
         public bool IsNight => SunHeight < -0.05f;
 
         /// <summary>Game hours passing per real second right now — 0 while the clock waits (the wreck) or is paused.</summary>
-        public float HoursPerSecond => ShipwreckWake.Lying || _target >= 0f ? 0f : 24f / (dayMinutes * 60f) * timeSpeed;
+        public float HoursPerSecond => ShipwreckWake.Lying || _target >= 0f ? 0f
+            : Rushing ? _rushRate
+            : 24f / (dayMinutes * 60f) * timeSpeed;
+
+        /// <summary>Whether Rush is running the hours by.</summary>
+        public bool Rushing => _rushLeft > 0f;
+
+        /// <summary>
+        /// Passes <paramref name="hours"/> game hours in <paramref name="seconds"/> real ones — resting.
+        /// Unlike AdvanceTo the hours count: HoursThisFrame carries them, so fires burn down, hunger
+        /// grows, weather turns and taken things come back just as if he'd waited.
+        /// </summary>
+        public void Rush(float hours, float seconds)
+        {
+            _target = -1f;
+            _rushLeft = Mathf.Max(0f, hours);
+            _rushRate = _rushLeft / Mathf.Max(seconds, 0.01f);
+        }
+
+        /// <summary>Back to the usual pace at once — woken early.</summary>
+        public void StopRush() => _rushLeft = 0f;
 
         /// <summary>Game hours gone by this frame; at the default 24-minute day without a cycle.</summary>
         public static float HoursThisFrame => (Active != null ? Active.HoursPerSecond : 1f / 60f) * Time.deltaTime;
@@ -200,7 +222,12 @@ namespace WowSandbox
                     hour += step;
             }
             else
-                hour += HoursPerSecond * Time.deltaTime;
+            {
+                float step = HoursPerSecond * Time.deltaTime;
+                if (Rushing)
+                    _rushLeft -= step;
+                hour += step;
+            }
             hour = Mathf.Repeat(hour, 24f);
 
             Vector3 sun = SunDirection(hour);

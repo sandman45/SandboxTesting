@@ -11,7 +11,8 @@ namespace WowSandbox
     /// It burns BurnHours game hours, dying down over the last half hour, then goes out, leaving
     /// cold coals. Only one at a time — building another clears the old one, burning or cold.
     /// While he's cooking at it (Cooking) the skillet's over it. Sitting by it lit (X, PlayerSit)
-    /// rests him (Hunger.Rest: how he gets his strength back after his first cooked meal), and the spot he
+    /// opens the rest window (RestPanel: sleep a few hours away) and the cooking one, and rests him (Hunger.Rest: how he
+    /// gets his strength back after his first cooked meal), and the spot he
     /// built it from is where he respawns from then on. SaveGame keeps the fire and that spot.
     ///
     /// Its looks — burning, cooking and cold, WoW's own campfires — are the prefab the editor
@@ -45,17 +46,31 @@ namespace WowSandbox
         NightLight _light;
         Transform _player;
         PlayerSit _sit;
+        bool _sittingHere;
 
         public float HoursLeft => _hoursLeft;
         public bool IsLit => _lit;
 
-        public override string Verb => "Cook";
+        public override string Verb => "Sit by the fire";
 
         /// <summary>Only while it burns: cold coals are nothing to cook on.</summary>
         public override bool CanInteract => _lit;
 
-        /// <summary>Opens the cooking window (CookingPanel) on it.</summary>
-        public override void Interact(GameObject player) => CookingPanel.OpenAt(this, player);
+        /// <summary>
+        /// Sits him down beside it, which opens the rest and cooking windows (Update). Sat already,
+        /// it opens them again; where he can't sit, just the cooking.
+        /// </summary>
+        public override void Interact(GameObject player)
+        {
+            var sit = player.GetComponent<PlayerSit>();
+            if (sit != null && sit.IsSitting)
+            {
+                RestPanel.OpenAt(this, player);
+                CookingPanel.OpenAt(this, player);
+            }
+            else if (sit == null || !sit.Sit())
+                CookingPanel.OpenAt(this, player);
+        }
 
         /// <summary>He's cooking at it: the skillet goes over the fire.</summary>
         public bool Cooking
@@ -155,6 +170,16 @@ namespace WowSandbox
                 GoOut();
                 return;
             }
+
+            // Sitting down beside it opens the rest window, and the cooking one beside it.
+            bool sittingHere = _player != null && _sit != null && _sit.IsSitting &&
+                               Vector3.ProjectOnPlane(_player.position - transform.position, Vector3.up).magnitude <= RestReach;
+            if (sittingHere && !_sittingHere)
+            {
+                RestPanel.OpenAt(this, _player.gameObject);
+                CookingPanel.OpenAt(this, _player.gameObject);
+            }
+            _sittingHere = sittingHere;
 
             if (_player != null && Hunger.Active != null)
             {

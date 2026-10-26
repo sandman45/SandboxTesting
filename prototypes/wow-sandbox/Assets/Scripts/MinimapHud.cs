@@ -31,9 +31,6 @@ namespace WowSandbox
         // The row with the zone name and the clock, above the circle.
         const float Header = 48f;
 
-        static readonly Color DaySky = new(0.36f, 0.6f, 0.88f);
-        static readonly Color NightSky = new(0.04f, 0.06f, 0.15f);
-
         TargetingController _targeting;
         RectTransform _frame;
         RawImage _map;
@@ -41,9 +38,7 @@ namespace WowSandbox
         Text _coordinates;
 
         RectTransform _clock;
-        RectTransform _dial;
-        Image _dialSky;
-        Image _moonShadow;
+        ClockDial _dial;
         Text _time;
 
         void Awake()
@@ -94,15 +89,8 @@ namespace WowSandbox
             if (!shown)
                 return;
 
-            // Sun at the top at noon, rising on the left and setting on the right; the moon opposite.
-            _dial.localRotation = Quaternion.Euler(0f, 0f, (12f - cycle.hour) / 24f * 360f);
-            var sky = Color.Lerp(NightSky, DaySky, cycle.Daylight);
-            _dialSky.color = sky;
-            _moonShadow.color = sky;
-
-            int minutes = Mathf.FloorToInt(Mathf.Repeat(cycle.hour, 24f) * 60f);
-            int hour = minutes / 60;
-            _time.text = $"{(hour % 12 == 0 ? 12 : hour % 12)}:{minutes % 60:00} {(hour < 12 ? "AM" : "PM")}";
+            _dial.Show(cycle.hour, cycle.Daylight);
+            _time.text = ClockDial.Format(cycle.hour);
         }
 
         void Zoom(float factor) =>
@@ -155,47 +143,7 @@ namespace WowSandbox
 
             // The window shows the top half of a turning disc.
             var top = new Vector2(0.5f, 1f);
-            var window = Hud.Rect("Window", _clock, top, Vector2.zero, new Vector2(DialSize, DialSize * 0.5f));
-            window.gameObject.AddComponent<RectMask2D>();
-
-            var bottom = new Vector2(0.5f, 0f);
-            var sky = Hud.Rect("Sky", window, bottom, new Vector2(0f, -DialSize * 0.5f), new Vector2(DialSize, DialSize));
-            _dialSky = sky.gameObject.AddComponent<Image>();
-            _dialSky.sprite = Hud.Circle;
-            _dialSky.raycastTarget = false;
-
-            // Pivot in the middle — it turns about its centre, which sits on the window's bottom edge.
-            _dial = Hud.Rect("Dial", window, bottom, Vector2.zero, new Vector2(DialSize, DialSize));
-            _dial.pivot = new Vector2(0.5f, 0.5f);
-            float orbit = DialSize * 0.3f;
-            var centre = new Vector2(0.5f, 0.5f);
-
-            var sun = Hud.Rect("Sun", _dial, centre, new Vector2(0f, orbit), new Vector2(13f, 13f))
-                .gameObject.AddComponent<Image>();
-            sun.sprite = Hud.Circle;
-            sun.color = new Color(1f, 0.85f, 0.35f);
-            sun.raycastTarget = false;
-
-            var moon = Hud.Rect("Moon", _dial, centre, new Vector2(0f, -orbit), new Vector2(12f, 12f));
-            var moonImage = moon.gameObject.AddComponent<Image>();
-            moonImage.sprite = Hud.Circle;
-            moonImage.color = new Color(0.86f, 0.9f, 1f);
-            moonImage.raycastTarget = false;
-            // A sky-coloured disc over most of it leaves a crescent.
-            _moonShadow = Hud.Rect("Shadow", moon, centre, new Vector2(4f, 2f), new Vector2(11f, 11f))
-                .gameObject.AddComponent<Image>();
-            _moonShadow.sprite = Hud.Circle;
-            _moonShadow.raycastTarget = false;
-
-            var ring = Hud.Rect("Ring", window, bottom, new Vector2(0f, -DialSize * 0.5f - 2f),
-                new Vector2(DialSize + 4f, DialSize + 4f)).gameObject.AddComponent<Image>();
-            ring.sprite = Hud.CircleRing;
-            ring.color = HudTheme.PanelBorder;
-            ring.raycastTarget = false;
-            var horizon = Hud.Rect("Horizon", window, bottom, Vector2.zero, new Vector2(DialSize, 2f))
-                .gameObject.AddComponent<Image>();
-            horizon.color = HudTheme.PanelBorder;
-            horizon.raycastTarget = false;
+            _dial = new ClockDial(_clock, top, Vector2.zero, DialSize);
 
             // A dark tab behind the time, so it reads over the map once docked.
             var tab = Hud.Rect("Tab", _clock, top, new Vector2(0f, -DialSize * 0.5f - 2f), new Vector2(ClockWidth - 4f, 18f))

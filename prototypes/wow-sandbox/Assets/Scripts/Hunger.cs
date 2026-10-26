@@ -256,6 +256,18 @@ namespace WowSandbox
                 error = "You can't eat that.";
                 return false;
             }
+            // As in WoW: not mid-fight, and not with his head barely above the waves.
+            var player = GetComponent<WowCharacterController>();
+            if (player != null && player.IsSwimming)
+            {
+                error = "You can't eat while swimming.";
+                return false;
+            }
+            if (player != null && player.InCombat)
+            {
+                error = "You can't eat while in combat.";
+                return false;
+            }
             if (!StillStarving && _fullness >= 0.98f)
             {
                 error = "You're too full to eat any more.";
@@ -269,6 +281,10 @@ namespace WowSandbox
                     StoryState.Set(FedFlag);
                 _fullness = Mathf.Min(1f, (first ? 0.5f : _fullness) + food.nourish);
                 _wellFedLeft = wellFedHours;
+                // A proper meal mends him too: back to full health.
+                var health = GetComponent<HealthController>();
+                if (health != null)
+                    health.Heal(health.maxHealth);
                 Hud.Info($"You eat the {food.name}. You feel well fed.");
                 if (first)
                     Thoughts.Once("fed", "That's better...", "Now I need to rest a while by the fire, and get my strength back.");
