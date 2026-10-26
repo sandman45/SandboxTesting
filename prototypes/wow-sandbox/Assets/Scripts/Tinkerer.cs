@@ -5,8 +5,8 @@ namespace WowSandbox
     /// <summary>
     /// An NPC busy at a workbench — Sprocket, in the gnome hut. Works (the Working animator
     /// bool, a looping EmoteWork) facing the way he was placed, day and night. When you come
-    /// close he downs tools and turns to you, waves when you start talking, gestures now and
-    /// then while you talk, and goes back to the bench when you leave.
+    /// close he downs tools and turns to you, waves when you start talking, gestures as he
+    /// answers each reply (Speaker.Talk), and goes back to the bench when you leave.
     ///
     /// Friendly, so he can be clicked and talked to but not fought. WoW Sandbox → Add Sprocket
     /// sets up the model and animator.
@@ -18,19 +18,15 @@ namespace WowSandbox
         public float noticeRange = 4f;
         [Tooltip("Degrees per second he turns.")]
         public float turnSpeed = 240f;
-        [Tooltip("Seconds between gestures while you talk to him.")]
-        public Vector2 talkEvery = new(3.5f, 6f);
 
         static readonly int WorkingHash = Animator.StringToHash("Working");
         static readonly int WaveHash = Animator.StringToHash("Wave");
-        static readonly int TalkHash = Animator.StringToHash("Talk");
 
         Animator _animator;
         Quaternion _bench;
         Quaternion _facing;
         bool _turning;
         bool _attending;
-        float _nextTalk;
         float _backToBenchAt;
         Transform _player;
 
@@ -49,7 +45,6 @@ namespace WowSandbox
         {
             TurnTo(position);
             Trigger(WaveHash);
-            _nextTalk = Time.time + Random.Range(talkEvery.x, talkEvery.y);
             // Greeted from across the room (his call-out): a look, then back to work.
             _backToBenchAt = Time.time + 3f;
         }
@@ -81,12 +76,6 @@ namespace WowSandbox
                 _backToBenchAt = 0f;
                 _facing = _bench;
                 _turning = true;
-            }
-
-            if (near && DialoguePanel.Talking && Time.time >= _nextTalk)
-            {
-                Trigger(TalkHash);
-                _nextTalk = Time.time + Random.Range(talkEvery.x, talkEvery.y);
             }
 
             if (!_turning)

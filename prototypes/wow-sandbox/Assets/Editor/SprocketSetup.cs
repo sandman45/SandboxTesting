@@ -28,6 +28,9 @@ namespace WowSandbox.EditorTools
         const string RawModelName = "gnomemale_hd";
         /// <summary>Without the raw export: how far below the top of the head (of its height) the goggles' top sits.</summary>
         const float GuessLower = 0.22f;
+        // His dialogue portrait: where it aims and how far back it stands, as fractions of his height.
+        const float PortraitHeight = 0.62f;
+        const float PortraitDistance = 0.9f;
         const string GeneratedDir = "Assets/WowExports/_Generated/Sprocket";
         const string NpcName = "Sprocket Wizzlecrank";
         const string HutName = "gnomehut";
@@ -44,10 +47,16 @@ namespace WowSandbox.EditorTools
             {
                 var model = existing.GetComponentInChildren<Animator>();
                 if (model != null)
+                {
                     FitGoggles(existing.gameObject, model.gameObject);
+                    if (model.runtimeAnimatorController is UnityEditor.Animations.AnimatorController existingController)
+                        M2AnimatorBuilder.AddOneShots(existingController, ModelPath, GeneratedDir, M2AnimatorBuilder.TalkGestures);
+                }
+                if (existing.TryGetComponent<Speaker>(out var existingSpeaker))
+                    FramePortrait(existingSpeaker);
                 Selection.activeGameObject = existing.gameObject;
                 EditorSceneManager.MarkSceneDirty(existing.gameObject.scene);
-                Debug.Log("[SprocketSetup] Sprocket's already here — refitted his goggles and selected him. " +
+                Debug.Log("[SprocketSetup] Sprocket's already here — refitted his goggles, reframed his portrait, added any missing talk gestures and selected him. " +
                           "Delete him first to place a fresh one.", existing);
                 return;
             }
@@ -62,8 +71,8 @@ namespace WowSandbox.EditorTools
             var controller = M2AnimatorBuilder.BuildLocomotion(ModelPath, GeneratedDir);
             if (controller != null)
             {
-                M2AnimatorBuilder.AddOneShots(controller, ModelPath, GeneratedDir,
-                                              ("Wave", "EmoteWave"), ("Talk", "EmoteTalk"));
+                M2AnimatorBuilder.AddOneShots(controller, ModelPath, GeneratedDir, ("Wave", "EmoteWave"));
+                M2AnimatorBuilder.AddOneShots(controller, ModelPath, GeneratedDir, M2AnimatorBuilder.TalkGestures);
                 if (!M2AnimatorBuilder.AddLoop(controller, ModelPath, GeneratedDir, "Working", "EmoteWork"))
                     Debug.LogWarning("[SprocketSetup] No EmoteWork clip in the gnome export — he'll just stand at his bench.");
             }
@@ -100,10 +109,7 @@ namespace WowSandbox.EditorTools
             var health = root.AddComponent<Health>();
             health.reaction = Reaction.Friendly;
             root.AddComponent<Tinkerer>();
-            // A gnome's head is a bigger share of his height than a human's: aim lower, stand back.
-            var speaker = root.AddComponent<Speaker>();
-            speaker.portraitHeight = 0.8f;
-            speaker.portraitDistance = 0.9f;
+            FramePortrait(root.AddComponent<Speaker>());
 
             if (controller != null)
             {
@@ -258,6 +264,18 @@ namespace WowSandbox.EditorTools
             attachment.localRotation = rotation;
             attachment.localScale = scale;
             Debug.Log($"[SprocketSetup] Goggles from {Path.GetFileName(gogglesPath)}, {how}.", root);
+        }
+
+        /// <summary>
+        /// A gnome's head is a bigger share of his height than a human's: the dialogue portrait
+        /// aims lower and stands further back than Speaker's defaults (framed for Briggs).
+        /// </summary>
+        static void FramePortrait(Speaker speaker)
+        {
+            Undo.RecordObject(speaker, "Frame Portrait");
+            speaker.portraitHeight = PortraitHeight;
+            speaker.portraitDistance = PortraitDistance;
+            EditorUtility.SetDirty(speaker);
         }
 
         /// <summary>The raw gnome export's file with this extension, anywhere under WowExports, or null.</summary>

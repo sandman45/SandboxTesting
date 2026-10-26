@@ -27,7 +27,16 @@ namespace WowSandbox
         /// <summary>Their shop, if they keep one — the dialogue's Trade reply opens it.</summary>
         public Vendor Vendor { get; private set; }
 
+        static readonly int TalkHash = Animator.StringToHash("Talk");
+        static readonly int TalkExclamationHash = Animator.StringToHash("TalkExclamation");
+        static readonly int TalkQuestionHash = Animator.StringToHash("TalkQuestion");
+        static readonly int TalkSubduedHash = Animator.StringToHash("TalkSubdued");
+        static readonly int[] OddGestures = { TalkExclamationHash, TalkQuestionHash, TalkSubduedHash };
+        /// <summary>How often a plain line gets one of the other gestures instead.</summary>
+        const float OddGestureChance = 0.25f;
+
         Transform _player;
+        Animator _animator;
         bool _calledOut;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -42,6 +51,7 @@ namespace WowSandbox
         {
             Health = GetComponent<Health>();
             Vendor = GetComponent<Vendor>();
+            _animator = GetComponentInChildren<Animator>();
             Conversation = Dialogues.For(name);
         }
 
@@ -88,6 +98,46 @@ namespace WowSandbox
             toward.y = 0f;
             if (toward.sqrMagnitude > 0.01f)
                 transform.rotation = Quaternion.LookRotation(toward);
+        }
+
+        /// <summary>
+        /// A talk gesture to go with <paramref name="line"/>, as they answer a reply: emphatic for
+        /// a line ending in "!", asking for one ending in "?", hushed for a stage direction like
+        /// "(He busies himself…)", and otherwise plain — now and then swapped for one of the
+        /// others, for variety. Falls back to plain talk if the model lacks the one picked.
+        /// </summary>
+        public void Talk(string line)
+        {
+            int gesture = TalkGesture(line);
+            if (!Trigger(gesture))
+                Trigger(TalkHash);
+        }
+
+        static int TalkGesture(string line)
+        {
+            string text = (line ?? "").Trim();
+            if (text.StartsWith("("))
+                return TalkSubduedHash;
+            if (text.EndsWith("!"))
+                return TalkExclamationHash;
+            if (text.EndsWith("?"))
+                return TalkQuestionHash;
+            if (Random.value < OddGestureChance)
+                return OddGestures[Random.Range(0, OddGestures.Length)];
+            return TalkHash;
+        }
+
+        bool Trigger(int hash)
+        {
+            if (_animator == null || _animator.runtimeAnimatorController == null)
+                return false;
+            foreach (var parameter in _animator.parameters)
+                if (parameter.nameHash == hash)
+                {
+                    _animator.SetTrigger(hash);
+                    return true;
+                }
+            return false;
         }
 
         /// <summary>Says <paramref name="line"/> in a bubble over their head.</summary>

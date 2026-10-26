@@ -415,9 +415,22 @@ namespace WowSandbox.EditorTools
         }
 
         /// <summary>
+        /// The talk gestures a speaking NPC picks from (Speaker.Talk): plain, emphatic, asking and
+        /// hushed, for whichever of the clips the model has.
+        /// </summary>
+        public static readonly (string trigger, string clip)[] TalkGestures =
+        {
+            ("Talk", "EmoteTalk"),
+            ("TalkExclamation", "EmoteTalkExclamation"),
+            ("TalkQuestion", "EmoteTalkQuestion"),
+            ("TalkSubdued", "EmoteTalkSubdued"),
+        };
+
+        /// <summary>
         /// Adds a play-once state per (trigger, clip name) pair, for whichever of the clips the
         /// model has — a vendor's wave and talk, say. Each plays through and returns to the
-        /// default (locomotion) state. Returns how many were added.
+        /// default (locomotion) state; triggers the controller already has are skipped, so it's
+        /// safe to run again on one in use. Returns how many were added.
         /// </summary>
         public static int AddOneShots(AnimatorController controller, string modelPath, string outputDir,
                                       params (string trigger, string clip)[] shots)
@@ -430,7 +443,8 @@ namespace WowSandbox.EditorTools
             foreach (var (trigger, clipName) in shots)
             {
                 var clip = Find(clips, clipName);
-                if (clip == null)
+                // Already there, from an earlier run on this controller.
+                if (clip == null || controller.parameters.Any(parameter => parameter.name == trigger))
                     continue;
                 AddOneShot(controller, locomotion, trigger, CopyOnce(clip, trigger, outputDir));
                 added++;

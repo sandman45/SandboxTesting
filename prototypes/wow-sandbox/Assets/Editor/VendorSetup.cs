@@ -34,9 +34,10 @@ namespace WowSandbox.EditorTools
             var existing = Object.FindAnyObjectByType<Vendor>();
             if (existing != null)
             {
+                AddTalkGestures(existing);
                 Selection.activeGameObject = existing.gameObject;
                 EditorSceneManager.MarkSceneDirty(player.gameObject.scene);
-                Debug.Log("[VendorSetup] There's already a vendor — selected him. Delete him first to place a fresh one.", existing);
+                Debug.Log("[VendorSetup] There's already a vendor — gave him any talk gestures he was missing and selected him. Delete him first to place a fresh one.", existing);
                 return;
             }
 
@@ -49,8 +50,10 @@ namespace WowSandbox.EditorTools
 
             var controller = M2AnimatorBuilder.BuildLocomotion(ModelPath, GeneratedDir);
             if (controller != null)
-                M2AnimatorBuilder.AddOneShots(controller, ModelPath, GeneratedDir,
-                                              ("Wave", "EmoteWave"), ("Talk", "EmoteTalk"));
+            {
+                M2AnimatorBuilder.AddOneShots(controller, ModelPath, GeneratedDir, ("Wave", "EmoteWave"));
+                M2AnimatorBuilder.AddOneShots(controller, ModelPath, GeneratedDir, M2AnimatorBuilder.TalkGestures);
+            }
 
             Shore(player.transform.position, out Vector3 spot, out Vector3 facing);
 
@@ -128,6 +131,14 @@ namespace WowSandbox.EditorTools
                     return;
                 }
             }
+        }
+
+        /// <summary>Adds the talk gestures to an already-placed vendor's animator, if it lacks them.</summary>
+        static void AddTalkGestures(Vendor vendor)
+        {
+            var animator = vendor.GetComponentInChildren<Animator>();
+            if (animator != null && animator.runtimeAnimatorController is UnityEditor.Animations.AnimatorController controller)
+                M2AnimatorBuilder.AddOneShots(controller, ModelPath, GeneratedDir, M2AnimatorBuilder.TalkGestures);
         }
 
         static float MeasureHeight(GameObject instance)

@@ -198,7 +198,10 @@ namespace WowSandbox
                 case DialogueOption.Kind.Talk:
                     var next = reply.next?.Invoke();
                     if (next != null)
+                    {
                         Show(next);
+                        _speaker.Talk(next.text);
+                    }
                     else
                         Close();
                     break;
