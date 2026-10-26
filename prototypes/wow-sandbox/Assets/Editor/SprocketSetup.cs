@@ -1,0 +1,278 @@
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+
+namespace WowSandbox.EditorTools
+{
+    /// <summary>
+    /// Puts Sprocket Wizzlecrank in the gnome hut: the gnome export, standing on the hut's floor
+    /// in the middle of its interior, with a Tinkerer (works at the bench, turns to you), a
+    /// Friendly Health, a Speaker framed for a gnome's big head, and the purple-glow goggles on
+    /// his head. Move and turn him to face his bench, then save the scene; he faces that way
+    /// while he works.
+    ///
+    /// Running it again with Sprocket already in the scene refits his goggles (after exporting
+    /// the gnome goggles or the raw gnome model) and selects him.
+    /// </summary>
+    public static class SprocketSetup
+    {
+        const string ModelPath = "Assets/WowExports/character/gnome/male/gnomemale_hd.gltf";
+        /// <summary>WoW makes a helm model per race; this is the gnome male's (exported under its texture's name).</summary>
+        const string GogglesDir = "Assets/WowExports/item/objectcomponents/head";
+        /// <summary>The purple-glow pair, or failing that any gnome male's goggles.</summary>
+        static readonly string[] GogglesPatterns = { "helm_goggles_c_01_gnm*.gltf", "helm_goggles_*_gnm*.gltf" };
+        /// <summary>The raw gnome model, for WoW's helmet attachment point (the glTF leaves it out).</summary>
+        const string RawModelName = "gnomemale_hd";
+        /// <summary>Without the raw export: how far below the top of the head (of its height) the goggles' top sits.</summary>
+        const float GuessLower = 0.22f;
+        const string GeneratedDir = "Assets/WowExports/_Generated/Sprocket";
+        const string NpcName = "Sprocket Wizzlecrank";
+        const string HutName = "gnomehut";
+        const string HeadBoneName = "bone_Head";
+        const string GogglesPrefix = "Goggles_";
+        /// <summary>Same -X facing convention as every other M2; see WarriorSetup.ModelYawOffset.</summary>
+        const float ModelYawOffset = 90f;
+
+        [MenuItem("WoW Sandbox/Add Sprocket")]
+        static void AddSprocket()
+        {
+            var existing = Object.FindAnyObjectByType<Tinkerer>();
+            if (existing != null)
+            {
+                var model = existing.GetComponentInChildren<Animator>();
+                if (model != null)
+                    FitGoggles(existing.gameObject, model.gameObject);
+                Selection.activeGameObject = existing.gameObject;
+                EditorSceneManager.MarkSceneDirty(existing.gameObject.scene);
+                Debug.Log("[SprocketSetup] Sprocket's already here — refitted his goggles and selected him. " +
+                          "Delete him first to place a fresh one.", existing);
+                return;
+            }
+
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
+            if (prefab == null)
+            {
+                Debug.LogError($"[SprocketSetup] No model at {ModelPath}. Export the gnome male from wow.export as glTF there.");
+                return;
+            }
+
+            var controller = M2AnimatorBuilder.BuildLocomotion(ModelPath, GeneratedDir);
+            if (controller != null)
+            {
+                M2AnimatorBuilder.AddOneShots(controller, ModelPath, GeneratedDir,
+                                              ("Wave", "EmoteWave"), ("Talk", "EmoteTalk"));
+                if (!M2AnimatorBuilder.AddLoop(controller, ModelPath, GeneratedDir, "Working", "EmoteWork"))
+                    Debug.LogWarning("[SprocketSetup] No EmoteWork clip in the gnome export — he'll just stand at his bench.");
+            }
+
+            var hut = GameObject.Find(HutName);
+            Vector3 spot;
+            Quaternion facing;
+            if (hut != null)
+                InsideHut(hut, out spot, out facing);
+            else
+            {
+                Debug.LogWarning($"[SprocketSetup] No \"{HutName}\" in the scene — placing him where the Scene view is looking.");
+                var view = SceneView.lastActiveSceneView;
+                spot = view != null ? view.pivot : Vector3.zero;
+                facing = Quaternion.identity;
+            }
+
+            var root = new GameObject(NpcName);
+            Undo.RegisterCreatedObjectUndo(root, "Add Sprocket");
+            root.transform.SetPositionAndRotation(spot, facing);
+
+            var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root.transform);
+            instance.transform.localPosition = Vector3.zero;
+            instance.transform.localRotation = Quaternion.Euler(0f, ModelYawOffset, 0f);
+            float height = MeasureHeight(instance);
+            Vendor.HideEyeGlow(instance);
+
+            // Something for TargetingController's click to hit.
+            var capsule = root.AddComponent<CapsuleCollider>();
+            capsule.height = height;
+            capsule.radius = Mathf.Max(height * 0.25f, 0.1f);
+            capsule.center = new Vector3(0f, height * 0.5f, 0f);
+
+            var health = root.AddComponent<Health>();
+            health.reaction = Reaction.Friendly;
+            root.AddComponent<Tinkerer>();
+            // A gnome's head is a bigger share of his height than a human's: aim lower, stand back.
+            var speaker = root.AddComponent<Speaker>();
+            speaker.portraitHeight = 0.8f;
+            speaker.portraitDistance = 0.9f;
+
+            if (controller != null)
+            {
+                var animator = instance.GetComponentInChildren<Animator>();
+                if (animator == null)
+                    animator = instance.AddComponent<Animator>();
+                animator.runtimeAnimatorController = controller;
+                animator.applyRootMotion = false;
+            }
+
+            FitGoggles(root, instance);
+
+            Selection.activeGameObject = root;
+            EditorSceneManager.MarkSceneDirty(root.scene);
+            Debug.Log($"[SprocketSetup] Placed {NpcName} in the gnome hut. Move him to his bench and turn him to " +
+                      "face it, then save the scene.", root);
+        }
+
+        /// <summary>
+        /// On the hut's floor under the middle of its interior groups (the WMO's Int meshes),
+        /// facing the hut's forward. Falls back to the hut's own position.
+        /// </summary>
+        static void InsideHut(GameObject hut, out Vector3 spot, out Quaternion facing)
+        {
+            facing = hut.transform.rotation;
+            spot = hut.transform.position;
+            var interior = hut.GetComponentsInChildren<Renderer>().Where(r => r.name.Contains("_Int")).ToArray();
+            if (interior.Length == 0)
+                return;
+            var bounds = interior[0].bounds;
+            foreach (var renderer in interior)
+                bounds.Encapsulate(renderer.bounds);
+
+            spot = new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
+            var hutColliders = new HashSet<Collider>(hut.GetComponentsInChildren<Collider>());
+            var hits = Physics.RaycastAll(bounds.center, Vector3.down, bounds.extents.y + 1f)
+                              .Where(hit => hutColliders.Contains(hit.collider))
+                              .OrderBy(hit => hit.distance);
+            foreach (var hit in hits)
+            {
+                spot = hit.point;
+                return;
+            }
+        }
+
+        /// <summary>
+        /// Puts the gnome goggles on <paramref name="model"/>'s head, through a HelmAttachment so
+        /// they follow the head once Play starts. Replaces any goggles already fitted. Call with
+        /// the model in its rest pose.
+        ///
+        /// WoW's own fit when there's a raw export of the gnome (the .m2 and .skel, anywhere under
+        /// WowExports): the goggles go on its helmet attachment point, unscaled, as the game draws
+        /// them. Without one, HelmFitter's guess: centred on the head, level with its top.
+        /// </summary>
+        static void FitGoggles(GameObject root, GameObject model)
+        {
+            var old = root.GetComponent<HelmAttachment>();
+            if (old != null)
+            {
+                foreach (var piece in old.pieces)
+                    if (piece != null)
+                        Undo.DestroyObjectImmediate(piece.gameObject);
+                Undo.DestroyObjectImmediate(old);
+            }
+
+            string gogglesPath = Directory.Exists(GogglesDir)
+                ? GogglesPatterns.SelectMany(pattern => Directory.GetFiles(GogglesDir, pattern))
+                                 .Select(f => f.Replace('\\', '/')).FirstOrDefault()
+                : null;
+            var goggles = gogglesPath != null ? AssetDatabase.LoadAssetAtPath<GameObject>(gogglesPath) : null;
+            if (goggles == null)
+            {
+                Debug.LogWarning($"[SprocketSetup] No gnome goggles (helm_goggles_*_gnm) in {GogglesDir} — bare-headed. " +
+                                 "Export helm_goggles_c_01_gnm from wow.export as glTF.");
+                return;
+            }
+
+            // A character export's body mesh sits at the model's origin, in its space: where WoW
+            // lays out the attachment points, and where an item model's own space goes.
+            var body = model.GetComponentsInChildren<SkinnedMeshRenderer>(true)
+                            .FirstOrDefault(r => r.name.EndsWith("_Geoset0"));
+            var space = body != null ? body.transform : model.transform;
+            var pieces = new List<Transform>();
+            foreach (var renderer in goggles.GetComponentsInChildren<Renderer>(true))
+            {
+                var mesh = renderer is SkinnedMeshRenderer skin ? skin.sharedMesh
+                    : renderer.GetComponent<MeshFilter>() is { } filter ? filter.sharedMesh : null;
+                if (mesh == null)
+                    continue;
+                var piece = new GameObject(GogglesPrefix + renderer.name);
+                Undo.RegisterCreatedObjectUndo(piece, "Fit Goggles");
+                piece.transform.SetParent(space, false);
+                piece.AddComponent<MeshFilter>().sharedMesh = mesh;
+                piece.AddComponent<MeshRenderer>().sharedMaterials = renderer.sharedMaterials;
+                pieces.Add(piece.transform);
+            }
+            if (pieces.Count == 0)
+            {
+                Debug.LogWarning($"[SprocketSetup] No meshes in {gogglesPath} — bare-headed.");
+                return;
+            }
+
+            Transform bone = null;
+            Vector3 position = default;
+            Quaternion rotation = Quaternion.identity;
+            Vector3 scale = Vector3.one;
+            string how;
+
+            var attachments = M2Attachments.Read(FindRaw(".m2"), FindRaw(".skel"));
+            if (body != null && attachments.TryGetValue(M2Attachments.Helmet, out var point) &&
+                point.bone < body.bones.Length && body.bones[point.bone] != null)
+            {
+                // As GearHarvester.TryAttach: glTFast mirrors glTF's X into Unity's.
+                bone = body.bones[point.bone];
+                var offset = new Vector3(-point.gltfPosition.x, point.gltfPosition.y, point.gltfPosition.z);
+                position = bone.InverseTransformPoint(space.TransformPoint(offset));
+                rotation = Quaternion.Inverse(bone.rotation) * space.rotation;
+                var lossy = bone.lossyScale;
+                scale = new Vector3(space.lossyScale.x / lossy.x, space.lossyScale.y / lossy.y, space.lossyScale.z / lossy.z);
+                how = $"on WoW's helmet attachment ({bone.name})";
+            }
+            else
+            {
+                bone = model.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == HeadBoneName);
+                if (bone == null || !HelmFitter.TryFitPose(model, bone, pieces.ToArray(), usedVerticesOnly: true,
+                        out position, out rotation, out scale))
+                {
+                    Debug.LogWarning("[SprocketSetup] No helmet attachment and no head to fit the goggles to — bare-headed.");
+                    foreach (var piece in pieces)
+                        Object.DestroyImmediate(piece.gameObject);
+                    return;
+                }
+                // The guess sits them level with the top of the head, which on a gnome is the top
+                // of his spiky hair: lowered this much (of the head's height) onto his brow.
+                if (HelmFitter.TryHeadBounds(model, bone, space, usedVerticesOnly: true, out var headBounds))
+                    position += bone.InverseTransformVector(space.TransformVector(Vector3.down * (headBounds.size.y * GuessLower)));
+                how = $"by guess on {bone.name} — export {RawModelName}.m2 raw (with its .skel) for WoW's own placement";
+            }
+
+            // Shown where they'll ride from the first frame of Play, not just after Awake.
+            foreach (var piece in pieces)
+            {
+                piece.SetParent(bone, false);
+                piece.SetLocalPositionAndRotation(position, rotation);
+                piece.localScale = scale;
+            }
+
+            var attachment = Undo.AddComponent<HelmAttachment>(root);
+            attachment.headBone = bone;
+            attachment.pieces = pieces.ToArray();
+            attachment.localPosition = position;
+            attachment.localRotation = rotation;
+            attachment.localScale = scale;
+            Debug.Log($"[SprocketSetup] Goggles from {Path.GetFileName(gogglesPath)}, {how}.", root);
+        }
+
+        /// <summary>The raw gnome export's file with this extension, anywhere under WowExports, or null.</summary>
+        static string FindRaw(string extension) =>
+            Directory.GetFiles("Assets/WowExports", RawModelName + extension, SearchOption.AllDirectories).FirstOrDefault();
+
+        static float MeasureHeight(GameObject instance)
+        {
+            var renderers = instance.GetComponentsInChildren<Renderer>();
+            if (renderers.Length == 0)
+                return 1f;
+            var bounds = renderers[0].bounds;
+            foreach (var renderer in renderers)
+                bounds.Encapsulate(renderer.bounds);
+            return Mathf.Max(bounds.size.y, 0.1f);
+        }
+    }
+}

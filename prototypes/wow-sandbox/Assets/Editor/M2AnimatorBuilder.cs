@@ -441,6 +441,41 @@ namespace WowSandbox.EditorTools
             return added;
         }
 
+        /// <summary>
+        /// A looping state held while the bool <paramref name="parameter"/> is on — a tinkerer's
+        /// work at the bench, say — blending in and out of locomotion. False if the model has no
+        /// such clip.
+        /// </summary>
+        public static bool AddLoop(AnimatorController controller, string modelPath, string outputDir,
+                                   string parameter, string clipName)
+        {
+            var clips = AssetDatabase.LoadAllAssetRepresentationsAtPath(modelPath)
+                                     .OfType<AnimationClip>()
+                                     .ToArray();
+            var clip = Find(clips, clipName);
+            if (clip == null)
+                return false;
+
+            controller.AddParameter(parameter, AnimatorControllerParameterType.Bool);
+            var stateMachine = controller.layers[0].stateMachine;
+            var locomotion = stateMachine.defaultState;
+            var state = stateMachine.AddState(parameter);
+            state.motion = CopyLooping(clip, parameter, outputDir);
+
+            var into = locomotion.AddTransition(state);
+            into.AddCondition(AnimatorConditionMode.If, 0f, parameter);
+            into.hasExitTime = false;
+            into.duration = 0.25f;
+            var back = state.AddTransition(locomotion);
+            back.AddCondition(AnimatorConditionMode.IfNot, 0f, parameter);
+            back.hasExitTime = false;
+            back.duration = 0.25f;
+
+            EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+            return true;
+        }
+
         /// <summary>wow.export names clips "Stand (ID 0 variation 0)" — match the leading name.</summary>
         static AnimationClip Find(AnimationClip[] clips, string prefix) =>
             clips.FirstOrDefault(c => c.name.StartsWith(prefix + " ") || c.name == prefix);

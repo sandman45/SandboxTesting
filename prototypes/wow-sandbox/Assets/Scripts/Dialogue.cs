@@ -88,6 +88,7 @@ namespace WowSandbox
         static readonly (string name, Conversation conversation)[] All =
         {
             ("Briggs", new BriggsConversation()),
+            ("Sprocket", new SprocketConversation()),
         };
 
         public static Conversation For(string npcName)
@@ -177,5 +178,90 @@ namespace WowSandbox
 
         static DialogueNode WhyMe() => Topics(new DialogueNode(
             "(He busies himself with a crate.) ... The Admiral had his reasons, Captain. He always does."));
+    }
+
+    /// <summary>
+    /// Sprocket Wizzlecrank, the gnome in the gnome hut (docs/LORE.md): delighted to have
+    /// company, stuck on the isle for years, and certain the way out is an engineering problem.
+    /// Asking after his compass gets you his notes on it — journal page 5.
+    /// </summary>
+    public class SprocketConversation : Conversation
+    {
+        const string Met = "sprocket.met";
+        const string Notes = "sprocket.notes";
+
+        public override string Title => "Sprocket Wizzlecrank";
+
+        public override string CallOut => StoryState.Has(Met) ? null : "Hello? Who's there? Mind the floor, there are springs EVERYWHERE!";
+
+        public override string[] Farewells => new[]
+        {
+            "Mind the springs on the way out!",
+            "Back to it, back to it...",
+            "Come again! Bring gears!",
+        };
+
+        public override DialogueNode Start(Speaker speaker)
+        {
+            if (!StoryState.Has(Met))
+                return new DialogueNode(
+                        "Oh! A person! A NEW person! You're not a thief, are you? No, thieves don't knock. You didn't " +
+                        "knock either, but you've an honest sort of face. Sprocket Wizzlecrank: engineer, inventor, and " +
+                        "sole proprietor of this establishment!",
+                        () => StoryState.Set(Met))
+                    .Ask("I'm a ship's captain. We were wrecked on the beach.", Wrecked)
+                    .Ask("How long have you been here?", HowLong)
+                    .Goodbye("I'll leave you to it.");
+
+            string greeting = StoryState.Has(Notes) ? "Captain! Come in, come in. Don't touch anything. Well, touch that. Not that."
+                            : "Back again? Excellent! Hand me that... no, the other... never mind, I've got it.";
+            return Topics(new DialogueNode(greeting));
+        }
+
+        static DialogueNode Topics(DialogueNode node) => node
+            .Ask("Why don't you leave?", Leave)
+            .AskIf(!StoryState.Has(Notes), "Does your compass work?", Compass)
+            .AskIf(StoryState.Has(Notes), "Any luck with the compass?", CompassLater)
+            .Ask("What do you know about this isle?", Isle)
+            .AskIf(StoryState.Has("briggs.met"), "Have you met my quartermaster, Briggs?", Briggs)
+            .Goodbye("Good luck with it.");
+
+        static DialogueNode Wrecked() => Topics(new DialogueNode(
+            "Another one? Oh, dear. That's the fourth ship this decade. I keep a tally on the wall. A storm, was it? " +
+            "Out of a clear sky, with something big underneath it? ... Thought so. It always is."));
+
+        static DialogueNode HowLong() => Topics(new DialogueNode(
+            "Eleven years! Or twelve. I stopped counting when I ran out of wall. I came in on the Cogwhistle, a little " +
+            "steam tender out of Booty Bay. The isle ate her. Well, the storm did. Same thing, really."));
+
+        static DialogueNode Leave() => Topics(new DialogueNode(
+            "Oh, I've tried! Rowboat, raft, a sort of flying barrel. The fog turns you round. Sail straight out and you " +
+            "sail straight back in, every time. So I thought: what I need is a compass that knows the way out."));
+
+        static DialogueNode Compass() => new DialogueNode(
+                "Works? It works PERFECTLY. It just points the wrong way. Always at the island, wherever you stand. Here, " +
+                "read my notes, you'll see the problem at once. I've only been at it six years.")
+            .Ask("I'll read them.", TakeNotes);
+
+        /// <summary>Hands over page 5 and ends the conversation, so the Journal opens on it.</summary>
+        static DialogueNode TakeNotes()
+        {
+            StoryState.Set(Notes);
+            StoryState.FindPage(5);
+            return null;
+        }
+
+        static DialogueNode CompassLater() => Topics(new DialogueNode(
+            "Not yet! Still points at the island like a dog at a sausage. I'll need parts, proper ones, brass and gears " +
+            "off the wrecks. I'll tell you which when I've drawn it up."));
+
+        static DialogueNode Isle() => Topics(new DialogueNode(
+            "Ships come in. Ships don't go out. The fish are odd, the weather's odder, and there's something big in the " +
+            "water that herds ships like a sheepdog. The trolls were here first and left carvings all over. Very gloomy. " +
+            "Very artistic."));
+
+        static DialogueNode Briggs() => Topics(new DialogueNode(
+            "The big fellow on the beach? He came up yesterday asking if I'd seen his captain. You, I suppose! Bought six " +
+            "fathoms of rope off me, too. I'm not sure why. He's very persuasive."));
     }
 }

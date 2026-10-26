@@ -79,6 +79,11 @@ namespace WowSandbox
                 Vendor.Greet(position);
                 return;
             }
+            if (TryGetComponent<Tinkerer>(out var tinkerer))
+            {
+                tinkerer.Greet(position);
+                return;
+            }
             var toward = position - transform.position;
             toward.y = 0f;
             if (toward.sqrMagnitude > 0.01f)
