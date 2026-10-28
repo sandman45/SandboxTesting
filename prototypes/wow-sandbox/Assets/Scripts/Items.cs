@@ -299,6 +299,20 @@ namespace WowSandbox
             null,
         };
 
+        /// <summary>
+        /// Rubbish hauled up from floating wreckage (FishingSpot.wreckage) — only ever found
+        /// there, and sold off by Sell Junk.
+        /// </summary>
+        public static readonly Item[] Flotsam =
+        {
+            Trade("Waterlogged Boot", "Bt", 3),
+            Trade("Barnacled Bottle", "Bo", 5),
+            Trade("Sodden Sailcloth", "Sc", 8),
+            Trade("Rusted Nails", "Na", 2),
+            Trade("Splintered Plank", "Pl", 1),
+            Trade("Tangled Net", "Nt", 10),
+        };
+
         /// <summary>Carried in the bags to do something: FishingSpot wants a fishing pole.</summary>
         public static readonly Item[] Tools =
         {
@@ -363,7 +377,7 @@ namespace WowSandbox
         };
 
         static IEnumerable<Item> Equippable => Weapons.Concat(Armors).Append(Shield).Concat(Clothing).Concat(Jewelry);
-        static IEnumerable<Item> All => Equippable.Concat(LootOnly).Concat(Tools).Concat(Lights).Concat(TradeGoods).Concat(Fish.Skip(1)).Concat(NightFish.Where(fish => fish != null)).Concat(Meals).Concat(Potions).Concat(Legendaries).Concat(QuestItems);
+        static IEnumerable<Item> All => Equippable.Concat(LootOnly).Concat(Tools).Concat(Lights).Concat(TradeGoods).Concat(Flotsam).Concat(Fish.Skip(1)).Concat(NightFish.Where(fish => fish != null)).Concat(Meals).Concat(Potions).Concat(Legendaries).Concat(QuestItems);
 
         /// <summary>A merchant's shelves: every mundane piece of gear, the tools and lights, then the potions — fresh copies.</summary>
         public static Item[] VendorStock() => Equippable.Concat(Tools).Concat(Lights).Concat(Potions).Select(item => item.Clone()).ToArray();
@@ -387,6 +401,38 @@ namespace WowSandbox
         }
 
         public static Item RandomTradeGood() => Pick(TradeGoods).Clone();
+
+        /// <summary>
+        /// What floating wreckage gives up at <paramref name="rarity"/> (FishingSpot rolls it the
+        /// way it rolls a fish): Common is flotsam, now and then driftwood or rope; Uncommon is
+        /// plain gear, lights or a trinket; Rare a magic Uncommon item or jewellery; Very Rare and
+        /// Legendary a magic Rare or Very Rare item — never one of the hand-made Legendaries.
+        /// </summary>
+        public static Item Salvage(ItemRarity rarity)
+        {
+            float roll = Random.value;
+            switch (rarity)
+            {
+                case ItemRarity.Common:
+                    if (roll < 0.15f)
+                        return Create("Driftwood");
+                    return roll < 0.25f ? Create("Frayed Rope") : Pick(Flotsam).Clone();
+                case ItemRarity.Uncommon:
+                    if (roll < 0.4f)
+                        return RandomMundane();
+                    if (roll < 0.6f)
+                        return Create("Torch", Random.Range(1, 4));
+                    if (roll < 0.75f)
+                        return Create("Flask of Oil", Random.Range(1, 3));
+                    return Create(roll < 0.9f ? "Stolen Trinket" : "Silver Earring");
+                case ItemRarity.Rare:
+                    return roll < 0.6f ? RandomMagic(ItemRarity.Uncommon) : Pick(Jewelry).Clone();
+                case ItemRarity.VeryRare:
+                    return RandomMagic(ItemRarity.Rare);
+                default:
+                    return RandomMagic(ItemRarity.VeryRare);
+            }
+        }
 
         public static Item RandomMundane() => Pick(Equippable.ToArray()).Clone();
 

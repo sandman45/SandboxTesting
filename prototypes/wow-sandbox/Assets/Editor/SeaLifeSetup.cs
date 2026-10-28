@@ -8,7 +8,8 @@ namespace WowSandbox.EditorTools
     /// <summary>
     /// Fills the shallows with life: little fish schools (fishbasic01, which is already a
     /// handful of fish in one model) that cruise about as scenery (AmbientSwimmer), and a few
-    /// swirls of fish (fishfrenzy) just under the surface that you can fish (FishingSpot).
+    /// swirls of fish (fishfrenzy) just under the surface that you can fish (FishingSpot) — or
+    /// floating ship wreckage with fish round it (tradeskill_fishschool_shipwreck), or a mix.
     ///
     /// Everything goes in the safe water round the island — from the beach out to well short
     /// of DeepSeaDanger's margin — where it's deep enough to swim. Running it again replaces
@@ -19,6 +20,7 @@ namespace WowSandbox.EditorTools
     {
         const string FishPath = "Assets/WowExports/world/critter/fish/fishbasic01.gltf";
         const string FrenzyPath = "Assets/WowExports/world/expansion01/doodads/generic/fishfrenzy/fishfrenzy.gltf";
+        const string WreckagePath = "Assets/WowExports/world/skillactivated/tradeskillenablers/tradeskill_fishschool_shipwreck.gltf";
         const string GeneratedDir = "Assets/WowExports/_Generated";
         const string GroupName = "Sea Life";
         /// <summary>Same -X facing convention as every other M2; see WarriorSetup.ModelYawOffset.</summary>
@@ -26,11 +28,14 @@ namespace WowSandbox.EditorTools
 
         int _schools = 24;
         int _spots = 5;
+        SpotLook _spotLook = SpotLook.Mix;
         float _maxOffshore = 45f;
         Vector2 _fishDepth = new(1f, 4f);
         float _minWaterDepth = 3f;
         float _roamRadius = 20f;
         bool _keepExisting;
+
+        enum SpotLook { FishSwirl, FloatingWreckage, Mix }
 
         [MenuItem("WoW Sandbox/Add Sea Life")]
         public static void ShowWindow()
@@ -53,6 +58,8 @@ namespace WowSandbox.EditorTools
             _keepExisting = EditorGUILayout.Toggle("Keep existing", _keepExisting);
             _schools = EditorGUILayout.IntSlider("Fish schools", _schools, 0, 80);
             _spots = EditorGUILayout.IntSlider("Fishing spots", _spots, 0, 20);
+            _spotLook = (SpotLook)EditorGUILayout.EnumPopup(new GUIContent("Spot look",
+                "Mix makes every other spot floating wreckage."), _spotLook);
             _maxOffshore = EditorGUILayout.Slider("Max distance offshore", _maxOffshore, 0f, 150f);
             _minWaterDepth = EditorGUILayout.Slider("Min water depth", _minWaterDepth, 1f, 20f);
             _fishDepth = MinMax("Fish depth", _fishDepth, 0.5f, 15f);
@@ -65,6 +72,38 @@ namespace WowSandbox.EditorTools
             EditorGUILayout.Space();
             if (GUILayout.Button("Add", GUILayout.Height(30f)))
                 Add();
+            if (GUILayout.Button(new GUIContent("Re-seat Floating Wreckage",
+                    "Puts every floating wreckage spot already in the scene back on the waterline.")))
+                ReseatWreckage();
+        }
+
+        /// <summary>
+        /// Spots placed before the wreckage kept its own origin were centred on their bounds,
+        /// which — with the fish hanging three units under it — lifted the flotsam well clear of
+        /// the water. Puts the model's origin back on the spot, on the surface.
+        /// </summary>
+        static void ReseatWreckage()
+        {
+            int count = 0;
+            foreach (var spot in Object.FindObjectsByType<FishingSpot>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (spot.transform.childCount == 0)
+                    continue;
+                var model = spot.transform.GetChild(0);
+                // Ones added before the Wreckage tick existed are known by their model.
+                if (!spot.wreckage && !model.name.Contains("fishschool_shipwreck"))
+                    continue;
+                Undo.RecordObject(model, "Re-seat Floating Wreckage");
+                Undo.RecordObject(spot, "Re-seat Floating Wreckage");
+                model.localPosition = Vector3.zero;
+                spot.depthBelowSurface = 0f;
+                spot.wreckage = true;
+                count++;
+            }
+            if (count > 0)
+                EditorSceneManager.MarkAllScenesDirty();
+            Debug.Log($"[SeaLifeSetup] Re-seated {count} floating wreckage spot(s) on the waterline. " +
+                      (count > 0 ? "Save the scene to keep it." : "None found."));
         }
 
         static Vector2 MinMax(string label, Vector2 value, float min, float max)
@@ -90,8 +129,11 @@ namespace WowSandbox.EditorTools
             }
 
             var fish = _schools > 0 ? Load(FishPath) : null;
-            var frenzy = _spots > 0 ? Load(FrenzyPath) : null;
-            if (_schools > 0 && fish == null || _spots > 0 && frenzy == null)
+            bool swirls = _spots > 0 && _spotLook != SpotLook.FloatingWreckage;
+            bool wreckage = _spots > 0 && _spotLook != SpotLook.FishSwirl;
+            var frenzy = swirls ? Load(FrenzyPath) : null;
+            var floating = wreckage ? Load(WreckagePath) : null;
+            if (_schools > 0 && fish == null || swirls && frenzy == null || wreckage && floating == null)
                 return;
 
             var group = GameObject.Find(GroupName);
@@ -112,21 +154,30 @@ namespace WowSandbox.EditorTools
                 var parent = Child(group, "Fish Schools");
                 // Rebuilding the controller deletes the asset, which would strip it from the
                 // schools already there — so reuse theirs when keeping them.
-                var controller = Existing(parent) ??
+                var controller = Existing(parent, $"{GeneratedDir}/fishbasic01") ??
                                  M2AnimatorBuilder.BuildSwimming(FishPath, $"{GeneratedDir}/fishbasic01");
                 int first = parent.childCount;
                 foreach (var point in Scatter(water, terrain, _schools, 8f, _fishDepth, parent))
                     CreateSchool(fish, controller, point, parent, first + schools++);
             }
 
-            if (frenzy != null)
+            if (frenzy != null || floating != null)
             {
                 var parent = Child(group, "Fishing Spots");
-                var controller = Existing(parent) ??
-                                 M2AnimatorBuilder.BuildIdle(FrenzyPath, $"{GeneratedDir}/fishfrenzy");
+                var swirlController = frenzy == null ? null :
+                    Existing(parent, $"{GeneratedDir}/fishfrenzy") ?? M2AnimatorBuilder.BuildIdle(FrenzyPath, $"{GeneratedDir}/fishfrenzy");
+                var wreckageController = floating == null ? null :
+                    Existing(parent, $"{GeneratedDir}/fishschool_shipwreck") ??
+                    M2AnimatorBuilder.BuildIdle(WreckagePath, $"{GeneratedDir}/fishschool_shipwreck");
                 int first = parent.childCount;
                 foreach (var point in Scatter(water, terrain, _spots, 30f, new Vector2(0.8f, 0.8f), parent))
-                    CreateSpot(frenzy, controller, point, parent, first + spots++);
+                {
+                    bool isWreckage = floating != null && (frenzy == null || spots % 2 == 1);
+                    if (isWreckage)
+                        CreateSpot(floating, wreckageController, point, parent, first + spots++, 0f, true);
+                    else
+                        CreateSpot(frenzy, swirlController, point, parent, first + spots++, 0.8f, false);
+                }
             }
 
             Selection.activeGameObject = group;
@@ -157,13 +208,14 @@ namespace WowSandbox.EditorTools
             return child;
         }
 
-        /// <summary>The animator controller already on something under <paramref name="parent"/>, if any.</summary>
-        static RuntimeAnimatorController Existing(Transform parent)
+        /// <summary>The animator controller from <paramref name="dir"/> already on something under <paramref name="parent"/>, if any.</summary>
+        static RuntimeAnimatorController Existing(Transform parent, string dir)
         {
             foreach (var animator in parent.GetComponentsInChildren<Animator>())
             {
-                if (animator.runtimeAnimatorController != null)
-                    return animator.runtimeAnimatorController;
+                var controller = animator.runtimeAnimatorController;
+                if (controller != null && AssetDatabase.GetAssetPath(controller).StartsWith(dir + "/"))
+                    return controller;
             }
             return null;
         }
@@ -233,25 +285,31 @@ namespace WowSandbox.EditorTools
             root.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
         }
 
-        static void CreateSpot(GameObject model, RuntimeAnimatorController controller, Vector3 position, Transform parent, int index)
+        static void CreateSpot(GameObject model, RuntimeAnimatorController controller, Vector3 position, Transform parent, int index,
+                               float depthBelowSurface, bool wreckage)
         {
-            var root = new GameObject($"Fishing Spot_{index:00}");
+            var root = new GameObject(wreckage ? $"Floating Wreckage_{index:00}" : $"Fishing Spot_{index:00}");
             root.transform.SetParent(parent);
             root.transform.position = position;
-            var instance = Place(model, controller, root);
+            // The wreckage model's origin is its waterline (the fish hang below it), so it keeps
+            // that rather than being centred like the swirl.
+            var instance = Place(model, controller, root, centre: !wreckage);
 
             // A generous click target: the swirl is small and moving, and usually half-hidden by waves.
             var bounds = MeasureBounds(instance);
             var sphere = root.AddComponent<SphereCollider>();
             sphere.isTrigger = true;
             sphere.radius = Mathf.Max(bounds.extents.x, bounds.extents.z, 1f) * 1.2f;
-            root.AddComponent<FishingSpot>();
+            // The swirl rides just under the surface; the wreckage floats half out of it.
+            var spot = root.AddComponent<FishingSpot>();
+            spot.depthBelowSurface = depthBelowSurface;
+            spot.wreckage = wreckage;
 
             root.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
         }
 
-        /// <summary>The model under <paramref name="root"/>, facing +Z, body centred on the root, animated.</summary>
-        static GameObject Place(GameObject model, RuntimeAnimatorController controller, GameObject root)
+        /// <summary>The model under <paramref name="root"/>, facing +Z, body centred on the root (or its own origin there), animated.</summary>
+        static GameObject Place(GameObject model, RuntimeAnimatorController controller, GameObject root, bool centre = true)
         {
             var instance = (GameObject)PrefabUtility.InstantiatePrefab(model, root.transform);
             instance.transform.localRotation = Quaternion.Euler(0f, ModelYawOffset, 0f);
@@ -260,8 +318,8 @@ namespace WowSandbox.EditorTools
             foreach (var t in instance.GetComponentsInChildren<Transform>(true))
                 GameObjectUtility.SetStaticEditorFlags(t.gameObject, 0);
 
-            var bounds = MeasureBounds(instance);
-            instance.transform.position += root.transform.position - bounds.center;
+            if (centre)
+                instance.transform.position += root.transform.position - MeasureBounds(instance).center;
 
             if (controller != null)
             {

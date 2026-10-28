@@ -45,6 +45,8 @@ namespace WowSandbox
         public float farOffshore = 45f;
         [Tooltip("How far under the waves the swirl rides — it follows the surface up and down.")]
         public float depthBelowSurface = 0.8f;
+        [Tooltip("Floating wreckage: hauls up salvage (ItemCatalog.Salvage) instead of fish, by the same odds.")]
+        public bool wreckage;
 
         SphereCollider _sphere;
         Renderer[] _renderers;
@@ -250,13 +252,13 @@ namespace WowSandbox
         {
             if (Random.value > catchChance)
             {
-                Hud.Info("Nothing bites.");
+                Hud.Info(wreckage ? "Your hook comes up empty." : "Nothing bites.");
                 return;
             }
 
             WaterSplash.Play(Surface(_bobber), 1f);
 
-            var fish = PickFish(RollRarity()).Clone();
+            var fish = wreckage ? ItemCatalog.Salvage(RollRarity()) : PickFish(RollRarity()).Clone();
             if (!_player.Add(fish))
             {
                 Hud.Error("Your bags are full.");
@@ -266,11 +268,15 @@ namespace WowSandbox
             if (fish.rarity >= ItemRarity.Rare && !(_playerMovement != null && _playerMovement.IsSwimming))
                 SetAnimator("Cheer");
 
-            string name = $"<color=#{HudTheme.Hex(HudTheme.RarityColor(fish.rarity))}>{fish.name}</color>";
-            Hud.Info(fish.rarity >= ItemRarity.Rare ? $"What a catch! You land a {name}!" : $"You catch a {name}.");
+            string name = $"<color=#{HudTheme.Hex(HudTheme.RarityColor(fish.rarity))}>{fish.name}</color>" +
+                          (fish.count > 1 ? $" x{fish.count}" : "");
+            if (wreckage)
+                Hud.Info(fish.rarity >= ItemRarity.Rare ? $"Treasure! You haul up {name}!" : $"You haul up {name}.");
+            else
+                Hud.Info(fish.rarity >= ItemRarity.Rare ? $"What a catch! You land a {name}!" : $"You catch a {name}.");
             if (--_catchesLeft <= 0)
             {
-                Hud.Info("The school scatters.");
+                Hud.Info(wreckage ? "The wreckage drifts apart." : "The school scatters.");
                 SetScattered(true);
             }
         }
@@ -345,18 +351,20 @@ namespace WowSandbox
             string dim = HudTheme.Hex(HudTheme.TextDim);
             var lines = new System.Collections.Generic.List<string>
             {
-                "<size=16><b>School of Fish</b></size>",
+                wreckage ? "<size=16><b>Floating Wreckage</b></size>" : "<size=16><b>School of Fish</b></size>",
                 $"<color=#{dim}>Fishing Spot</color>",
             };
             bool hasPole = player != null && player.BestInBags(item => item.IsFishingPole) != null;
             lines.Add(hasPole
-                ? $"<color=#{good}>Fish here with your fishing pole</color>"
+                ? $"<color=#{good}>{(wreckage ? "Snag salvage" : "Fish")} here with your fishing pole</color>"
                 : $"<color=#{bad}>Requires a fishing pole</color>");
             if (player != null && Vector3.Distance(player.transform.position, transform.position) > useRange)
                 lines.Add($"<color=#{bad}>Too far away — come within {useRange:0} yards</color>");
-            if (DayNightCycle.Active != null && DayNightCycle.Active.IsNight)
+            if (!wreckage && DayNightCycle.Active != null && DayNightCycle.Active.IsNight)
                 lines.Add($"<color=#{good}>Night fish are biting</color>");
-            lines.Add($"<color=#{dim}>The fish scatter after a few catches, and come back later</color>");
+            lines.Add(wreckage
+                ? $"<color=#{dim}>It drifts apart after a few hauls, and more washes in later</color>"
+                : $"<color=#{dim}>The fish scatter after a few catches, and come back later</color>");
             lines.Add($"<color=#{dim}><i>Click to fish</i></color>");
             HudTooltip.Show(string.Join("\n", lines));
         }
