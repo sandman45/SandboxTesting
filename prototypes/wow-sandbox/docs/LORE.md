@@ -1,5 +1,7 @@
 # Tidegrave Isle — Story & Lore
 
+**Tidegrave Isle** is a single-player survival and story game built in Unity from World of Warcraft art. You play a ship's captain who has lost their memory, washed up on a cursed island that pulls ships to its shores and never lets them go. It mixes survival, exploration, fishing, sailing and combat, all under a day/night cycle and changing weather. Underneath runs a Dungeons & Dragons ruleset: six ability scores, d20 attack rolls against Armour Class, dice for damage, and magic items from Uncommon +1 gear up to Legendary relics. The story comes out through castaways you meet and journal pages scattered across the island.
+
 > Draft 4 (2026-10-21). Loosely set in Azeroth: it borrows Kul Tiras and the Great Sea as
 > flavour, but the isle, its people and its curse are our own. Nothing here should need
 > Warcraft canon to make sense.
@@ -446,10 +448,10 @@ leans on them.
   roughly where each lies. They glint where they lie, and he takes them as you find them
   (`CompassQuest`). He keeps a workshop of gears in the hut and walks between them as he works.
   Still to come:
-  - 📝 **A couple more shipwrecks** round the coast, older than the Stormbreaker, one sunk in
-    the shallows (a dive), for the parts to lie in. 🎨 Wreck exports: the Kul Tiran
-    `8nzj_nazjatar_kultiras_shipwreck04`/`05`, the buccaneer and cargo-ship wrecks, and
-    `wreckedrowboat` for Sprocket's lost rowboat; else the Stormbreaker's own pieces again.
+  - 🚧 **More shipwrecks** round the coast, older than the Stormbreaker, for the parts to lie
+    in. ✅ Add Shipwreck now places any exported wreck type (Kul Tiran 01–05, the dungeon
+    wreck's pieces, Forsaken, orc, rowboat, debris), and more wrecks are on the beach. 🆕 One
+    **sunk in the shallows** (a dive) still needs an underwater placement option.
   - 🆕 The **Compass Mk VIII** he builds from the parts, whose needle points at the Tide-Heart.
 - 🆕 **Grey Gull locked, then unlocked.** The helm refuses at first ("She won't answer
   the helm. Rotten canvas, and no hands to work her."). Two conditions free her: Sprocket's
