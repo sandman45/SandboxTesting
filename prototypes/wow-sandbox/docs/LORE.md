@@ -444,9 +444,13 @@ leans on them.
 - 🚧 **The fog compass quest.** Sprocket asks for four parts (Brass Gimbal, Lodestone Needle,
   Cracked Dial Glass, Clockwork Mainspring), one from each of the isle's wrecks, and says
   roughly where each lies. They glint where they lie, and he takes them as you find them
-  (`CompassQuest`). Still to come: 🆕 two or three older wrecks round the coast, one sunk in
-  the shallows, and 🆕 the **Compass Mk VIII** he builds from them, whose needle points at the
-  Tide-Heart.
+  (`CompassQuest`). He keeps a workshop of gears in the hut and walks between them as he works.
+  Still to come:
+  - 📝 **A couple more shipwrecks** round the coast, older than the Stormbreaker, one sunk in
+    the shallows (a dive), for the parts to lie in. 🎨 Wreck exports: the Kul Tiran
+    `8nzj_nazjatar_kultiras_shipwreck04`/`05`, the buccaneer and cargo-ship wrecks, and
+    `wreckedrowboat` for Sprocket's lost rowboat; else the Stormbreaker's own pieces again.
+  - 🆕 The **Compass Mk VIII** he builds from the parts, whose needle points at the Tide-Heart.
 - 🆕 **Grey Gull locked, then unlocked.** The helm refuses at first ("She won't answer
   the helm. Rotten canvas, and no hands to work her."). Two conditions free her: Sprocket's
   **sail-mending** quest (salvaged canvas from wrecks, as quest items) and **Pell rescued**,

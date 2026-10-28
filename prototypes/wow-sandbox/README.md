@@ -99,6 +99,10 @@ As of 2026-10-26:
 - **Sprocket Wizzlecrank,** the isle's gnome castaway, tinkering at his bench in the gnome hut in a pair of goggles. He downs tools and turns to you when you come close, and hands over his compass notes (page 5).
 - **Talk gestures:** Briggs and Sprocket gesture as they answer, picked from the line: emphatic for "!", asking for "?", hushed for an aside.
 - **More journal pages:** page 4 in the Grey Gull's captain's quarters, and page 6 on a troll tablet among standing stones near the troll hut.
+- **Sprocket's compass errand:** after his notes he asks for four parts for his Mark EIGHT compass (Brass Gimbal, Lodestone Needle, Cracked Dial Glass, Clockwork Mainspring), says roughly where each lies, and takes them as you find them. The parts glint where they lie.
+- **Sprocket's workshop:** an engineering table, a stack of gears and loose cogs in the gnome hut. He works at the bench, walks round the gears tinkering at each, and comes back.
+
+📝 **Next up:** a couple more shipwrecks round the coast, older than the Stormbreaker and one sunk in the shallows, for the compass parts to lie in. Then the **Compass Mk VIII** Sprocket builds from the parts. Wreck models worth exporting (as OBJ): `8nzj_nazjatar_kultiras_shipwreck04` / `05` (Kul Tiran), `7fk_transport_buccaneer_shipwreck01` / `02`, `6hu_transport_cargoship_wrecked01`, and `wreckedrowboat.m2` for Sprocket's lost rowboat.
 
 ✅ **Doodad chain verified end-to-end** on `md_pirateship` exported as OBJ: wow.export writes `pirateship_ModelPlacementInformation.csv` plus each doodad's OBJ, and wow.unity rebuilds `pirateship.prefab` with all 36 doodads (cannons, lanterns, hammocks, anchor) in place. Drag the **`.prefab`**, not the `.obj`. The traps on the way are listed under "Export format" below.
 
@@ -184,7 +188,9 @@ Two editor menu items rebuild the whole playable scene from scratch, so nothing 
 | **WoW Sandbox → Add Vendor** | Places Quartermaster Briggs (the bearded-pirate export) on the beach nearest the ship and gives the player a `VendorPanel`. |
 | **WoW Sandbox → Add Sprocket** | Places Sprocket Wizzlecrank (the gnome export) on the gnome hut's floor with a `Tinkerer`, a `Speaker` and gnome goggles. Move him to his bench and turn him to face it, then save the scene. Re-running it on the Sprocket in the scene refits his goggles, reframes his portrait and adds any missing talk gestures. |
 | **WoW Sandbox → Place Treasure Chest** | A window: pick a chest model (everything in `world/skillactivated/containers`, plus `creatures/TreasureTracker`) and its height (0.9), and place it where the Scene view is looking (see *Treasure chests and ground items*). |
-| **WoW Sandbox → Place Ground Item** | A window: an item (or coin) to lie on the ground where the Scene view is looking, with a model per kind of item. |
+| **WoW Sandbox → Place Ground Item** | A window: an item (or coin) to lie on the ground where the Scene view is looking, with a model per kind of item. Quest items (Sprocket's compass parts) each have a model of their own. |
+| **WoW Sandbox → Refresh Quest Item Models** | Gives every compass part already lying in the scene its own model, keeping its spot, turn and size. Save the scene after. |
+| **WoW Sandbox → Dress Sprocket's Workshop** | Sets the engineering table in front of Sprocket, with a gear stack at its end and loose cogs on the floor, under "Sprocket's Workshop" in the gnome hut. He makes his rounds between the bench and these gears. Re-running replaces the set; move Sprocket first if you want it elsewhere. |
 | **WoW Sandbox → Rebuild Dev Chests** | Rebuilds the chests the Developer panel spawns. They're built by themselves on Play when missing; this is for after changing how chests are set up. |
 
 **Floating ships:** add **Ship Buoyancy** to a ship (after its dry zone). In Play it rises, falls, pitches and rolls with `WaterWaves`, eased by *Response Time*, and the dry zone travels with it. The waterline is wherever you placed it in the editor. Standing on the deck carries you with it — `WowCharacterController` rides anything with a kinematic Rigidbody under its feet, which Ship Buoyancy adds.
