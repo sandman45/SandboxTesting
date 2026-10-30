@@ -87,7 +87,8 @@ namespace WowSandbox
             {
                 var position = transform.position;
                 position.y = _water.SurfaceHeightAt(position) - depthBelowSurface;
-                transform.position = position;
+                // Flat on the water, even under a parent that's tipped (a sunk wreck's).
+                transform.SetPositionAndRotation(position, Quaternion.Euler(0f, transform.eulerAngles.y, 0f));
             }
 
             if (_casting == this)

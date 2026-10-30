@@ -183,8 +183,9 @@ are placeholders:
 
 ### Sprocket Wizzlecrank (the gnome)
 
-Placeholder name. A tinkerer whose ship was dragged in years ago, still living in the gnome
-hut. Cheerful, frantic, and certain that every problem is an engineering problem. Their
+Placeholder name. A tinkerer who came in years ago on the **Pale Lament**, a ship he
+chartered out of Booty Bay with a Forsaken crew (nobody else would sail him out this way). She
+sank off the reef with all hands, and he still lives in the gnome hut. Cheerful, frantic, and certain that every problem is an engineering problem. Their
 **fog compass** "almost works": it points at the Tide-Heart instead of away from it. With
 parts salvaged from the wrecks and the Captain's blood (Sprocket is *fascinated* by this),
 it can be made to point home. A quest-giver and comic relief, and the one who works out
@@ -450,8 +451,17 @@ leans on them.
   Still to come:
   - 🚧 **More shipwrecks** round the coast, older than the Stormbreaker, for the parts to lie
     in. ✅ Add Shipwreck now places any exported wreck type (Kul Tiran 01–05, the dungeon
-    wreck's pieces, Forsaken, orc, rowboat, debris), and more wrecks are on the beach. 🆕 One
-    **sunk in the shallows** (a dive) still needs an underwater placement option.
+    wreck's pieces, Forsaken, orc, rowboat, debris), and more wrecks are on the beach.
+    ✅ Add Shipwreck's **Where = Sunk** puts one on the seabed at the reef edge, with bubbles, a
+    fish school and floating wreckage over it. The sunk Forsaken wreck is the **Pale Lament**,
+    Sprocket's chartered ship: the Lodestone Needle lies in her, beside a chest holding her
+    captain's **Signet of the Pale Lament** (Rare), and the Captain thinks aloud on first
+    swimming up to her. Sprocket has his own line when you bring him her needle.
+  - 🚧 **The old dinghy.** Asked where the needle is, Sprocket tells you of a stove-in dinghy on
+    the beach and lends you his Tinker's Hammer. Patch it with 2 Splintered Planks, Rusted Nails
+    and Sodden Sailcloth (fished off the floating wreckage), then row it out to the Pale Lament.
+    It's a shore boat: it runs aground in the shallows and won't cross the Dangerous Waters
+    line. (`Dinghy`, WoW Sandbox → Add Dinghy; models: the worgen rowboats, broken and whole.)
   - 🆕 The **Compass Mk VIII** he builds from the parts, whose needle points at the Tide-Heart.
 - 🆕 **Grey Gull locked, then unlocked.** The helm refuses at first ("She won't answer
   the helm. Rotten canvas, and no hands to work her."). Two conditions free her: Sprocket's

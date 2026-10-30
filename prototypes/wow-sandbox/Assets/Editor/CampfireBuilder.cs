@@ -402,7 +402,8 @@ namespace WowSandbox.EditorTools
 
         /// <summary>
         /// The bounds of every shipwreck in the scene — the topmost object named like one (Add
-        /// Shipwreck's "Shipwreck", or any placed by hand).
+        /// Shipwreck's "Shipwreck", or any placed by hand). Not sunk ones, nor floating wreckage
+        /// (its model is tradeskill_fishschool_shipwreck): nothing washes up off those.
         /// </summary>
         static List<Bounds> Wrecks()
         {
@@ -410,6 +411,8 @@ namespace WowSandbox.EditorTools
             foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsSortMode.None))
             {
                 if (!t.name.ToLowerInvariant().Contains("shipwreck") || (t.parent != null && InWreck(t.parent)))
+                    continue;
+                if (t.name.Contains(" - Sunk ") || t.GetComponentInParent<FishingSpot>(true) != null)
                     continue;
                 var bounds = InteractableSetup.RendererBounds(t.gameObject);
                 if (bounds.size.sqrMagnitude > 0f)

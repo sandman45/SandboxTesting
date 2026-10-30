@@ -61,13 +61,22 @@ namespace WowSandbox
             if (lying == null || terrain == null)
                 return "somewhere about the isle";
 
-            var size = terrain.terrainData.size;
-            var middle = terrain.GetPosition() + new Vector3(size.x * 0.5f, 0f, size.z * 0.5f);
-            var away = lying.transform.position - middle;
-            string side = Direction(new Vector2(away.x, away.z));
+            string side = SideOf(lying.transform.position);
             var water = Object.FindAnyObjectByType<WaterVolume>();
             bool sunk = water != null && lying.transform.position.y < water.SurfaceY - 0.5f;
             return sunk ? $"sunk off the {side} shore. You'll have to dive for it" : $"on the {side} side of the isle";
+        }
+
+        /// <summary>Which side of the isle <paramref name="point"/> is on, from its middle: "north", "southwest".</summary>
+        public static string SideOf(Vector3 point)
+        {
+            var terrain = Terrain.activeTerrain;
+            if (terrain == null)
+                return "middle";
+            var size = terrain.terrainData.size;
+            var middle = terrain.GetPosition() + new Vector3(size.x * 0.5f, 0f, size.z * 0.5f);
+            var away = point - middle;
+            return Direction(new Vector2(away.x, away.z));
         }
 
         static string Direction(Vector2 away)
