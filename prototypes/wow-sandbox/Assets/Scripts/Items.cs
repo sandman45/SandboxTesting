@@ -320,6 +320,8 @@ namespace WowSandbox
             Tool("Fishing Pole", "FP", 1 * Money.Gold),
             // 5e's tinderbox, by another name: with three Driftwood, a campfire (Campfire).
             Tool("Flint & Steel", "Fl", 5 * Money.Silver),
+            // Sprocket's, lent for patching the dinghy (Dinghy).
+            Tool("Tinker's Hammer", "Hm", 5 * Money.Silver),
         };
 
         /// <summary>
@@ -376,8 +378,19 @@ namespace WowSandbox
             Legendary(Shield, "Aegis of the Dawn", magic: 3, (Ability.Constitution, 1), (Ability.Wisdom, 1)),
         };
 
+        /// <summary>
+        /// Hand-made magic items below Legendary, each placed once in the world (a chest's
+        /// Contents) — never rolled or sold.
+        /// </summary>
+        public static readonly Item[] Uniques =
+        {
+            // The Pale Lament's captain's ring, in the chest aboard her wreck.
+            Unique(Jewelry.First(ring => ring.name == "Silver Ring"), "Signet of the Pale Lament", ItemRarity.Rare,
+                protection: 1, (Ability.Constitution, 1)),
+        };
+
         static IEnumerable<Item> Equippable => Weapons.Concat(Armors).Append(Shield).Concat(Clothing).Concat(Jewelry);
-        static IEnumerable<Item> All => Equippable.Concat(LootOnly).Concat(Tools).Concat(Lights).Concat(TradeGoods).Concat(Flotsam).Concat(Fish.Skip(1)).Concat(NightFish.Where(fish => fish != null)).Concat(Meals).Concat(Potions).Concat(Legendaries).Concat(QuestItems);
+        static IEnumerable<Item> All => Equippable.Concat(LootOnly).Concat(Tools).Concat(Lights).Concat(TradeGoods).Concat(Flotsam).Concat(Fish.Skip(1)).Concat(NightFish.Where(fish => fish != null)).Concat(Meals).Concat(Potions).Concat(Legendaries).Concat(Uniques).Concat(QuestItems);
 
         /// <summary>A merchant's shelves: every mundane piece of gear, the tools and lights, then the potions — fresh copies.</summary>
         public static Item[] VendorStock() => Equippable.Concat(Tools).Concat(Lights).Concat(Potions).Select(item => item.Clone()).ToArray();
@@ -644,6 +657,18 @@ namespace WowSandbox
             name = name, baseName = name, kind = ItemKind.Consumable, glyph = "HP", iconColor = PotionColor,
             healDieCount = dice, healDieSides = sides, healBonus = bonus, valueCopper = value, maxStack = 5,
         };
+
+        static Item Unique(Item baseItem, string name, ItemRarity rarity, int protection, params (Ability ability, int bonus)[] abilities)
+        {
+            var item = baseItem.Clone();
+            item.name = name;
+            item.rarity = rarity;
+            item.protectionBonus += protection;
+            foreach (var (ability, bonus) in abilities)
+                item.abilityBonuses[(int)ability] = bonus;
+            item.valueCopper += 500 * Money.Gold;
+            return item;
+        }
 
         static Item Legendary(Item baseItem, string name, int magic, params (Ability ability, int bonus)[] abilities)
         {

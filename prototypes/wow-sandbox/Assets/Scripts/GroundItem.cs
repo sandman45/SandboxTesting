@@ -116,7 +116,8 @@ namespace WowSandbox
 
             var movement = player.GetComponent<WowCharacterController>();
             var animator = movement != null ? movement.Animator : null;
-            if (animator != null && animator.runtimeAnimatorController != null)
+            // A standing reach — not while swimming (down at a sunk wreck, say).
+            if (animator != null && animator.runtimeAnimatorController != null && !movement.IsSwimming)
                 foreach (var parameter in animator.parameters)
                     if (parameter.nameHash == LootGrabHash)
                         animator.SetTrigger(LootGrabHash);

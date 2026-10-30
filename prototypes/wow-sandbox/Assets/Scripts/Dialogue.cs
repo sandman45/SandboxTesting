@@ -247,8 +247,9 @@ namespace WowSandbox
             "Out of a clear sky, with something big underneath it? ... Thought so. It always is."));
 
         static DialogueNode HowLong() => Topics(new DialogueNode(
-            "Eleven years! Or twelve. I stopped counting when I ran out of wall. I came in on the Cogwhistle, a little " +
-            "steam tender out of Booty Bay. The isle ate her. Well, the storm did. Same thing, really."));
+            "Eleven years! Or twelve. I stopped counting when I ran out of wall. I chartered the Pale Lament out of " +
+            "Booty Bay. Forsaken crew. Nobody else would sail me out this way, and they didn't mind the storm at all. " +
+            "The reef they minded. She went down off the shore with every one of them still aboard."));
 
         static DialogueNode Leave() => Topics(new DialogueNode(
             "Oh, I've tried! Rowboat, raft, a sort of flying barrel. The fog turns you round. Sail straight out and you " +
@@ -307,14 +308,42 @@ namespace WowSandbox
             {
                 "Brass Gimbal" => "A ship's compass sits in a gimbal, so it keeps level when she rolls. Your Stormbreaker " +
                                   "had a fine brass one in her binnacle, I'd wager.",
-                "Lodestone Needle" => "A needle cut from lodestone. The Cogwhistle carried one, my old girl. The isle " +
-                                      "took her, but she's still out there.",
+                "Lodestone Needle" => "A needle cut from lodestone. The Pale Lament had a beauty in her binnacle, the " +
+                                      "ship I came in on. She's still down there, crew and all.",
                 "Cracked Dial Glass" => "Any ship's compass has a glass over the dial. Cracked is fine. Cracked is " +
                                         "practically traditional.",
                 _ => "A good strong mainspring, the clockwork kind. Ship's chronometers have them, and some of these " +
                      "wrecks are old enough to have proper ones.",
             };
-            return Needed($"{what} Look {CompassQuest.Where(part)}.");
+            string where = $"{what} Look {CompassQuest.Where(part)}.";
+            if (part == "Lodestone Needle" && Dinghy.Current != null && !Dinghy.Current.IsRepaired)
+                return DinghyTip(where);
+            return Needed(where);
+        }
+
+        /// <summary>
+        /// The needle's in the Pale Lament, out on the reef: he tells you about the old dinghy on
+        /// the beach, and lends you his hammer for it (once).
+        /// </summary>
+        static DialogueNode DinghyTip(string where)
+        {
+            string side = CompassQuest.SideOf(Dinghy.Current.transform.position);
+            bool lent = StoryState.Has(Dinghy.Told);
+            if (!lent)
+            {
+                StoryState.Set(Dinghy.Told);
+                var inventory = Player;
+                if (inventory == null || !inventory.Add(ItemCatalog.Create(Dinghy.Hammer)))
+                    Hud.Error("Inventory is full.");
+                else
+                    Hud.Info($"Sprocket hands you his {Dinghy.Hammer}.");
+            }
+            return Needed(where + (lent
+                ? $" Or row out! The dinghy's still on the {side} beach. Two planks, some nails and a scrap of sailcloth. " +
+                  "The flotsam out on the water's full of them, if you've a line to fish it up."
+                : $" Long swim, mind. But there's an old dinghy stove in on the {side} beach. Patch her up and you can row " +
+                  "out. Here, take my hammer. Two planks, some nails and a scrap of sailcloth should do it. Fish them up " +
+                  "off the floating wreckage."));
         }
 
         static DialogueNode HandIn()
@@ -322,6 +351,9 @@ namespace WowSandbox
             var handed = CompassQuest.HandIn(Player);
             int left = CompassQuest.Missing.Count();
             string got = handed.Count == 1 ? $"The {handed[0]}!" : $"{handed.Count} of them at once!";
+            if (handed.Contains("Lodestone Needle"))
+                got += " You dove the Pale Lament? Did you see... no. Don't tell me about the crew. I'd rather think of " +
+                       "them sailing.";
             if (left == 0)
                 return Topics(new DialogueNode(
                     $"{got} That's all four! Oh, Captain. Give me a day at the bench. Possibly two. Possibly an " +

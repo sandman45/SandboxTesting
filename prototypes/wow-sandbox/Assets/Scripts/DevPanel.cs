@@ -264,6 +264,20 @@ namespace WowSandbox
                 ("Rest at Fire", () => Player<Hunger>(h => h.Rest(h.restSeconds))),
                 ("Raw Fish", () => Player<Inventory>(i => i.Add(ItemCatalog.Create("Raw Fish", 3)))));
             Buttons(ref y,
+                ("Dinghy Kit", () => Player<Inventory>(i =>
+                {
+                    if (i.BestInBags(item => item.baseName == Dinghy.Hammer) == null)
+                        i.Give(Dinghy.Hammer);
+                    foreach (var (item, count) in Dinghy.Patch)
+                        i.Add(ItemCatalog.Create(item, count));
+                })),
+                ("Mend Dinghy", () =>
+                {
+                    StoryState.Set(Dinghy.Repaired);
+                    if (Dinghy.Current != null)
+                        Dinghy.Current.Refresh();
+                }));
+            Buttons(ref y,
                 ("Fire Kit", () => Player<Inventory>(i =>
                 {
                     if (i.BestInBags(item => item.baseName == Campfire.FlintName) == null)

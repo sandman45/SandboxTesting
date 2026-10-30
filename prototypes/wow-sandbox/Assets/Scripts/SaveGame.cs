@@ -293,6 +293,12 @@ namespace WowSandbox
                 {
                     item = item.exact, position = item.transform.position, yaw = item.transform.eulerAngles.y,
                 }).ToArray();
+            var dinghy = Dinghy.Current;
+            if (dinghy != null && dinghy.boat != null)
+                data.dinghy = new DinghyData
+                {
+                    exists = true, position = dinghy.boat.position, yaw = dinghy.boat.eulerAngles.y,
+                };
             var fire = Campfire.Current;
             if (fire != null)
                 data.campfire = new FireData
@@ -433,6 +439,13 @@ namespace WowSandbox
                 if (dropped.item != null && !string.IsNullOrEmpty(dropped.item.name))
                     GroundItem.Drop(dropped.item, dropped.position, dropped.yaw);
 
+            if (Dinghy.Current != null)
+            {
+                if (data.dinghy is { exists: true } dinghy)
+                    Dinghy.Current.Restore(dinghy.position, dinghy.yaw);
+                else
+                    Dinghy.Current.Refresh();
+            }
             if (data.campfire is { exists: true } fire)
                 Campfire.Place(fire.position, fire.yaw, fire.hours, fire.lit && fire.hours > 0f);
             else if (Campfire.Current != null)
@@ -517,6 +530,16 @@ namespace WowSandbox
             public ChestData[] chests = Array.Empty<ChestData>();
             public string[] dead = Array.Empty<string>();
             public ShipData[] ships = Array.Empty<ShipData>();
+            public DinghyData dinghy;
+        }
+
+        [Serializable]
+        public class DinghyData
+        {
+            // JsonUtility always writes one, so this says whether it was saved at all.
+            public bool exists;
+            public Vector3 position;
+            public float yaw;
         }
 
         [Serializable]
