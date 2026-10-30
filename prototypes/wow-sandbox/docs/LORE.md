@@ -457,11 +457,12 @@ leans on them.
     Sprocket's chartered ship: the Lodestone Needle lies in her, beside a chest holding her
     captain's **Signet of the Pale Lament** (Rare), and the Captain thinks aloud on first
     swimming up to her. Sprocket has his own line when you bring him her needle.
-  - 🚧 **The old dinghy.** Asked where the needle is, Sprocket tells you of a stove-in dinghy on
+  - ✅ **The old dinghy.** Asked where the needle is, Sprocket tells you of a stove-in dinghy on
     the beach and lends you his Tinker's Hammer. Patch it with 2 Splintered Planks, Rusted Nails
     and Sodden Sailcloth (fished off the floating wreckage), then row it out to the Pale Lament.
     It's a shore boat: it runs aground in the shallows and won't cross the Dangerous Waters
-    line. (`Dinghy`, WoW Sandbox → Add Dinghy; models: the worgen rowboats, broken and whole.)
+    line. Space stands you up in her, and she's solid to stand in. (`Dinghy`, WoW Sandbox → Add
+    Dinghy; models: the worgen rowboats, broken and whole.)
   - 🆕 The **Compass Mk VIII** he builds from the parts, whose needle points at the Tide-Heart.
 - 🆕 **Grey Gull locked, then unlocked.** The helm refuses at first ("She won't answer
   the helm. Rotten canvas, and no hands to work her."). Two conditions free her: Sprocket's
